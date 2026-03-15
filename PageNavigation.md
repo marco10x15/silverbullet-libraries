@@ -7,7 +7,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/PageNavigation.md"
 share.mode: pull
 ---
 share.hash: eb690bee
-# page.functions
+# Page Navigation Functions
 
 Funzioni di navigazione pagine e gestione metadati
 
@@ -21,15 +21,13 @@ Funzioni di navigazione pagine e gestione metadati
 |page.parents(path)|table| _genitori_ di quella attuale|
 |page.sister()|table|_sorelle_ di quella attuale|
 |page.child(path)|table|_figli_ di quella attuale|
-|page.meta(where)|table|_meta dati_ della pagina where|
+|~~page.meta(where)~~|table|_meta dati_ della pagina where|
 |page.up()|string|_padre_ di quella attuale|
 |page.prec()|string|_sorella precedente_|
 |page.succ()|string|_sorella successiva_|
 |page.nome()|string|_estrae il nome della pagina_ dall’ultima parte del path|
-|page.tags()|table|_estrae i tag della pagina_ |
+|~~page.tags()~~|table|_estrae i tag della pagina_ |
 |page.lev() |number|Restituisce il livello della pagina|
-
-
 
 ## Implementation
 
