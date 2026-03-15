@@ -6,7 +6,7 @@
 * OutlineParent(parent)
 
 ### Widgets
-* Ancora nessun Tool presente
+* DateFormat(dataISO, "format")
 
 ### Deprecated Libraries
 * 
