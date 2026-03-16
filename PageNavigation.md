@@ -3,10 +3,10 @@ name: "Library/MG/PageNavigation"
 tags: meta/library
 pageDecoration.prefix: "📃 "
 share.uri: "github:marco10x15/silverbullet-libraries/PageNavigation.md"
-
+share.hash: eb690bee
 share.mode: pull
 ---
-share.hash: eb690bee
+
 # Page Navigation Functions
 
 Funzioni di navigazione pagine e gestione metadati
