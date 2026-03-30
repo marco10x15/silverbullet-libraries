@@ -11,8 +11,15 @@ uri: github:marco10x15/silverbullet-libraries/OutlineParent.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/OutlineParent.md
 description: "Outline Explorer for SilverBullet"
 ---
-name: "👓👓 Test Library"
-uri: github:marco10x15/silverbullet-libraries/test-library.md
-website: https://github.com/marco10x15/silverbullet-libraries/blob/main/test-library.md
+name: "📃 Page Navigation"
+uri: github:marco10x15/silverbullet-libraries/PageNavigation.md
+website: https://github.com/marco10x15/silverbullet-libraries/blob/main/PageNavigation.md
 description: "Test Library per aggiornamenti"
+---
+name: "📆 Date Format"
+uri: github:marco10x15/silverbullet-libraries/DateFormat.md
+website: https://github.com/marco10x15/silverbullet-libraries/blob/main/DateFormat.md
+description: "Format a ISO Date string in Human Readable"
+https://github.com/marco10x15/silverbullet-libraries/blob/main/DateFormat.md
+
 ```
