@@ -1,5 +1,5 @@
 ---
-name: "Library/MG-10x15/test-lybrary"
+name: "Library/MG-10x15/test-library"
 tags: meta/library
 pageDecoration.prefix: "🛠️ "
 ---
