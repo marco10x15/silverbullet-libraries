@@ -5,13 +5,13 @@ pageDecoration.prefix: "📚 "
 ---
 ## Tools
 ```#meta/library/remote
-name: "🗂️ Document Explorer for SilverBullet"
-uri: github:Mr-xRed/silverbullet-libraries/DocumentExplorer.md
-website: https://github.com/Mr-xRed/silverbullet-libraries/blob/main/DocumentExplorer.md
-description: "Document Explorer for SilverBullet with Grid|List|Tree-View and some other handy features"
+name: "🗂️ Outline Explorer"
+uri: github:marco10x15/silverbullet-libraries/OutlineParent.md
+website: https://github.com/marco10x15/silverbullet-libraries/blob/main/OutlineParent.md
+description: "Outline Explorer for SilverBullet"
 ---
 name: "👓👓 Test Library"
 uri: github:marco10x15/silverbullet-libraries/test-lybrary.md
-website:https://github.com/marco10x15/silverbullet-libraries/blob/main/test-library.md
+website: https://github.com/marco10x15/silverbullet-libraries/blob/main/test-library.md
 description: "Test Library per aggiornamenti"
 ```
