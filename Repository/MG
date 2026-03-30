@@ -2,6 +2,7 @@
 name: "Repositories/MG"
 tags: meta/repository
 pageDecoration.prefix: "📚 "
+version: "2026-03-30-001"
 ---
 ## Tools
 ```#meta/library/remote
