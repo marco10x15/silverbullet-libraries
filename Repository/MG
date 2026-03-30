@@ -9,13 +9,12 @@ version: "2026-03-30-001"
 name: "📃 Page Navigation"
 uri: github:marco10x15/silverbullet-libraries/PageNavigation.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/PageNavigation.md
-description: "Test Library per aggiornamenti"
+description: "Page Navigation Functions and Widgets"
 ---
 name: "📆 Date Format"
 uri: github:marco10x15/silverbullet-libraries/DateFormat.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/DateFormat.md
 description: "Format a ISO Date string in Human Readable"
-https://github.com/marco10x15/silverbullet-libraries/blob/main/DateFormat.md
 ---
 name: "🗂️ Outline Explorer"
 uri: github:marco10x15/silverbullet-libraries/OutlineParent.md
