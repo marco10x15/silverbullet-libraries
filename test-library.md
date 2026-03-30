@@ -8,7 +8,8 @@ pageDecoration.prefix: "🛠️ "
 Questa libreria Dummy mi serve per verfificare le modalità di aggiornamento..
 
 ## Usage
-* 2026-03-30 Prima "release"
+* 2026-03-30 002 Release di prova per verificare update da SB
+* 2026-03-30 001 Prima "release"
 
 ## Implementation
 Non occorre implementare nulla...
