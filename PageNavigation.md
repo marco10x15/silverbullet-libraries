@@ -14,7 +14,7 @@ Funzioni di navigazione pagine e gestione metadati
 ## Example of format accepted and output provided
 |Funzione|Descrizione
 |---|---|
-|widgets.breadcrumb()|Crea il [[Library/my/Widgets/breadcrumb]] fino alla pagina padre|
+|breadcrumb()|Crea il breadcrumb fino alla pagina padre|
 
 |Funzione|restituisce|Descrizione|
 |---|---|---|
@@ -163,5 +163,88 @@ function page.lev(path)
 end
 ```
 
+## breadcrumb (Widgets)
+Restituisce il link fino alla pagina padre nella forma:
+* [[Library]]|[[Library/my]]|[[Library/my/Widgets]]
+
+**Si applica alle pagine:**
+* si applica A TUTTE le pagine tranne:
+  * Diario/
+
+**Non si applica alle pagine:**
+* Diario/
+
+Esempio con il percorso attuale:
+${breadcrumb()}
+
+Funzione che crea un breadcrumb di navigazione in grado di avere sia il link alla pagina che di utilizzare come nome visualizzato l’attributo _displayName_
+
+```space-lua
+function breadcrumb()
+  local path = editor.getCurrentPage()
+  local child = page.child()
+  local parts = string.split(path, "/")
+  local breadcrumbs = {}
+  local currentPath = ""
+
+  local navp_raw = page.navp()
+  local navs_raw = page.navs()
+
+  local navp = (navp_raw and navp_raw ~= "") and ("[[" .. navp_raw .. "|👈]]") or nil
+  local navs = (navs_raw and navs_raw ~= "") and ("[[" .. navs_raw .. "|👉]]") or nil
+
+  if parts[1] == "Diario" then
+    return
+  elseif parts[1] == "index" then
+    return
+  end
+
+  local function getDisplayName(pagePath)
+    local meta = query[[
+      from index.tag "page"
+      where name == pagePath
+      select { displayName = displayName }
+    ]]
+    if meta[1] and meta[1].displayName then
+      return meta[1].displayName
+    else
+      return string.match(pagePath, "([^/]+)$") or pagePath
+    end
+  end
+
+  for i, part in ipairs(parts) do
+    if i == 1 then
+      currentPath = part
+    else
+      currentPath = currentPath .. "/" .. part
+    end
+    local label = page.title(currentPath)
+    if i == #parts then
+      if navp then table.insert(breadcrumbs, navp) end
+      table.insert(breadcrumbs, "**" .. label .. "**")
+    else
+      table.insert(breadcrumbs, string.format("[[%s|%s]]", currentPath, label))
+    end
+  end
+
+  if navs then table.insert(breadcrumbs, navs) end
+
+  return table.concat(breadcrumbs, "|")
+end
+```
+
+```space-lua
+event.listen {
+  name = "hooks:renderTopWidgets",
+  run = function(e)
+    if editor.getCurrentPage().startsWith("Diario/") then
+      return
+    elseif editor.getCurrentPage().startsWith("index") then
+      return
+    end
+    return widget.new {markdown = "\n\n".. breadcrumb().."\n\n"}
+  end
+}
+```
 
 ## More Examples & Discussions
