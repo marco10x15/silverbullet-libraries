@@ -65,7 +65,7 @@ function wTopDiario(path)
     local fm = index.extractFrontmatter(content)
     
     local result = string.format("⬅️[[%s]]",page.prec())
-                    .. " - " 
+                    .. "🔹" 
                     .. string.format("[[%s]]➡️",page.succ())
                     .. "\n"
     if fm.frontmatter.description then
