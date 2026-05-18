@@ -16,6 +16,11 @@ uri: github:marco10x15/silverbullet-libraries/DateFormat.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/DateFormat.md
 description: "Format a ISO Date string in Human Readable"
 ---
+name: "🗂️ Mio Diario"
+uri: github:marco10x15/silverbullet-libraries/MioDiario.md
+website: https://github.com/marco10x15/silverbullet-libraries/blob/main/MioDiario.md
+description: "Documentazione, configurazioni, space-lua script, widget, tutto quello che costituisce la struttura del mio diario."
+---
 name: "🗂️ Outline Explorer"
 uri: github:marco10x15/silverbullet-libraries/OutlineParent.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/OutlineParent.md
