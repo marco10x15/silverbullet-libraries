@@ -25,4 +25,9 @@ name: "🗂️ Outline Explorer"
 uri: github:marco10x15/silverbullet-libraries/OutlineParent.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/OutlineParent.md
 description: "Outline Explorer for SilverBullet"
+---
+name: "⚙️ Le mie configurazioni"
+uri: github:marco10x15/silverbullet-libraries/Mie_Configurazioni.md
+website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mie_Configurazioni.md
+description: "Le mie configurazioni"
 ```
