@@ -11,6 +11,11 @@ uri: github:marco10x15/silverbullet-libraries/PageNavigation.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/PageNavigation.md
 description: "Page Navigation Functions and Widgets"
 ---
+name: "📃 Page Widgets"
+uri: github:marco10x15/silverbullet-libraries/Page_Widgets.md
+website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Page_Widgets.md
+description: "Widgets: page.nome(). page.title()"
+---
 name: "📆 Date Format"
 uri: github:marco10x15/silverbullet-libraries/DateFormat.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/DateFormat.md
