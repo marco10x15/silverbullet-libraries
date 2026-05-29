@@ -1,0 +1,104 @@
+---
+name: "Library/MG/Mio_Diario_2"
+tags: meta/library
+pageDecoration.prefix: "📃 "
+share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_2.md"
+---
+# Mio Diario - Linked Info Luoghi
+Questo widget presenta l'elenco dei Viaggi e dei Giorni in cui siamo stati nel luogo di cui la pagina "luoghi" è aperta
+
+Informazioni per il luogo **[[luoghi/EU/ITA/34/VE/Venezia]]**
+${widgets.linkedInfoLuoghi("luoghi/EU/ITA/34/VE/Venezia")}
+
+## Attivazione
+```space-lua
+config.set("std.widgets.linkedInfoLuoghi.enabled", true)
+```
+
+## Implementazione
+```space-lua
+-- priority: -1
+if config.get("std.widgets.linkedInfoLuoghi.enabled") then
+  event.listen {
+    name = "hooks:renderBottomWidgets",
+    run = function(e)
+      if string.startsWith(editor.getCurrentPage(), "luoghi/") then
+        return widgets.linkedInfoLuoghi()
+      end
+    end
+  }
+end
+```
+
+## Implementazione 
+
+### linkedInfoLuoghi(pageName)
+
+```space-lua
+function widgets.linkedInfoLuoghi(pageName)
+  local pageName = pageName or editor.getCurrentPage()
+  local text = "**Siamo stati qui**\n"
+  
+  local diarioInfo = query[[
+    from l = index.tag "link"
+    where l.page != pageName 
+    and l.toPage == pageName
+    and string.startsWith(l.page, "Diario/")
+    select {
+      page = l.page,
+      ref = l.ref,
+      giorno = date.format(l.page),
+      title = page.title(l.page),
+      snippet = l.snippet
+    }
+    order by l.page desc
+  ]]
+
+  -- Estrazione viaggi
+  local viaggi = {}
+  local pageDiario = {}
+  local seen = {}
+
+  for i = 1, #diarioInfo do
+    local res = query[[
+      from p = index.tag "page"
+      where p.name == diarioInfo[i].page
+      select {Viaggio = p.Viaggio,
+          anno = date.format(diarioInfo[i].page, "YY")}
+      limit 1
+    ]]
+    -- table.insert(viaggi, res[1].Viaggio)
+    if res and #res > 0 then
+      local v = res[1].Viaggio
+      local a = res[1].anno
+      if v and not seen[v] then
+        local t = string.format("%s [[Viaggi/%s|%s]]", a, v, v)
+        table.insert(viaggi, t)
+        seen[v] = true
+      end
+    end
+    -- table.insert(pageDiario, res[1].Viaggio)
+    local page = diarioInfo[i].page
+    local ref = diarioInfo[i].ref
+    local giorno = diarioInfo[i].giorno
+    local title = diarioInfo[i].title
+    -- local snippet = diarioInfo[i].snippet
+    local t = string.format("**[[%s|%s]]** %s", page, giorno, title)
+    table.insert(pageDiario, t)
+  end
+  --
+  -- Elenca i viaggi.
+  if #viaggi > 0 then
+    text = text
+      .. "\n🧭 **In questi viaggi:**\n"
+      .. table.concat(viaggi, "\n") .. "\n\n"
+  end
+  --
+  -- Elenca i giorni.
+  text = text .. "**In questi giorni:**\n"
+              .. table.concat(pageDiario, "\n") .. "\n"
+  --
+  -- Restituisce il risultato.
+  return text
+end
+```
