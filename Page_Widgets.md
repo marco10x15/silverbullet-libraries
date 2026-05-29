@@ -5,6 +5,8 @@ pageDecoration.prefix: "⚙️ "
 share.uri: "github:marco10x15/silverbullet-libraries/Page_Widgets.md"
 ---
 # Page Widgets
+* page.nome(where)
+* page.title(where)
 
 ## page.nome(where)
 **Funzione che riceve un path e restituisca il valore dell'ultima parte.**
