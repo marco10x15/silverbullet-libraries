@@ -34,11 +34,15 @@ end
 
 ### linkedInfoLuoghi(pageName)
 
+
 ```space-lua
 function widgets.linkedInfoLuoghi(pageName)
   local pageName = pageName or editor.getCurrentPage()
-  local text = "**Siamo stati qui**\n"
-  
+--  local tagName = 
+  -- local text = "**Siamo stati qui**\n"
+  local text = "## Siamo stati qui\n"
+  text = text .. tagBreadcrumb()
+
   local diarioInfo = query[[
     from l = index.tag "link"
     where l.page != pageName 
@@ -99,6 +103,59 @@ function widgets.linkedInfoLuoghi(pageName)
               .. table.concat(pageDiario, "\n") .. "\n"
   --
   -- Restituisce il risultato.
+  return text
+end
+```
+
+## Renders a tag object in Breadcrump
+```space-lua
+-- Renders a tag object in Breadcrump
+templates.BreadcrumbTag = template.new([==[[[tag:${name}|#${page.nome(name)}]] ]==])
+
+-- priority: 9
+function tagBreadcrumb()
+  local text = ""
+  local parentTags = {}
+
+  -- Recupera il tag più lungo (più specifico)
+  local res = query[[
+    from p = index.tags()
+    where p.page == editor.getCurrentPage() 
+    order by #p.name desc
+    limit 1
+  ]]
+
+  if not res or #res == 0 or not res[1].name then
+    return ""
+  end
+
+  local tagName = res[1].name
+
+  -- split sicuro (SB usa string.split)
+  local tagParts = string.split(tagName, "/")
+
+  for i = 1, #tagParts do
+    local slice = {}
+    for j = 1, i do
+      table.insert(slice, tagParts[j])
+    end
+    table.insert(parentTags, { name = table.concat(slice, "/") })
+  end
+  
+  if #parentTags > 0 then
+
+    local rendered = query[[
+      from t = parentTags
+      select templates.BreadcrumbTag(t)
+    ]]
+
+    if rendered and #rendered > 0 then
+      text = text .. table.concat(rendered, "") .. "\n"
+    end
+  else
+      text = text .. tagName .. "\n"
+  end
+
   return text
 end
 ```
