@@ -6,7 +6,8 @@ share.uri: "github:marco10x15/silverbullet-libraries/Page_Widgets.md"
 ---
 # Page Widgets
 * page.nome(where)
-* page.title(where)
+* page.title(where) - superata da definizione di attributo automatica.
+* tag.define: attributo: title
 
 ## page.nome(where)
 **Funzione che riceve un path e restituisca il valore dell'ultima parte.**
@@ -61,6 +62,7 @@ per la pagina restituisce:
 [[Diario/2026-05-09]] => ${page.title("Diario/2026-05-09")}
 [[Diario/2026-04-25]] => ${page.title("Diario/2026-04-25")}
 [[Diario/1900-01-01]] => ${page.title("Diario/1900-01-01")}
+[[Diario/1900-01-02]] => ${page.title("Diario/1900-01-02")}
 
 ### Implementazione
 
@@ -95,9 +97,62 @@ function page.title(where)
     end
   end
   -- if space.pageExists(where) è falso
-  -- la pagina non esite
+  -- la pagina non esiste
   else 
     return "La pagina non esiste"
   end
 end
+```
+
+## tag.define: attributo: title
+
+### Implementazione della `transform` personalizzata per title
+ 
+Vogliamo configurare un attributo `title: Titolo` per la pagina.
+Le priorità per definire l’attributo `title` sono:
+1) da Variabile `[title: Titolo da variabile]`
+2) definito nel frontmatter `title: Titolo presente nel frntmatter`
+3) primo Header H1 della pagina
+4) se nessuna delle precedenti è vera non deve essere presente l’attributo title
+
+${query[[from o = index.objects("page")
+where o.name == editor.getCurrentPage()
+select{name = o.name,
+  titolo = o.title}]]}
+
+
+```space-lua
+tag.define {
+  name = "page",
+  -- Non serve validazione specifica
+  -- è valida per tutte le pagine.  
+
+  transform = function(o)
+    -- 1) Verifica se esiste un title nel frontmatter
+    local pageName = editor.getCurrentPage()
+    local fm = index.extractFrontmatter(space.readPage(pageName))
+
+    if fm and fm.frontmatter and fm.frontmatter.title then
+      return
+    end
+
+    -- 2) Usa la query per trovare il primo H1
+    local out = query[[
+      from t = index.tag "header"
+      where t.page == pageName
+      and t.level == 1
+      order by t.pos
+      select {title = t.text}
+      limit 1
+    ]]
+
+    if out and #out > 0 and out[1].title then
+      result = tostring(out[1].title)
+    end
+    o.title = result
+    return o
+    -- 3) Nessun title disponibile → non impostare attributo
+    -- return nil
+  end
+}
 ```
