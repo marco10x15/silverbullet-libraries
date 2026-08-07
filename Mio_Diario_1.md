@@ -96,15 +96,18 @@ function wTopDiario(path)
   end
   --
   -- Tags (safe)
-  if type(fmd.tags) == "table" and #fmd.tags > 0 then
-    local tagsConHash = {}
-    for _, tag in ipairs(fmd.tags) do
-      table.insert(tagsConHash, "#" .. tag)
-    end
+-- -Con l'introduzione in SilverBullet 2.10 del rendering dei tag
+-- nel frontmatter collassato, non è più necessario il rendering dei Tags nel Widgets
+--  Disattivato il 07.08.2026
+--  if type(fmd.tags) == "table" and #fmd.tags > 0 then
+--    local tagsConHash = {}
+--    for _, tag in ipairs(fmd.tags) do
+--      table.insert(tagsConHash, "#" .. tag)
+--    end
 
-    local elencoTag = "ℹ " .. table.concat(tagsConHash, ", ") .. "\n"
-    result = result .. elencoTag
-  end
+--    local elencoTag = "ℹ " .. table.concat(tagsConHash, ", ") .. "\n"
+--    result = result .. elencoTag
+--  end
 
   -- Galleria Foto
   if type(fmd.galleriafoto) == "table" and #fmd.galleriafoto > 0 then
