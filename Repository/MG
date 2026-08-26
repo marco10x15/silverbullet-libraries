@@ -21,11 +21,16 @@ uri: github:marco10x15/silverbullet-libraries/DateFormat.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/DateFormat.md
 description: "Format a ISO Date string in Human Readable"
 ---
-name: "🗂️ Mio Diario"
+name: "📔 Mio Diario"
 uri: github:marco10x15/silverbullet-libraries/Mio_Diario.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario.md
 description: "Documentazione, configurazioni, space-lua script, widget, tutto quello che costituisce la struttura del mio diario."
-  ---
+---
+name: "📔 Mio Diario - Indice"
+uri: github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md
+website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_Indice.md
+description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
+---
 name: "⚙️ Le mie configurazioni"
 uri: github:marco10x15/silverbullet-libraries/Mie_Configurazioni.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mie_Configurazioni.md
