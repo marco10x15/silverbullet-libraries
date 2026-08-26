@@ -2,7 +2,7 @@
 name: "Library/MG/Mio_Diario"
 tags: meta/library
 description: "Utility per gestire, navigare e aggregare il Diario personale in SilverBullet."
-version: "1 alpha"
+version: "1.01 Beta"
 versionDate: 2026-08-26
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario.md"
@@ -12,7 +12,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario.md"
 
 **Mio Diario** è la raccolta di utility per gestire, navigare e aggregare il Mio Diario con SilverBullet.
 
-**Versione:** 1 alpha — 26.08.2026
+**Versione:** 1.01 Beta — 26.08.2026
 
 La libreria mantiene le pagine Markdown come fonte primaria dei dati e costruisce dinamicamente navigazione, relazioni geografiche, viaggi e riepiloghi tramite gli indici di SilverBullet.
 
@@ -1143,7 +1143,9 @@ if config.get(
 end
 
 
-
+-- ============================================================
+-- WIDGET SUPERIORE PAGINA DIARIO
+-- ============================================================
 
 -- Widget superiore delle pagine Diario.
 if config.get("std.widgets.wTopDiario.enabled", true) then
@@ -1154,26 +1156,182 @@ if config.get("std.widgets.wTopDiario.enabled", true) then
     end
   }
 end
+
+-- Costruisce il widget superiore delle pagine Diario.
+--
+-- Visualizza:
+-- - navigazione alla pagina precedente e successiva;
+-- - titolo della giornata;
+-- - description;
+-- - Viaggio;
+-- - luoghi;
+-- - galleria fotografica.
+--
+-- I dati strutturati vengono letti direttamente dall'indice.
+function wTopDiario(path)
+  local pageName =
+    path
+    or editor.getCurrentPage()
+
+  if not string.startsWith(
+    pageName,
+    "Diario/"
+  ) then
+    return
+  end
+
+  local pages = query[[
+    from p = index.pages()
+    where p.name == pageName
+    select {
+      description = p.description,
+      Viaggio = p.Viaggio,
+      luoghi = p.luoghi,
+      galleriafoto = p.galleriafoto
+    }
+    limit 1
+  ]]
+
+  local p = pages[1] or {}
+
+  local titolo =
+    page.title(pageName)
+
+  if not luoghi.hasString(titolo) then
+    titolo =
+      page.nome(pageName)
+  end
+
+  local righe = {
+    string.format(
+      "# [[%s|⬅️]]%s[[%s|➡️]]",
+      page.prec(),
+      titolo,
+      page.succ()
+    )
+  }
+
+  if luoghi.hasString(p.description) then
+    table.insert(
+      righe,
+      "📒 " .. p.description
+    )
+  end
+
+  if luoghi.hasString(p.Viaggio) then
+    table.insert(
+      righe,
+      "🧭 " .. p.Viaggio
+    )
+  end
+
+  if luoghi.hasList(p.luoghi) then
+    table.insert(
+      righe,
+      "📍 "
+        .. table.concat(
+          p.luoghi,
+          ", "
+        )
+    )
+  end
+
+  if luoghi.hasList(p.galleriafoto) then
+    table.insert(
+      righe,
+      "📷 "
+        .. table.concat(
+          p.galleriafoto,
+          ", "
+        )
+    )
+  end
+
+  return table.concat(
+    righe,
+    "\n"
+  ) .. "\n"
+end
+```
+
+
+## Navigazione con tastiera
+
+### Compatibilità browser
+
+In Microsoft Edge per Windows:
+
+*   `Alt + ←` = **browser indietro**
+*   `Alt + →` = **browser avanti**.
+
+E la documentazione SilverBullet avverte esplicitamente che gli shortcut già riservati dal browser **non sono sempre sovrascrivibili in modo affidabile**.
+
+```space-lua
+-- Naviga alla pagina Diario precedente.
+command.define {
+  name = "Diario: Pagina precedente",
+  key = "Alt-ArrowLeft",
+
+  run = function()
+    local pageName =
+      editor.getCurrentPage()
+
+    if string.startsWith(
+      pageName,
+      "Diario/"
+    ) then
+      local target =
+        page.prec()
+
+      if target
+        and target ~= ""
+      then
+        editor.open(target)
+      end
+
+      return
+    end
+
+    -- Mantiene il normale comportamento di navigazione
+    -- nelle pagine che non appartengono al Diario.
+    editor.goHistory(-1)
+  end
+}
+
+
+-- Naviga alla pagina Diario successiva.
+command.define {
+  name = "Diario: Pagina successiva",
+  key = "Alt-ArrowRight",
+
+  run = function()
+    local pageName =
+      editor.getCurrentPage()
+
+    if string.startsWith(
+      pageName,
+      "Diario/"
+    ) then
+      local target =
+        page.succ()
+
+      if target
+        and target ~= ""
+      then
+        editor.open(target)
+      end
+
+      return
+    end
+
+    editor.goHistory(1)
+  end
+}
 ```
 
 ## Verifica diagnostica delle relazioni Luoghi
 
 Se una pagina Luogo non visualizza **Siamo stati qui**, verificare prima che SilverBullet abbia indicizzato la relazione `luoghi` attesa.
-
-Esempio per Wall Street:
-
-```space-lua
-${query[[
-  from r = index.relations("luoghi")
-  where r.to == "luoghi/USA/NY/New York (city)/Wall Street"
-  select {
-    page = r.page,
-    kind = r.kind,
-    to = r.to
-  }
-  limit 10
-]]}
-```
 
 Se la query non restituisce risultati, il widget non attribuisce alla Località una visita registrata soltanto sulla pagina madre.
 
