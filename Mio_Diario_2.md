@@ -1,3 +1,10 @@
+> **NOTA: Questo documento è obsoleto. Si prega di fare riferimento a
+> - Mio_Diario.md
+> - Mio_Diario_Indice.md
+> per le informazioni aggiornate.**
+
+
+
 ---
 name: "Library/MG/Mio_Diario_2"
 tags: meta/library
