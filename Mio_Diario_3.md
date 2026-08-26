@@ -1,3 +1,10 @@
+> **NOTA: Questo documento è obsoleto. Si prega di fare riferimento a
+> - Mio_Diario.md
+> - Mio_Diario_Indice.md
+> per le informazioni aggiornate.**
+
+
+
 ---
 name: "Library/MG/Mio_Diario_3"
 description: Implementa la Virtual Tag Page per il caso specifico dei Luoghi del Diario.
