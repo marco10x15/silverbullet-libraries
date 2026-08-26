@@ -25,27 +25,7 @@ name: "🗂️ Mio Diario"
 uri: github:marco10x15/silverbullet-libraries/Mio_Diario.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario.md
 description: "Documentazione, configurazioni, space-lua script, widget, tutto quello che costituisce la struttura del mio diario."
----
-name: "🗂️ Mio Diario (1) Widget navigazione"
-uri: github:marco10x15/silverbullet-libraries/Mio_Diario_1.md
-website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_1.md
-description: "Crea l'intestazione di navigazione che presenta i dati da frontmatter (Viaggi, Tags)."
----
-name: "🗂️ Mio Diario (2) Widget Info Luoghi"
-uri: github:marco10x15/silverbullet-libraries/Mio_Diario_2.md
-website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_1.md
-description: "Widget Info Luoghi, ricava per ogni luogo Viaggi e Date dal diario."
----
-name: "🗂️ Mio Diario (3) Tags Virtual Page"
-uri: github:marco10x15/silverbullet-libraries/Mio_Diario_3.md
-website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_3.md
-description: "Implementa la Virtual Tag Page per il caso specifico dei Luoghi del Diario."
----
-name: "🗂️ Outline Explorer"
-uri: github:marco10x15/silverbullet-libraries/OutlineParent.md
-website: https://github.com/marco10x15/silverbullet-libraries/blob/main/OutlineParent.md
-description: "Outline Explorer for SilverBullet"
----
+  ---
 name: "⚙️ Le mie configurazioni"
 uri: github:marco10x15/silverbullet-libraries/Mie_Configurazioni.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mie_Configurazioni.md
