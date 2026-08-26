@@ -1,14 +1,15 @@
 > **NOTA: Questo documento è obsoleto. Si prega di fare riferimento a
-> - Mio Diario](Mio_Diario.md)
-> - Mio Diario - Indice](Mio_Diario_Indice.md)
+> - Mio_Diario.md
+> - Mio_Diario_Indice.md
 > per le informazioni aggiornate.**
 
----
+
+
 name: "Library/MG/Mio_Diario_1"
 tags: meta/library
 pageDecoration.prefix: "📃 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_1.md"
----
+
 # Top Widget - wTopDiario()
 **TODO**
 * link a galleria foto
