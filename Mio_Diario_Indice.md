@@ -2,8 +2,8 @@
 name: "Library/MG/Mio_Diario_Indice"
 tags: meta/library
 description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
-version: "0.1-09"
-versionDate: 2026-08-27
+version: "0.1-10"
+versionDate: 2026-08-28
 pageDecoration.prefix: "📔 "
 ---
 
@@ -11,7 +11,7 @@ pageDecoration.prefix: "📔 "
 
 **IndiceDiario** visualizza direttamente in una pagina SilverBullet un indice compatto delle pagine del Diario.
 
-**Versione:** 0.1-09 — 27.08.2026
+**Versione:** 0.1-10 — 28.08.2026
 
 La libreria è autonoma e non dipende da Journal Explorer.
 
@@ -19,20 +19,21 @@ La libreria è autonoma e non dipende da Journal Explorer.
 
 * **Indice inline** — inseribile con `${widgets.IndiceDiario()}`.
 * **Data compatta** — mese, giorno e giorno della settimana nello stile calendario.
-* **Titolo** — priorità `title` → primo H1 → `displayName` → nome pagina, visualizzato in grassetto e collegato alla pagina Diario.
+* **Titolo** — `displayName` → nome pagina, visualizzato in grassetto e collegato alla pagina Diario.
 * **Immagine** — prima immagine trovata nella pagina, se presente.
 * **Snippet** — estratto dal testo della pagina.
 * **Caricamento progressivo reale** — all'apertura interroga solo il primo batch; i batch successivi vengono richiesti durante lo scrolling e l'intero dataset viene caricato solo quando serve al filtro.
-* **Filtro globale indicizzato** — ricerca con logica AND su path, titolo, `displayName`, `description`, tags, luoghi e Viaggio; lo snippet resta solo un elemento visuale.
-* **Livello dati riutilizzabile** — raccolta pagine e filtro indicizzato sono separati dal rendering e pronti per le future Virtual Page.
+* **Filtro globale indicizzato** — ricerca con logica AND su path, titolo visualizzato, `displayName`, `description`, tags, luoghi e Viaggio; lo snippet resta solo un elemento visuale.
+* **Livello dati riutilizzabile** — raccolta pagine e filtro indicizzato sono separati dal rendering e pronti per le Virtual Page.
 * **Navigazione diretta** — i titoli usano `editor.open()` e restano raggiungibili anche dopo caricamento progressivo o filtro.
 * **Raggruppamento mensile** — separazione delle pagine per mese e anno.
 * **Virtual Page mensile** — il titolo del mese apre `diario:mese:YYYY-MM`.
 * **Virtual Page di ricerca** — il filtro può essere aperto come `diario:ricerca:...`, ricalcolato esclusivamente sui dati indicizzati.
-* **Testo normale** — titolo e snippet ereditano la normale dimensione del carattere della pagina.
 * **Tags e luoghi** — visualizzati nelle ultime due righe della scheda con carattere ridotto; i luoghi sono navigabili.
 * **Layout responsive** — su smartphone il calendario resta nell'header, mentre snippet, tags e luoghi sfruttano quasi tutta la larghezza della scheda.
 * **Ricerca Luoghi** — `${widgets.CercaLuoghi()}` parte con elenco vuoto e mostra soltanto le pagine `luoghi/` che soddisfano la ricerca.
+
+`entry.title` rimane il nome interno usato dal renderer; non corrisponde più a un attributo frontmatter `title` delle pagine Diario.
 
 ## Configurazione
 
@@ -71,36 +72,30 @@ La raccolta dati usa `index.subPages("Diario")`; `journalPathPattern` continua a
 
 Il filtro è applicato con un debounce di circa 280 ms per evitare una scansione completa a ogni singolo tasto premuto.
 
-Per compatibilità con la precedente `0.1 alpha`, se `batchSize` non è definito viene ancora accettato `limit` come fallback. La nuova configurazione consigliata è però `batchSize`.
+Per compatibilità con la precedente `0.1 alpha`, se `batchSize` non è definito viene ancora accettato `limit` come fallback.
 
-> **note** Lo snippet viene letto soltanto quando la relativa scheda viene renderizzata; non partecipa più al filtro.
+> **note** Lo snippet viene letto soltanto quando la relativa scheda viene renderizzata; non partecipa al filtro.
 
-> **note** `batchSize = 10` limita soltanto il numero di righe aggiunte a ogni caricamento; non limita il numero totale di pagine disponibili né il filtro.
+> **note** Il titolo delle pagine Diario viene letto esclusivamente da `displayName`; non viene interrogato `p.title` e non viene eseguita alcuna scansione di `index.headers()`.
 
 ## Uso
-
-Inserire nella pagina indice:
 
 ```space-lua
 ${widgets.IndiceDiario()}
 ```
 
-Le Virtual Page possono essere aperte anche direttamente:
+Virtual Page:
 
 ```text
 diario:mese:2026-08
 diario:ricerca:torino vacanza
 ```
 
-Nel widget, il titolo di ogni mese apre automaticamente la relativa Virtual Page mensile. Quando il filtro contiene testo, il pulsante **Apri risultati** apre la Virtual Page della ricerca corrente.
-
-Per inserire il widget di ricerca dei luoghi:
+Ricerca luoghi:
 
 ```space-lua
 ${widgets.CercaLuoghi()}
 ```
-
-`CercaLuoghi` non mostra alcuna pagina all'apertura. Al primo testo inserito carica soltanto i metadati indicizzati sotto `luoghi/`, costruisce una lookup gerarchica in memoria e quindi filtra senza leggere i file Markdown. Il percorso visualizzato contiene solo le pagine antenate del risultato.
 
 ## Implementazione
 
@@ -116,36 +111,29 @@ cercaLuoghi = cercaLuoghi or {}
 -- CONFIGURAZIONE
 -- ============================================================
 
-
--- Definisce un namespace di configurazione autonomo.
---
--- Nessun valore viene letto da Journal Explorer o da clientStore:
--- la configurazione è interamente contenuta in indiceDiario.
 config.define("indiceDiario", {
   type = "object",
   properties = {
     journalPathPattern = schema.string(),
-    batchSize          = schema.number(),
-    showThumbnails     = schema.boolean(),
-    showSnippets       = schema.boolean(),
+    batchSize = schema.number(),
+    showThumbnails = schema.boolean(),
+    showSnippets = schema.boolean(),
     snippetStartMarker = schema.string(),
     monthNames = {
       type = "array",
-      items = { type = "string" }
+      items = {
+        type = "string"
+      }
     },
     dayNames = {
       type = "array",
-      items = { type = "string" }
-    },
+      items = {
+        type = "string"
+      }
+    }
   }
 })
 
-
--- Carica la configurazione applicando valori di default locali.
---
--- La funzione viene richiamata al rendering del widget, così le
--- modifiche alla CONFIG vengono applicate senza stato persistente
--- aggiuntivo.
 local function indiceDiarioConfig()
   local c =
     config.get("indiceDiario")
@@ -189,7 +177,7 @@ local function indiceDiarioConfig()
       or {
         "Lunedì", "Martedì", "Mercoledì", "Giovedì",
         "Venerdì", "Sabato", "Domenica"
-      },
+      }
   }
 end
 
@@ -198,12 +186,6 @@ end
 -- SELEZIONE DELLE PAGINE
 -- ============================================================
 
-
--- Converte journalPathPattern in un pattern Lua.
---
--- Mantiene i placeholder principali di Journal Explorer per
--- consentire di adattare la libreria a strutture Diario diverse
--- senza introdurre una seconda logica di configurazione.
 local function indiceDiarioPattern(pattern)
   local p =
     pattern:gsub(
@@ -212,33 +194,28 @@ local function indiceDiarioPattern(pattern)
     )
 
   p = p:gsub("#weekdayfull#", "[%%a]+")
-  p = p:gsub("#monthname#",   "[%%a]+")
-  p = p:gsub("#monthshort#",  "[%%a]+")
-  p = p:gsub("#weekday#",     "[%%a]+")
-  p = p:gsub("#ordinal#",     "[%%a]+")
-  p = p:gsub("#weekyear#",    "%%d%%d%%d%%d")
-  p = p:gsub("#weeknum#",     "%%d%%d")
-  p = p:gsub("#weeknumraw#",  "%%d+")
-  p = p:gsub("#year#",        "%%d%%d%%d%%d")
-  p = p:gsub("#month#",       "%%d%%d")
-  p = p:gsub("#day#",         "%%d%%d")
-  p = p:gsub("#YY#",          "%%d%%d")
-  p = p:gsub("#M#",           "%%d+")
-  p = p:gsub("#D#",           "%%d+")
-  p = p:gsub("#HH#",          "%%d%%d")
-  p = p:gsub("#hh#",          "%%d%%d")
-  p = p:gsub("#mm#",          "%%d%%d")
-  p = p:gsub("#ss#",          "%%d%%d")
-  p = p:gsub("#wildcard#",    ".*")
+  p = p:gsub("#monthname#", "[%%a]+")
+  p = p:gsub("#monthshort#", "[%%a]+")
+  p = p:gsub("#weekday#", "[%%a]+")
+  p = p:gsub("#ordinal#", "[%%a]+")
+  p = p:gsub("#weekyear#", "%%d%%d%%d%%d")
+  p = p:gsub("#weeknum#", "%%d%%d")
+  p = p:gsub("#weeknumraw#", "%%d+")
+  p = p:gsub("#year#", "%%d%%d%%d%%d")
+  p = p:gsub("#month#", "%%d%%d")
+  p = p:gsub("#day#", "%%d%%d")
+  p = p:gsub("#YY#", "%%d%%d")
+  p = p:gsub("#M#", "%%d+")
+  p = p:gsub("#D#", "%%d+")
+  p = p:gsub("#HH#", "%%d%%d")
+  p = p:gsub("#hh#", "%%d%%d")
+  p = p:gsub("#mm#", "%%d%%d")
+  p = p:gsub("#ss#", "%%d%%d")
+  p = p:gsub("#wildcard#", ".*")
 
   return "^" .. p .. "$"
 end
 
-
--- Ricava una data dal path quando il frontmatter date non è
--- disponibile.
---
--- Sono supportate le forme YYYY-MM-DD e YYYY/MM/DD.
 local function indiceDiarioDateFromPath(pageName)
   local y, m, d =
     pageName:match(
@@ -262,11 +239,6 @@ local function indiceDiarioDateFromPath(pageName)
     tonumber(d)
 end
 
-
--- Calcola il nome del giorno della settimana.
---
--- Usa Zeller e restituisce un indice lunedì-domenica coerente
--- con la lista dayNames configurata.
 local function indiceDiarioWeekday(
   year,
   month,
@@ -311,15 +283,9 @@ local function indiceDiarioWeekday(
     or ""
 end
 
-
--- Converte un oggetto pagina indicizzato in una voce Diario.
---
--- `firstH1` è opzionale. Nel caricamento rapido iniziale può essere
--- omesso per evitare una query globale sugli header.
 local function indiceDiarioEntry(
   p,
-  cfg,
-  firstH1
+  cfg
 )
   if type(p.name) ~= "string" then
     return nil
@@ -378,30 +344,14 @@ local function indiceDiarioEntry(
     return nil
   end
 
-  local title = nil
-
-  if type(p.title) == "string"
-    and p.title ~= ""
-  then
-    title = p.title
-
-  elseif type(firstH1) == "string"
-    and firstH1 ~= ""
-  then
-    title = firstH1
-
-  elseif type(p.displayName) == "string"
+  local title =
+    type(p.displayName) == "string"
     and p.displayName ~= ""
-  then
-    title = p.displayName
-
-  else
-    title =
-      p.name:match(
-        "([^/]+)$"
-      )
-      or p.name
-  end
+    and p.displayName
+    or p.name:match(
+      "([^/]+)$"
+    )
+    or p.name
 
   local entry = {
     path = p.name,
@@ -429,16 +379,6 @@ local function indiceDiarioEntry(
   return entry
 end
 
-
--- Recupera un singolo batch cronologico dal Diario.
---
--- È usato soltanto dal widget per il fast path iniziale e per lo
--- scrolling progressivo. Il cursore è la data ISO dell'ultima pagina
--- ricevuta; il Diario normalizzato usa una pagina per giornata.
---
--- Non interroga index.headers(): per il fast path il titolo usa
--- `title` -> `displayName` -> nome pagina. Il caricamento completo,
--- usato dalle Virtual Page e dal filtro, conserva invece il fallback H1.
 function indiceDiario.entriesBatch(
   cfg,
   beforeDate
@@ -447,9 +387,7 @@ function indiceDiario.entriesBatch(
     cfg
     or indiceDiarioConfig()
 
-  local batchSize =
-    cfg.BATCH
-
+  local batchSize = cfg.BATCH
   local pages = nil
 
   if beforeDate
@@ -464,7 +402,6 @@ function indiceDiario.entriesBatch(
       select {
         name = p.name,
         date = p.date,
-        title = p.title,
         displayName = p.displayName,
         description = p.description,
         tags = p.tags,
@@ -472,7 +409,6 @@ function indiceDiario.entriesBatch(
         Viaggio = p.Viaggio
       }
     ]]
-
   else
     pages = query[[
       from p = index.subPages("Diario")
@@ -482,7 +418,6 @@ function indiceDiario.entriesBatch(
       select {
         name = p.name,
         date = p.date,
-        title = p.title,
         displayName = p.displayName,
         description = p.description,
         tags = p.tags,
@@ -498,8 +433,7 @@ function indiceDiario.entriesBatch(
     local entry =
       indiceDiarioEntry(
         p,
-        cfg,
-        nil
+        cfg
       )
 
     if entry then
@@ -510,36 +444,25 @@ function indiceDiario.entriesBatch(
     end
   end
 
-  local nextCursor = nil
+  local cursor = nil
 
-  if #pages > 0 then
-    nextCursor =
+  if pages
+    and #pages > 0
+  then
+    cursor =
       pages[#pages].date
   end
 
   return {
     entries = entries,
-    cursor = nextCursor,
+    cursor = cursor,
     hasMore =
-      #pages >= batchSize
+      pages
+      and #pages >= batchSize
+      or false
   }
 end
 
-
--- Costruisce la lista delle pagine Diario usando gli indici
--- nativi SilverBullet.
---
--- index.subPages("Diario") limita semanticamente la collection alle
--- sole sottopagine del Diario. journalPathPattern stabilisce poi
--- quali sottopagine rappresentano effettivamente giornate valide.
---
--- index.headers() viene interrogato una sola volta per recuperare
--- il primo H1 senza query N+1.
---
--- Per il titolo la priorità è:
--- frontmatter title -> primo H1 -> displayName -> nome pagina.
---
--- La data del frontmatter ha priorità; il path è il fallback.
 function indiceDiario.entries(cfg)
   cfg =
     cfg
@@ -550,7 +473,6 @@ function indiceDiario.entries(cfg)
     select {
       name = p.name,
       date = p.date,
-      title = p.title,
       displayName = p.displayName,
       description = p.description,
       tags = p.tags,
@@ -559,41 +481,13 @@ function indiceDiario.entries(cfg)
     }
   ]]
 
-  local headers = query[[
-    from h = index.headers()
-    where h.level == 1
-      and string.startsWith(
-        h.page,
-        "Diario/"
-      )
-    order by h.page, h.pos
-    select {
-      page = h.page,
-      name = h.name
-    }
-  ]]
-
-  local firstH1 = {}
-
-  for _, h in ipairs(headers) do
-    if type(h.page) == "string"
-      and type(h.name) == "string"
-      and h.name ~= ""
-      and not firstH1[h.page]
-    then
-      firstH1[h.page] =
-        h.name
-    end
-  end
-
   local entries = {}
 
   for _, p in ipairs(pages) do
     local entry =
       indiceDiarioEntry(
         p,
-        cfg,
-        firstH1[p.name]
+        cfg
       )
 
     if entry then
@@ -611,20 +505,18 @@ function indiceDiario.entries(cfg)
         return a.path < b.path
       end
 
-      return a.sortKey
-        > b.sortKey
+      return a.sortKey > b.sortKey
     end
   )
 
   return entries
 end
 
+
 -- ============================================================
--- DATI E FILTRO RIUTILIZZABILI
+-- NORMALIZZAZIONE VALORI E FILTRO
 -- ============================================================
 
-
--- Normalizza un attributo singolo o multivalore in una lista.
 function indiceDiario.list(value)
   if type(value) == "table" then
     return value
@@ -639,20 +531,27 @@ function indiceDiario.list(value)
   return {}
 end
 
-
--- Converte un valore singolo o multivalore in testo ricercabile.
 function indiceDiario.valueText(value)
+  if type(value) == "string" then
+    return value
+  end
+
+  if type(value) ~= "table" then
+    return ""
+  end
+
   local parts = {}
 
-  for _, item in ipairs(
-    indiceDiario.list(value)
-  ) do
-    if type(item) == "string"
-      and item ~= ""
-    then
+  for _, item in ipairs(value) do
+    if type(item) == "string" then
       table.insert(
         parts,
         item
+      )
+    elseif item ~= nil then
+      table.insert(
+        parts,
+        tostring(item)
       )
     end
   end
@@ -663,10 +562,6 @@ function indiceDiario.valueText(value)
   )
 end
 
-
--- Scompone il filtro in termini separati.
---
--- I termini sono combinati con logica AND.
 local function indiceDiarioTerms(value)
   local terms = {}
 
@@ -679,9 +574,7 @@ local function indiceDiarioTerms(value)
     )
 
   for term in
-    queryText:gmatch(
-      "%S+"
-    )
+    queryText:gmatch("%S+")
   do
     table.insert(
       terms,
@@ -692,8 +585,6 @@ local function indiceDiarioTerms(value)
   return terms
 end
 
-
--- Verifica se tutti i termini sono presenti nel testo.
 local function indiceDiarioMatches(
   text,
   terms
@@ -712,11 +603,6 @@ local function indiceDiarioMatches(
   return true
 end
 
-
--- Costruisce il testo di ricerca utilizzando soltanto attributi
--- già presenti nell'indice SilverBullet.
---
--- Questo testo è condiviso dal widget e dalle future Virtual Page.
 function indiceDiario.indexedSearchText(entry)
   local parts = {
     indiceDiario.valueText(
@@ -750,12 +636,6 @@ function indiceDiario.indexedSearchText(entry)
   )
 end
 
-
--- Filtro generico.
---
--- Se extraTextFn è nil usa esclusivamente i dati indicizzati.
--- Se extraTextFn è presente viene interrogato soltanto per le
--- pagine che non soddisfano già interamente il filtro indicizzato.
 function indiceDiario.filter(
   entries,
   value,
@@ -789,8 +669,7 @@ function indiceDiario.filter(
       local extraText =
         extraTextFn(entry)
 
-      searchText =
-        searchText
+      searchText = searchText
         .. " "
         .. string.lower(
           tostring(
@@ -817,11 +696,6 @@ function indiceDiario.filter(
   return filtered
 end
 
-
--- Filtro esclusivamente indicizzato.
---
--- È il punto di riuso previsto per le future Virtual Page:
--- nessuna lettura del Markdown e nessuna dipendenza dagli snippet.
 function indiceDiario.filterIndexed(
   entries,
   value
@@ -833,11 +707,6 @@ function indiceDiario.filterIndexed(
   )
 end
 
-
--- Restituisce le pagine di un singolo mese.
---
--- La lista mantiene l'ordinamento già prodotto da entries():
--- più recente -> più vecchia.
 function indiceDiario.month(
   entries,
   year,
@@ -845,15 +714,6 @@ function indiceDiario.month(
 )
   local y = tonumber(year)
   local m = tonumber(month)
-
-  if not y
-    or not m
-    or m < 1
-    or m > 12
-  then
-    return {}
-  end
-
   local result = {}
 
   for _, entry in ipairs(entries) do
@@ -870,12 +730,6 @@ function indiceDiario.month(
   return result
 end
 
-
--- Rende una lista di pagine Diario come Markdown.
---
--- È volutamente più semplice delle card DOM del widget:
--- una Virtual Page può contenere molti risultati e deve restare
--- leggera. Usa esclusivamente dati già presenti nell'indice.
 function indiceDiario.renderVirtual(
   heading,
   entries
@@ -972,9 +826,10 @@ function indiceDiario.renderVirtual(
 end
 
 
--- Estrae target e label da un wikilink SilverBullet.
---
--- Restituisce nil per valori non riconosciuti.
+-- ============================================================
+-- WIKILINK E RICERCA LUOGHI
+-- ============================================================
+
 local function indiceDiarioWikiLink(value)
   if type(value) ~= "string"
     or value == ""
@@ -1007,13 +862,6 @@ local function indiceDiarioWikiLink(value)
     ) or target
 end
 
-
--- ============================================================
--- CERCA LUOGHI — DATI
--- ============================================================
-
-
--- Restituisce il primo alias testuale disponibile.
 local function cercaLuoghiFirstAlias(value)
   for _, alias in ipairs(
     indiceDiario.list(value)
@@ -1028,11 +876,8 @@ local function cercaLuoghiFirstAlias(value)
   return nil
 end
 
-
--- Restituisce il nome visuale preferito di una pagina luogo.
---
--- Priorità:
--- title -> displayName -> aliases -> ultimo segmento del path.
+-- Questa funzione riguarda esclusivamente luoghi/.
+-- La semantica title dei Luoghi resta invariata.
 local function cercaLuoghiLabel(p)
   if type(p.title) == "string"
     and p.title ~= ""
@@ -1062,15 +907,6 @@ local function cercaLuoghiLabel(p)
     or p.name
 end
 
-
--- Costruisce il breadcrumb visuale usando le pagine antenate.
---
--- L'ultimo segmento non viene incluso perché è già il titolo
--- del risultato corrente.
---
--- Esempio:
--- luoghi/ITA/21/Torino/Superga
--- -> Italia › Piemonte › Torino
 local function cercaLuoghiParentLabel(
   pageName,
   labelsByPath
@@ -1100,8 +936,7 @@ local function cercaLuoghiParentLabel(
   local path = "luoghi"
 
   for i = 1, #parts - 1 do
-    path =
-      path
+    path = path
       .. "/"
       .. parts[i]
 
@@ -1118,13 +953,6 @@ local function cercaLuoghiParentLabel(
   )
 end
 
-
--- Costruisce il dataset indicizzato delle pagine sotto luoghi/.
---
--- La query viene eseguita una sola volta al primo utilizzo del
--- filtro. Il lookup dei nomi gerarchici viene poi costruito in
--- memoria sulla stessa collection, senza ulteriori query e senza
--- leggere il Markdown.
 function cercaLuoghi.entries()
   local pages = query[[
     from p = index.subPages("luoghi")
@@ -1137,8 +965,6 @@ function cercaLuoghi.entries()
     }
   ]]
 
-  -- Primo passaggio:
-  -- lookup path canonico -> nome visuale.
   local labelsByPath = {}
 
   for _, p in ipairs(pages) do
@@ -1150,8 +976,6 @@ function cercaLuoghi.entries()
     end
   end
 
-  -- Secondo passaggio:
-  -- costruzione dei risultati e dei breadcrumb tradotti.
   local entries = {}
 
   for _, p in ipairs(pages) do
@@ -1175,8 +999,6 @@ function cercaLuoghi.entries()
         pathLabel = pathLabel
       }
 
-      -- La ricerca comprende sia il path canonico sia i nomi
-      -- visuali ricavati esclusivamente da attributi indicizzati.
       entry.indexedSearchText =
         string.lower(
           table.concat(
@@ -1214,8 +1036,6 @@ function cercaLuoghi.entries()
   return entries
 end
 
-
--- Ricerca AND sui soli dati indicizzati dei luoghi.
 function cercaLuoghi.filter(
   entries,
   value
@@ -1228,14 +1048,9 @@ end
 
 
 -- ============================================================
--- VIRTUAL PAGE
+-- VIRTUAL PAGES
 -- ============================================================
 
-
--- Tutte le pagine Diario di un mese.
---
--- Esempio:
--- diario:mese:2026-08
 virtualPage.define {
   pattern =
     "^diario:mese:(%d%d%d%d%-%d%d)$",
@@ -1284,13 +1099,6 @@ virtualPage.define {
   end
 }
 
-
--- Ricerca riproducibile sulle sole proprietà indicizzate.
---
--- Esempio:
--- diario:ricerca:torino vacanza
---
--- Non legge il Markdown e non utilizza lo snippet.
 virtualPage.define {
   pattern =
     "^diario:ricerca:(.+)$",
@@ -1318,16 +1126,6 @@ virtualPage.define {
 -- CONTENUTO DELLE PAGINE
 -- ============================================================
 
-
--- Estrae snippet e prima immagine dal Markdown.
---
--- Viene eseguita soltanto sulle pagine realmente renderizzate.
--- Lo snippet non partecipa al filtro: la ricerca usa esclusivamente
--- gli attributi già presenti nell'indice SilverBullet.
---
--- Se snippetStartMarker è configurato, lo snippet comincia dopo
--- quella stringa; in caso contrario salta il primo testo utile,
--- normalmente il titolo H1.
 local function indiceDiarioExtractInfo(
   content,
   startMarker
@@ -1350,14 +1148,12 @@ local function indiceDiarioExtractInfo(
       )
   end
 
-  -- Le immagini vengono individuate prima della pulizia dello snippet.
   local wikiImage =
     body:match(
       "!%[%[([^%]|]+)"
     )
 
-  local markdownImage =
-    nil
+  local markdownImage = nil
 
   if not wikiImage then
     markdownImage =
@@ -1390,18 +1186,6 @@ local function indiceDiarioExtractInfo(
     end
   end
 
-
-  -- Sostituisce nel testo dello snippet immagini e link con "...".
-  --
-  -- Sono riconosciuti:
-  -- ![[media/...]]
-  -- ![testo](url)
-  -- [[link SilverBullet]]
-  -- [[link SilverBullet|alias]]
-  -- [testo](https://...)
-  --
-  -- Le immagini vengono trattate prima dei link, per evitare
-  -- che resti il carattere "!" davanti al placeholder.
   local function cleanSnippetText(value)
     value =
       value:gsub(
@@ -1427,7 +1211,6 @@ local function indiceDiarioExtractInfo(
         "..."
       )
 
-    -- Normalizza spazi e placeholder consecutivi.
     value =
       value:gsub(
         "%s+",
@@ -1444,7 +1227,6 @@ local function indiceDiarioExtractInfo(
       "^%s*(.-)%s*$"
     )
   end
-
 
   local parts = {}
   local skipped =
@@ -1465,14 +1247,11 @@ local function indiceDiarioExtractInfo(
     then
       if not skipped then
         skipped = true
-
       elseif not value:match(
         "^#+%s"
       ) then
         value =
-          cleanSnippetText(
-            value
-          )
+          cleanSnippetText(value)
 
         if value
           and value ~= ""
@@ -1501,9 +1280,7 @@ local function indiceDiarioExtractInfo(
     )
 
   snippet =
-    cleanSnippetText(
-      snippet
-    )
+    cleanSnippetText(snippet)
 
   if #snippet > 130 then
     snippet =
@@ -1525,12 +1302,6 @@ end
 -- RENDERING
 -- ============================================================
 
-
--- Costruisce la miniatura della pagina.
---
--- Per gli embed SilverBullet viene riutilizzato il wikilink
--- originale; per immagini Markdown viene generato il relativo
--- markup standard.
 local function indiceDiarioThumbnail(
   wikiImage,
   markdownImage
@@ -1552,20 +1323,10 @@ local function indiceDiarioThumbnail(
   return nil
 end
 
-
--- Costruisce il widget completo dell'indice.
---
--- Il widget delega raccolta e filtro al namespace indiceDiario.
--- Il rendering DOM resta separato dal livello dati.
---
--- Titolo e snippet non impostano una dimensione font propria e
--- quindi ereditano il normale carattere della pagina SilverBullet.
 function widgets.IndiceDiario()
   local cfg =
     indiceDiarioConfig()
 
-  -- Fast path:
-  -- all'apertura vengono richieste soltanto le prime cfg.BATCH pagine.
   local firstBatch =
     indiceDiario.entriesBatch(
       cfg,
@@ -1584,10 +1345,6 @@ function widgets.IndiceDiario()
     )
   end
 
-  -- Cache del contenuto valida per questa istanza del widget.
-  --
-  -- Il Markdown viene letto solo quando la relativa card viene
-  -- effettivamente costruita.
   local contentCache = {}
 
   local function ensureContent(entry)
@@ -1622,7 +1379,6 @@ function widgets.IndiceDiario()
 
     return cached
   end
-
 
   local function buildTagsNode(entry)
     local tags =
@@ -1671,7 +1427,6 @@ function widgets.IndiceDiario()
     }
   end
 
-
   local function buildLuoghiNode(entry)
     local valori =
       indiceDiario.list(
@@ -1697,9 +1452,7 @@ function widgets.IndiceDiario()
 
     for _, value in ipairs(valori) do
       local target, label =
-        indiceDiarioWikiLink(
-          value
-        )
+        indiceDiarioWikiLink(value)
 
       if target then
         if added > 0 then
@@ -1723,7 +1476,6 @@ function widgets.IndiceDiario()
         )
 
         added = added + 1
-
       elseif type(value) == "string"
         and value ~= ""
       then
@@ -1751,7 +1503,6 @@ function widgets.IndiceDiario()
 
     return row
   end
-
 
   local function buildEntryNode(entry)
     local info =
@@ -1848,18 +1599,14 @@ function widgets.IndiceDiario()
       buildTagsNode(entry)
 
     if tagsNode then
-      row.appendChild(
-        tagsNode
-      )
+      row.appendChild(tagsNode)
     end
 
     local luoghiNode =
       buildLuoghiNode(entry)
 
     if luoghiNode then
-      row.appendChild(
-        luoghiNode
-      )
+      row.appendChild(luoghiNode)
     end
 
     if cfg.THUMBNAILS then
@@ -1870,15 +1617,12 @@ function widgets.IndiceDiario()
         )
 
       if thumb then
-        row.appendChild(
-          thumb
-        )
+        row.appendChild(thumb)
       end
     end
 
     return row
   end
-
 
   local root =
     dom.div {
@@ -1918,7 +1662,6 @@ function widgets.IndiceDiario()
 
   local currentFilter = ""
 
-  -- Modalità cronologica progressiva.
   local streamEntries =
     firstBatch.entries
 
@@ -1928,16 +1671,13 @@ function widgets.IndiceDiario()
   local streamHasMore =
     firstBatch.hasMore
 
-  -- Dataset completo: viene popolato soltanto quando serve al filtro.
   local allEntries = nil
-
   local activeEntries =
     streamEntries
 
   local renderedCount = 0
   local lastMonthKey = nil
   local filtering = false
-
 
   local function appendMonth(entry)
     local monthKey =
@@ -1948,9 +1688,7 @@ function widgets.IndiceDiario()
         entry.month
       )
 
-    if monthKey
-      == lastMonthKey
-    then
+    if monthKey == lastMonthKey then
       return
     end
 
@@ -1985,16 +1723,11 @@ function widgets.IndiceDiario()
       }
     )
 
-    lastMonthKey =
-      monthKey
+    lastMonthKey = monthKey
   end
 
-
-  -- Renderizza fino a cfg.BATCH elementi già presenti nel dataset attivo.
   local function renderNextBatch()
-    if renderedCount
-      >= #activeEntries
-    then
+    if renderedCount >= #activeEntries then
       return
     end
 
@@ -2019,12 +1752,9 @@ function widgets.IndiceDiario()
       )
     end
 
-    renderedCount =
-      last
+    renderedCount = last
   end
 
-
-  -- Aggiunge al flusso cronologico un nuovo batch richiesto all'indice.
   local function loadNextStreamBatch()
     if not streamHasMore
       or not streamCursor
@@ -2055,24 +1785,17 @@ function widgets.IndiceDiario()
       )
     end
 
-    streamCursor =
-      batch.cursor
-
+    streamCursor = batch.cursor
     streamHasMore =
       batch.hasMore
       and #batch.entries > 0
 
-    activeEntries =
-      streamEntries
-
+    activeEntries = streamEntries
     renderNextBatch()
   end
 
-
   local function resetList(entries)
-    activeEntries =
-      entries
-
+    activeEntries = entries
     renderedCount = 0
     lastMonthKey = nil
 
@@ -2090,12 +1813,9 @@ function widgets.IndiceDiario()
     end
 
     renderNextBatch()
-
     list.scrollTop = 0
   end
 
-
-  -- Il dataset completo viene caricato solo al primo uso del filtro.
   local function ensureAllEntries()
     if allEntries then
       return allEntries
@@ -2111,7 +1831,6 @@ function widgets.IndiceDiario()
 
     return allEntries
   end
-
 
   list.addEventListener(
     "scroll",
@@ -2130,9 +1849,7 @@ function widgets.IndiceDiario()
         return
       end
 
-      if renderedCount
-        < #activeEntries
-      then
+      if renderedCount < #activeEntries then
         renderNextBatch()
         return
       end
@@ -2140,7 +1857,6 @@ function widgets.IndiceDiario()
       loadNextStreamBatch()
     end
   )
-
 
   local function applyFilter(value)
     local trimmed =
@@ -2157,19 +1873,13 @@ function widgets.IndiceDiario()
       filtering = false
 
       if allEntries then
-        streamEntries =
-          allEntries
-
+        streamEntries = allEntries
         streamCursor = nil
         streamHasMore = false
 
-        resetList(
-          allEntries
-        )
+        resetList(allEntries)
       else
-        resetList(
-          streamEntries
-        )
+        resetList(streamEntries)
       end
 
       return
@@ -2186,11 +1896,8 @@ function widgets.IndiceDiario()
         trimmed
       )
 
-    resetList(
-      filtered
-    )
+    resetList(filtered)
   end
-
 
   local filterTimer = nil
 
@@ -2226,7 +1933,6 @@ function widgets.IndiceDiario()
     end
   )
 
-
   openSearch.addEventListener(
     "click",
     function()
@@ -2246,8 +1952,6 @@ function widgets.IndiceDiario()
     end
   )
 
-
-  -- Le prime schede sono già disponibili dal fast path.
   renderNextBatch()
 
   return widget.htmlBlock(root)
@@ -2258,15 +1962,6 @@ end
 -- WIDGET CERCA LUOGHI
 -- ============================================================
 
-
--- Ricerca interattiva delle pagine sotto luoghi/.
---
--- Comportamento:
--- - elenco vuoto all'apertura;
--- - caricamento del dataset solo al primo filtro non vuoto;
--- - ricerca AND su path, title, displayName e aliases;
--- - nessuna lettura dei file Markdown;
--- - rendering progressivo dei risultati.
 function widgets.CercaLuoghi()
   local root =
     dom.div {
@@ -2299,9 +1994,6 @@ function widgets.CercaLuoghi()
   local renderedCount = 0
   local batchSize = 25
 
-
-  -- Il dataset viene interrogato una sola volta per istanza del widget
-  -- e solo dopo l'inserimento del primo filtro.
   local function ensureEntries()
     if allEntries then
       return allEntries
@@ -2312,7 +2004,6 @@ function widgets.CercaLuoghi()
 
     return allEntries
   end
-
 
   local function buildResultNode(entry)
     local row =
@@ -2347,18 +2038,14 @@ function widgets.CercaLuoghi()
     return row
   end
 
-
   local function renderNextBatch()
-    if renderedCount
-      >= #activeEntries
-    then
+    if renderedCount >= #activeEntries then
       return
     end
 
     local last =
       math.min(
-        renderedCount
-          + batchSize,
+        renderedCount + batchSize,
         #activeEntries
       )
 
@@ -2373,19 +2060,13 @@ function widgets.CercaLuoghi()
       )
     end
 
-    renderedCount =
-      last
+    renderedCount = last
   end
 
-
   local function resetResults(entries)
-    activeEntries =
-      entries
-
+    activeEntries = entries
     renderedCount = 0
-
     list.replaceChildren()
-    list.scrollTop = 0
 
     if #entries == 0 then
       status.textContent =
@@ -2405,15 +2086,12 @@ function widgets.CercaLuoghi()
     renderNextBatch()
   end
 
-
   local function clearResults()
     activeEntries = {}
     renderedCount = 0
-
     list.replaceChildren()
     status.textContent = ""
   end
-
 
   list.addEventListener(
     "scroll",
@@ -2429,9 +2107,8 @@ function widgets.CercaLuoghi()
     end
   )
 
-
   local function applyFilter(value)
-    local searchText =
+    local trimmed =
       tostring(
         value
         or ""
@@ -2439,8 +2116,8 @@ function widgets.CercaLuoghi()
         "^%s*(.-)%s*$"
       )
 
-    if not searchText
-      or searchText == ""
+    if not trimmed
+      or trimmed == ""
     then
       clearResults()
       return
@@ -2452,14 +2129,11 @@ function widgets.CercaLuoghi()
     local filtered =
       cercaLuoghi.filter(
         entries,
-        searchText
+        trimmed
       )
 
-    resetResults(
-      filtered
-    )
+    resetResults(filtered)
   end
-
 
   local filterTimer = nil
 
@@ -2472,9 +2146,7 @@ function widgets.CercaLuoghi()
           or ""
         )
 
-      if value:match(
-        "^%s*$"
-      ) then
+      if value:match("^%s*$") then
         if filterTimer then
           js.window.clearTimeout(
             filterTimer
@@ -2507,111 +2179,49 @@ function widgets.CercaLuoghi()
 end
 ```
 
+## Note della revisione 0.1-10
+
+* `displayName` è il titolo canonico delle pagine `Diario/`.
+* Eliminato ogni accesso a `p.title` nelle query rivolte al Diario.
+* Eliminata la scansione globale di `index.headers()` usata per recuperare il primo H1.
+* Fast path, filtro e Virtual Page usano la stessa sorgente indicizzata.
+* Il fallback finale del titolo è l'ultimo segmento del path della pagina.
+* `entry.title` resta soltanto un campo interno del renderer.
+* `widgets.CercaLuoghi()` mantiene invariata la propria semantica `title → displayName → aliases → nome pagina`, perché opera sulle pagine `luoghi/` e non sul Diario.
+
 ## Note della revisione 0.1-09
 
 Migliorata la presentazione gerarchica di `widgets.CercaLuoghi()`.
 
-- la stessa query `index.subPages("luoghi")` costruisce una lookup locale `path -> label`;
-- nessuna query aggiuntiva e nessun `space.readPage()`;
-- il lookup viene calcolato una sola volta per istanza del widget, al primo utilizzo effettivo della ricerca;
-- i codici dei livelli geografici vengono visualizzati usando `title` → `displayName` → `aliases` → nome pagina;
-- il breadcrumb mostra soltanto gli antenati, escludendo il risultato corrente.
-
-Esempio:
-
-```text
-luoghi/ITA/21/Torino/Superga
-```
-
-viene visualizzato come risultato:
-
-```text
-Superga
-Italia › Piemonte › Torino
-```
-
-I nomi gerarchici tradotti vengono inclusi anche nella stringa di ricerca, quindi una ricerca come `Piemonte Superga` può trovare la pagina senza modificare il path canonico.
+* la stessa query `index.subPages("luoghi")` costruisce una lookup locale `path -> label`;
+* nessuna query aggiuntiva e nessun `space.readPage()`;
+* il lookup viene calcolato una sola volta per istanza del widget, al primo utilizzo effettivo della ricerca;
+* i codici dei livelli geografici vengono visualizzati usando `title` → `displayName` → `aliases` → nome pagina;
+* il breadcrumb mostra soltanto gli antenati, escludendo il risultato corrente.
 
 ## Note della revisione 0.1-08
 
-Aggiunto `widgets.CercaLuoghi()`.
-
-- all'apertura il widget mostra soltanto il campo di ricerca;
-- nessuna query viene eseguita finché il filtro è vuoto;
-- al primo utilizzo viene caricato una sola volta il dataset di `index.subPages("luoghi")`;
-- la ricerca usa esclusivamente `name`, `title`, `displayName` e `aliases`;
-- il path gerarchico viene mostrato come breadcrumb testuale;
-- i risultati vengono renderizzati 25 alla volta durante lo scrolling;
-- il click apre direttamente la pagina luogo;
-- nessun `space.readPage()` e nessuna scansione del Markdown.
-
-La logica AND del filtro riusa `indiceDiario.filterIndexed()` senza modificare il comportamento già stabile di `IndiceDiario`.
+Aggiunto `widgets.CercaLuoghi()` con caricamento lazy, ricerca indicizzata e rendering progressivo dei risultati.
 
 ## Note della revisione 0.1-07
 
-Ottimizzato il caricamento iniziale del widget.
-
-- all'apertura `widgets.IndiceDiario()` usa `indiceDiario.entriesBatch()` e interroga soltanto le prime `batchSize` pagine;
-- i batch successivi vengono richiesti a `index.subPages("Diario")` durante lo scrolling;
-- il dataset completo viene caricato soltanto al primo utilizzo effettivo del filtro;
-- le Virtual Page continuano a usare `indiceDiario.entries()` e rimangono autonome;
-- il Markdown viene letto soltanto quando una card viene realmente renderizzata;
-- il fast path iniziale non esegue la query globale su `index.headers()`.
-
-Nel fast path il titolo usa `title` → `displayName` → nome pagina. Il fallback al primo H1 resta disponibile nel caricamento completo usato dal filtro e dalle Virtual Page.
-
-La paginazione cronologica usa `p.date` come cursore ISO; questo è coerente con il Diario normalizzato, dove `date` è presente nel frontmatter delle giornate.
+Ottimizzato il caricamento iniziale: `widgets.IndiceDiario()` usa `indiceDiario.entriesBatch()` e richiede soltanto le prime `batchSize` pagine; il dataset completo viene caricato soltanto quando serve al filtro.
 
 ## Note della revisione 0.1-06
 
-Aggiunte due Virtual Page basate sul livello dati introdotto nella 0.1-04:
-
-- `diario:mese:YYYY-MM` mostra tutte le giornate del mese;
-- `diario:ricerca:...` ricalcola la ricerca usando esclusivamente gli attributi indicizzati.
-
-Il filtro del widget è stato allineato alla Virtual Page di ricerca: non usa più lo snippet. Lo snippet rimane visualizzato nelle card e viene letto solo quando la scheda viene effettivamente renderizzata.
-
-Nel widget:
-- il titolo del mese apre la relativa Virtual Page mensile;
-- il pulsante **Apri risultati** apre la ricerca indicizzata corrente.
-
-Le Virtual Page restituiscono Markdown leggero e non duplicano il rendering DOM delle card.
+Aggiunte le Virtual Page `diario:mese:YYYY-MM` e `diario:ricerca:...`; il filtro usa esclusivamente gli attributi indicizzati.
 
 ## Note della revisione 0.1-05
 
-Corretto `indiceDiario.indexedSearchText()`: la stringa di ricerca non viene più costruita con una concatenazione `..` di attributi indicizzati potenzialmente assenti. Ogni valore passa ora da `indiceDiario.valueText()` e il risultato viene composto con `table.concat()`.
-
-La modifica non cambia i campi ricercati né il comportamento del filtro; rende soltanto più robusta la normalizzazione dei valori `nil`.
+Resa robusta la costruzione della stringa di ricerca tramite `indiceDiario.valueText()` e `table.concat()`.
 
 ## Note della revisione 0.1-04
 
-Questa revisione separa il livello **dati/filtro** dal rendering del widget.
-
-- `indiceDiario.entries()` raccoglie e normalizza le pagine del Diario.
-- `indiceDiario.filterIndexed()` filtra esclusivamente gli attributi già indicizzati.
-- `indiceDiario.filter()` consente al widget di aggiungere lo snippet come sorgente supplementare senza duplicare la logica AND.
-- la sorgente delle pagine è ora `index.subPages("Diario")`.
-- il filtro indicizzato comprende `path`, titolo, `displayName`, `description`, `tags`, `luoghi` e `Viaggio`.
-
-`indiceDiario.filterIndexed()` non esegue `space.readPage()` ed è il punto di riuso previsto per le future Virtual Page.
-
-Il cambio da `index.pages() + startsWith` a `index.subPages("Diario")` non dovrebbe produrre oggi un'accelerazione significativa: nell'implementazione corrente SilverBullet `subPages()` applica internamente un filtro sul prefisso della collection `page`. Il vantaggio principale è semantico, manutentivo e di compatibilità con eventuali future ottimizzazioni dell'API.
+Separato il livello dati/filtro dal rendering del widget; la sorgente delle pagine è `index.subPages("Diario")`.
 
 ## Note della revisione 0.1-03
 
-Il rendering delle card usa ora CSS Grid. La stessa struttura DOM viene riordinata via CSS sotto i 520 px: non vengono duplicate schede, query o letture Markdown.
-
-Su smartphone il calendario resta accanto al titolo; snippet e foto passano nella riga successiva, mentre tags e luoghi occupano tutta la larghezza. Lo snippet mobile è limitato visivamente a tre righe.
-
-L'impatto computazionale rispetto alla 0.1-02 è trascurabile: cambia principalmente il layout CSS, non la pipeline dati.
-
-## Note prestazionali della revisione 0.1-02
-
-La query iniziale legge dall'indice anche `tags` e `luoghi`. Questo non introduce letture aggiuntive dei file Markdown.
-
-Il filtro utilizza prima `path + title + tags + luoghi`; `space.readPage()` viene chiamato soltanto quando serve verificare lo snippet. Il campo di ricerca applica inoltre un debounce di circa 280 ms.
-
-Le schede continuano a essere create in batch da `batchSize`, quindi tags e luoghi aggiungono soltanto pochi nodi DOM alle pagine effettivamente visualizzate.
+Il rendering delle card usa CSS Grid con layout responsive per smartphone.
 
 ## Space Style
 
@@ -2655,7 +2265,8 @@ Le schede continuano a essere create in batch da `batchSize`, quindi tags e luog
   gap: 7px;
 }
 
-.id-filter {
+.id-filter,
+.cl-filter {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -2668,7 +2279,8 @@ Le schede continuano a essere create in batch da `batchSize`, quindi tags e luog
   outline: none;
 }
 
-.id-filter:focus {
+.id-filter:focus,
+.cl-filter:focus {
   border-color: var(--id-accent);
 }
 
@@ -2703,15 +2315,18 @@ Le schede continuano a essere create in batch da `batchSize`, quindi tags e luog
   scrollbar-gutter: stable;
 }
 
-.id-list::-webkit-scrollbar {
+.id-list::-webkit-scrollbar,
+.cl-list::-webkit-scrollbar {
   width: 5px;
 }
 
-.id-list::-webkit-scrollbar-track {
+.id-list::-webkit-scrollbar-track,
+.cl-list::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.id-list::-webkit-scrollbar-thumb {
+.id-list::-webkit-scrollbar-thumb,
+.cl-list::-webkit-scrollbar-thumb {
   background: var(--id-border);
   border-radius: 3px;
 }
@@ -2894,35 +2509,11 @@ Le schede continuano a essere create in batch da `batchSize`, quindi tags e luog
   object-fit: cover;
 }
 
-/*
-  Smartphone:
-  - calendario e titolo formano l'header;
-  - lo snippet passa sotto e usa quasi tutta la larghezza;
-  - la foto resta a destra dello snippet;
-  - tags e luoghi occupano l'intera larghezza della card.
-*/
 .cl-index {
   display: flex;
   flex-direction: column;
   gap: 7px;
   font-size: inherit;
-}
-
-.cl-filter {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 7px 9px;
-  border: 1px solid var(--id-border);
-  border-radius: 7px;
-  background: var(--id-bg);
-  color: var(--id-text);
-  font: inherit;
-  outline: none;
-}
-
-.cl-filter:focus {
-  border-color: var(--id-accent);
 }
 
 .cl-status {
@@ -2944,19 +2535,6 @@ Le schede continuano a essere create in batch da `batchSize`, quindi tags e luog
 
 .cl-list:empty {
   display: none;
-}
-
-.cl-list::-webkit-scrollbar {
-  width: 5px;
-}
-
-.cl-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.cl-list::-webkit-scrollbar-thumb {
-  background: var(--id-border);
-  border-radius: 3px;
 }
 
 .cl-result {
