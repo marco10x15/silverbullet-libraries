@@ -1,158 +1,178 @@
 ---
 name: "Library/MG/Page Widgets"
 tags: meta/library
+description: "Utility generali per ricavare il titolo visuale di una pagina."
+version: "2.00"
+versionDate: 2026-08-28
 pageDecoration.prefix: "⚙️ "
-share.uri: "github:marco10x15/silverbullet-libraries/Page_Widgets.md"
 ---
+
 # Page Widgets
-* page.nome(where)
-* page.title(where) - superata da definizione di attributo automatica.
-* tag.define: attributo: title
 
-## page.nome(where)
-**Funzione che riceve un path e restituisca il valore dell'ultima parte.**
+Utility generali di presentazione delle pagine per SilverBullet v2.
 
-Questa funzione estrae il nome dalla pagina.
+**Versione:** 2.00 — 28.08.2026
 
-Nome di questa pagina: ${editor.getCurrentPage()}
-Stringa estratta dal nome: ${page.nome(editor.getCurrentPage())}.
+Questa revisione separa nettamente le responsabilità tra le librerie:
 
-La funzione riconosce il caso particolare in cui la stringa contenga una data in forma ISO e restituisce solo la data ISO.
+* `PageNavigation.md` contiene `page.nome()`, `page.parents()`, `page.prec()`,
+  `page.succ()`, `page.child()`, `page.sister()`, `page.up()`,
+  `page.lev()` e `page.breadcrumb()`;
+* `Page_Widgets.md` contiene `page.title()` e le eventuali future utility
+  generali di presentazione che non appartengono alla navigazione.
 
-### Esempio
--- Esempi di utilizzo:
-${page.nome("Inbox/New Page/2025-04-01")} vs ${page.nome("Inbox/New Page/2025-04-01")} 
-${page.nome("Inbox/New Page/2025-02-00")} vs ${page.nome("Inbox/New Page/2025-02-00")}     
-${page.nome("Notes/2023-12-25-Mattina")} vs ${page.nome("Notes/2023-12-25-Mattina")} 
-${page.nome("Tasks/Important/2024-07-15-Meeting")} vs ${page.nome("Tasks/Important/2024-07-15-Meeting")} 
-${page.nome("Random/String/No-Date-Here")}  vs ${page.nome("Random/String/No-Date-Here")} 
-${page.nome("OnlyOnePart")} vs ${page.nome("OnlyOnePart")}
+La precedente `tag.define` che generava automaticamente l'attributo `title`
+è stata rimossa. La libreria non crea né modifica attributi persistenti.
 
-### Implementazione
+## `page.title(where)`
+
+Restituisce il titolo visuale di una pagina.
+
+`where` è opzionale. Se omesso viene utilizzata la pagina corrente.
+
+### Priorità
+
+1. `displayName`;
+2. `title`, mantenuto come fallback per pagine legacy;
+3. primo header H1 presente nella pagina;
+4. stringa vuota se nessuna delle sorgenti precedenti è disponibile.
+
+Per le pagine `Diario/` normalizzate la sorgente canonica è quindi
+`displayName`. Il fallback `title` serve esclusivamente a mantenere
+compatibilità con pagine non ancora migrate o con altri insiemi di pagine.
+
+La ricerca dell'H1 usa gli oggetti `header` indicizzati da SilverBullet e
+l'attributo `range`; non usa il precedente attributo `pos`.
+
+### Esempi
 
 ```space-lua
-page = page or {}
-function page.nome(path)
-  -- Estrai la parte finale dopo l'ultimo "/"
-  local lastPart = path:match(".*/(.*)$") or path
-
-  -- Cerca una data in formato ISO (AAAA-MM-GG)
-  local dateISO = lastPart:match("(%d%d%d%d%-%d%d%-%d%d)")
-  if dateISO then return dateISO end
-
-  -- Sostituisci gli underscore con spazi
-  local cleaned = lastPart:gsub("_", " ")
-
-  -- Decodifica i caratteri URL-encoded (es. %27 → ')
-  cleaned = cleaned:gsub("%%(%x%x)", function(hex)
-    return string.char(tonumber(hex, 16))
-  end)
-
-  return cleaned
-end
+page.title()
+page.title("Diario/2026-05-09")
+page.title("luoghi/ITA/21/Torino")
 ```
 
-## page.title(where)
-**Restituisce il titolo della pagina dal primo Header H1 presente della pagina**
-
-Se _where_ è omesso utilizza la pagina corrente.
-
-### Esempio
-per la pagina restituisce: 
-[[Diario/2026-05-09]] => ${page.title("Diario/2026-05-09")}
-[[Diario/2026-04-25]] => ${page.title("Diario/2026-04-25")}
-[[Diario/1900-01-01]] => ${page.title("Diario/1900-01-01")}
-[[Diario/1900-01-02]] => ${page.title("Diario/1900-01-02")}
-
-### Implementazione
+## Implementazione
 
 ```space-lua
--- function page.title(where) 
--- Restituisce il titolo della pagina
--- dal primo Header H1 della pagina
 page = page or {}
+
+
+-- Restituisce true solo per stringhe non vuote.
+local function pageWidgetsHasString(value)
+  return type(value) == "string"
+    and value ~= ""
+end
+
+
+-- Restituisce displayName e title indicizzati per una pagina.
+local function pageWidgetsPageInfo(where)
+  local pages = query[[
+    from p = index.pages()
+    where p.name == where
+    select {
+      displayName = p.displayName,
+      title = p.title
+    }
+    limit 1
+  ]]
+
+  if pages
+    and #pages > 0
+  then
+    return pages[1]
+  end
+
+  return nil
+end
+
+
+-- Restituisce il primo H1 in ordine di posizione nella pagina.
+local function pageWidgetsFirstH1(where)
+  local headers = query[[
+    from h = index.headers()
+    where h.page == where
+      and h.level == 1
+    select {
+      text = h.text,
+      range = h.range
+    }
+  ]]
+
+  if not headers
+    or #headers == 0
+  then
+    return ""
+  end
+
+  local firstText = ""
+  local firstStart = nil
+
+  for _, h in ipairs(headers) do
+    if pageWidgetsHasString(h.text) then
+      local start = nil
+
+      if type(h.range) == "table" then
+        start = h.range[1]
+      end
+
+      if type(start) == "number" then
+        if firstStart == nil
+          or start < firstStart
+        then
+          firstStart = start
+          firstText = h.text
+        end
+      elseif firstText == "" then
+        -- Fallback prudenziale nel caso in cui un oggetto header
+        -- non esponga range.
+        firstText = h.text
+      end
+    end
+  end
+
+  return firstText
+end
+
 
 function page.title(where)
-  if space.pageExists(where) then
-  -- Estrai frontmatter
-  local fm = index.extractFrontmatter(space.readPage(where))
-  
-  if fm.frontmatter.title then
-    return fm.frontmatter.title
-  else
-    -- Se non esiste title in frontmatter
-    -- cerca di estrarlo dal primo header H1
-    local out = query[[
-      from t = index.tag "header"
-      where t.page == where
-      and t.level == 1
-      order by t.pos
-      select {title = t.text}
-      limit 1
-    ]]
-    if #out == 0 then
-      return ""
-    else
-      return tostring(out[1].title)
-    end
+  where =
+    where
+    or editor.getCurrentPage()
+
+  if not pageWidgetsHasString(where) then
+    return ""
   end
-  -- if space.pageExists(where) è falso
-  -- la pagina non esiste
-  else 
-    return "La pagina non esiste"
+
+  local p =
+    pageWidgetsPageInfo(where)
+
+  if not p then
+    return ""
   end
+
+  if pageWidgetsHasString(
+    p.displayName
+  ) then
+    return p.displayName
+  end
+
+  if pageWidgetsHasString(
+    p.title
+  ) then
+    return p.title
+  end
+
+  return pageWidgetsFirstH1(where)
 end
 ```
 
-## tag.define: attributo: title
+## Modifiche versione 2.00
 
-### Implementazione della `transform` personalizzata per title
- 
-Vogliamo configurare un attributo `title: Titolo` per la pagina.
-Le priorità per definire l’attributo `title` sono:
-1) da Variabile `[title: Titolo da variabile]`
-2) definito nel frontmatter `title: Titolo presente nel frntmatter`
-3) primo Header H1 della pagina
-4) se nessuna delle precedenti è vera non deve essere presente l’attributo title
-
-${query[[from o = index.objects("page")
-where o.name == editor.getCurrentPage()
-select{name = o.name,
-  titolo = o.title}]]}
-
-
-```space-lua
-tag.define {
-  name = "page",
-  -- Non serve validazione specifica
-  -- è valida per tutte le pagine.  
-
-  transform = function(o)
-    -- 1) Verifica se esiste un title nel frontmatter
-    local pageName = editor.getCurrentPage()
-    local fm = index.extractFrontmatter(space.readPage(pageName))
-
-    if fm and fm.frontmatter and fm.frontmatter.title then
-      return
-    end
-
-    -- 2) Usa la query per trovare il primo H1
-    local out = query[[
-      from t = index.tag "header"
-      where t.page == pageName
-      and t.level == 1
-      order by t.pos
-      select {title = t.text}
-      limit 1
-    ]]
-
-    if out and #out > 0 and out[1].title then
-      result = tostring(out[1].title)
-    end
-    o.title = result
-    return o
-    -- 3) Nessun title disponibile → non impostare attributo
-    -- return nil
-  end
-}
-```
+* `page.title()` usa la priorità `displayName` → `title` legacy → primo H1 → `""`.
+* Il primo H1 viene ricavato tramite `index.headers()` e `range`.
+* Rimossa la `tag.define` che generava automaticamente `title`.
+* Rimossa da questa libreria la definizione di `page.nome()`, ora appartenente
+  esclusivamente a `PageNavigation.md`.
+* Nessuna lettura diretta del Markdown e nessun attributo persistente aggiuntivo.
+* La libreria usa esclusivamente API SilverBullet v2 correnti.
