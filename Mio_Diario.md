@@ -2,16 +2,19 @@
 name: "Library/MG/Mio_Diario"
 tags: meta/library
 description: "Utility per gestire, navigare e aggregare il Diario personale in SilverBullet."
-version: "1.06"
+version: "1.07"
 versionDate: 2026-08-28
 pageDecoration.prefix: "📔 "
+share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario.md"
+share.hash: 1ee5469a
+share.mode: pull
 ---
 
 # 📔 Mio Diario
 
 **Mio Diario** è la raccolta di utility per gestire, navigare e aggregare il Mio Diario con SilverBullet.
 
-**Versione:** 1.06 — 28.08.2026
+**Versione:** 1.07 — 28.08.2026
 
 La libreria mantiene le pagine Markdown come fonte primaria dei dati e costruisce dinamicamente navigazione, relazioni geografiche, viaggi e riepiloghi tramite gli indici di SilverBullet.
 
@@ -41,8 +44,6 @@ Viaggio: "[[Viaggi/Nome viaggio]]"
 luoghi:
   - "[[luoghi/ITA/21/Torino]]"
   - "[[luoghi/ITA/21/Torino/Mole Antonelliana]]"
-galleriafoto:
-  - "[[...]]"
 tags:
   - esempio
 ---
@@ -55,7 +56,6 @@ Campi utilizzati dalla libreria:
 * `description` — descrizione opzionale;
 * `Viaggio` — wikilink opzionale a una singola pagina `Viaggi/...`;
 * `luoghi` — lista opzionale di wikilink a pagine `luoghi/...`;
-* `galleriafoto` — lista opzionale di riferimenti alle gallerie fotografiche;
 * `tags` — gestiti direttamente dal rendering del frontmatter di SilverBullet.
 
 L'attributo personalizzato `title` non è più richiesto nelle pagine `Diario/`.
@@ -79,7 +79,7 @@ Il path costituisce la relazione geografica primaria e non viene duplicato in at
 
 ## Main Features
 
-* **Navigazione del Diario** — inserisce in testa a ogni pagina Diario titolo, navigazione precedente/successiva e, quando presenti, descrizione, viaggio, luoghi e galleria fotografica.
+* **Navigazione del Diario** — inserisce in testa a ogni pagina Diario titolo, navigazione precedente/successiva e, quando presenti, descrizione, viaggio e luoghi.
 * **Navigazione geografica** — trasforma `luoghi.md` nell'ingresso della gerarchia geografica, raggruppando gli Stati visitati per continente e mostrando progressivamente suddivisioni, Comuni e Località.
 * **Divisioni amministrative virtuali** — ricostruisce Province, Dipartimenti e altre divisioni intermedie tramite `divisioneIntermedia` e Virtual Pages `geo:divisione:*`.
 * **Elenco Luoghi** — mostra in un widget dedicato la struttura geografica del luogo corrente: padre, eventuale divisione intermedia e figli diretti.
@@ -1593,8 +1593,7 @@ function wTopDiario(path)
       displayName = p.displayName,
       description = p.description,
       Viaggio = p.Viaggio,
-      luoghi = p.luoghi,
-      galleriafoto = p.galleriafoto
+      luoghi = p.luoghi
     }
     limit 1
   ]]
@@ -1640,17 +1639,6 @@ function wTopDiario(path)
     )
   end
 
-  if luoghi.hasList(p.galleriafoto) then
-    table.insert(
-      righe,
-      "📷 "
-        .. table.concat(
-          p.galleriafoto,
-          ", "
-        )
-    )
-  end
-
   return table.concat(
     righe,
     "\n"
@@ -1665,6 +1653,12 @@ end
 * `luoghi.diarioLabel()` usa `displayName` con fallback al nome pagina.
 * `wTopDiario()` usa direttamente `p.displayName`, con fallback a `page.nome()`.
 * `Siamo stati qui` e `Info Viaggio` non dipendono più dall'attributo `title` né da `page.title()`.
+
+## Modifiche versione 1.07
+
+* Rimosso `galleriafoto` dal modello dati atteso delle pagine `Diario/`.
+* `wTopDiario()` non interroga né visualizza più `galleriafoto`.
+* I collegamenti alle fotografie restano nel corpo Markdown, che rimane la fonte primaria per questo contenuto.
 * La semantica di `title` nelle pagine `luoghi/` resta invariata.
 * Nessuna scansione aggiuntiva del Markdown e nessun nuovo stato persistente.
 
@@ -1689,7 +1683,7 @@ end
 * `Siamo stati qui` viene esteso dal livello Comune/Città al livello **suddivisione primaria**, quindi anche pagine come `luoghi/ITA/55` mostrano Viaggi e giornate relativi all'intero ramo geografico.
 * La query resta basata su `index.subPages("Diario")` e sull'attributo indicizzato `p.luoghi`: il costo di selezione è sostanzialmente lo stesso; può aumentare invece il numero di risultati da renderizzare sulle suddivisioni molto frequentate.
 * Il breadcrumb viene inserito direttamente nella scheda geografica `linkedInfoLuoghi`.
-* La scheda usa `page.breadcrumb(pageName, false)` fornito da `PageNavigation.md` (versione 1.02); se la funzione non è disponibile continua a funzionare senza breadcrumb.
+* La scheda usa `page.breadcrumb(pageName, false)` fornito da `PageNavigation_1.02`; se la funzione non è disponibile continua a funzionare senza breadcrumb.
 * Il breadcrumb non viene aggiunto alla pagina radice `luoghi`.
 
 ## Ottimizzazioni versione 1.02
@@ -1698,7 +1692,7 @@ Questa revisione completa la seconda fase di pulizia delle query.
 
 * `renderDivisione()` non esegue più `luoghi.getPage()` per ogni parent: raccoglie prima i parent distinti e li risolve con una sola query su `index.subPages("luoghi")`.
 * `wTopDiario()` usa prima `p.title` e `p.displayName`, già restituiti dall'indice; `page.title()` rimane soltanto come fallback per le pagine prive di entrambi.
-* `wTopDiario()` passa esplicitamente `pageName` a `page.prec()` e `page.succ()`, rendendo la navigazione indipendente dalla pagina corrente implicita e compatibile con `PageNavigation.md` (versione 1.01).
+* `wTopDiario()` passa esplicitamente `pageName` a `page.prec()` e `page.succ()`, rendendo la navigazione indipendente dalla pagina corrente implicita e compatibile con `PageNavigation_1.01`.
 * Non vengono introdotte cache persistenti, nuovi attributi o letture aggiuntive del Markdown.
 
 ## Ottimizzazioni versione 1.01
