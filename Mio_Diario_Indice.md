@@ -2,7 +2,7 @@
 name: "Library/MG/Mio_Diario_Indice"
 tags: meta/library
 description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
-version: "0.1-14"
+version: "0.1-15"
 versionDate: 2026-08-31
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
@@ -12,7 +12,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
 
 **IndiceDiario** visualizza direttamente in una pagina SilverBullet un indice compatto delle pagine del Diario.
 
-**Versione:** 0.1-14 — 31.08.2026
+**Versione:** 0.1-15 — 31.08.2026
 
 La libreria è autonoma e non dipende da Journal Explorer.
 
@@ -24,7 +24,7 @@ La libreria è autonoma e non dipende da Journal Explorer.
 * **Titolo** — `displayName` → nome pagina, visualizzato in grassetto e collegato alla pagina Diario.
 * **Immagine** — prima immagine trovata nella pagina, se presente.
 * **Snippet** — estratto dal testo della pagina.
-* **Caricamento progressivo reale** — all'apertura interroga solo il primo batch; i batch successivi vengono richiesti durante lo scrolling e l'intero dataset viene caricato solo quando serve al filtro.
+* **Rendering progressivo** — all'apertura carica in una sola query i metadati indicizzati del Diario, ma renderizza soltanto il primo batch; le schede successive vengono costruite durante lo scrolling.
 * **Filtro globale indicizzato** — ricerca con logica AND su path, titolo visualizzato, `displayName`, `description`, tags, luoghi e Viaggio; lo snippet resta solo un elemento visuale.
 * **Livello dati riutilizzabile** — raccolta pagine e filtro indicizzato sono separati dal rendering e pronti per le Virtual Page.
 * **Navigazione diretta** — i titoli usano `editor.open()` e restano raggiungibili anche dopo caricamento progressivo o filtro.
@@ -51,7 +51,6 @@ Configurazione completa con i valori di default:
 
 ```space-lua
 config.set("indiceDiario", {
-  journalPathPattern = "Diario/#year#-#month#-#day#",
   batchSize          = 10,
   showThumbnails     = true,
   showSnippets       = true,
@@ -68,13 +67,13 @@ config.set("indiceDiario", {
 })
 ```
 
-`batchSize` determina anche quante pagine vengono richieste all'indice in ogni batch durante la normale navigazione. Il filtro, quando utilizzato, carica invece l'intero insieme dei metadati indicizzati.
+`batchSize` determina soltanto quante schede vengono renderizzate alla volta. I metadati di tutte le pagine Diario vengono caricati con una sola query iniziale su `index.subPages("Diario")`.
 
-La raccolta dati usa `index.subPages("Diario")`; `journalPathPattern` continua a determinare quali sottopagine rappresentano giornate valide.
+Sono considerate giornate valide tutte le sottopagine di `Diario/` che possiedono l'attributo indicizzato `date`. Non viene più applicato alcun filtro sul formato del path.
 
 Il filtro è applicato con un debounce di circa 280 ms per evitare una scansione completa a ogni singolo tasto premuto.
 
-Per compatibilità con la precedente `0.1 alpha`, se `batchSize` non è definito viene ancora accettato `limit` come fallback.
+Per compatibilità con le revisioni precedenti, se `batchSize` non è definito viene ancora accettato `limit` come fallback per il solo rendering progressivo.
 
 > **note** Lo snippet viene letto soltanto quando la relativa scheda viene renderizzata; non partecipa al filtro.
 
@@ -116,7 +115,6 @@ cercaLuoghi = cercaLuoghi or {}
 config.define("indiceDiario", {
   type = "object",
   properties = {
-    journalPathPattern = schema.string(),
     batchSize = schema.number(),
     showThumbnails = schema.boolean(),
     showSnippets = schema.boolean(),
@@ -142,10 +140,6 @@ local function indiceDiarioConfig()
     or {}
 
   return {
-    PATTERN =
-      c.journalPathPattern
-      or "Diario/#year#-#month#-#day#",
-
     BATCH =
       math.max(
         1,
@@ -187,59 +181,6 @@ end
 -- ============================================================
 -- SELEZIONE DELLE PAGINE
 -- ============================================================
-
-local function indiceDiarioPattern(pattern)
-  local p =
-    pattern:gsub(
-      "([%(%)%.%%%+%-%[%^%$%?%*])",
-      "%%%1"
-    )
-
-  p = p:gsub("#weekdayfull#", "[%%a]+")
-  p = p:gsub("#monthname#", "[%%a]+")
-  p = p:gsub("#monthshort#", "[%%a]+")
-  p = p:gsub("#weekday#", "[%%a]+")
-  p = p:gsub("#ordinal#", "[%%a]+")
-  p = p:gsub("#weekyear#", "%%d%%d%%d%%d")
-  p = p:gsub("#weeknum#", "%%d%%d")
-  p = p:gsub("#weeknumraw#", "%%d+")
-  p = p:gsub("#year#", "%%d%%d%%d%%d")
-  p = p:gsub("#month#", "%%d%%d")
-  p = p:gsub("#day#", "%%d%%d")
-  p = p:gsub("#YY#", "%%d%%d")
-  p = p:gsub("#M#", "%%d+")
-  p = p:gsub("#D#", "%%d+")
-  p = p:gsub("#HH#", "%%d%%d")
-  p = p:gsub("#hh#", "%%d%%d")
-  p = p:gsub("#mm#", "%%d%%d")
-  p = p:gsub("#ss#", "%%d%%d")
-  p = p:gsub("#wildcard#", ".*")
-
-  return "^" .. p .. "$"
-end
-
-local function indiceDiarioDateFromPath(pageName)
-  local y, m, d =
-    pageName:match(
-      "(%d%d%d%d)%-(%d%d)%-(%d%d)"
-    )
-
-  if not y then
-    y, m, d =
-      pageName:match(
-        "(%d%d%d%d)/(%d%d)/(%d%d)"
-      )
-  end
-
-  if not y then
-    return nil
-  end
-
-  return
-    tonumber(y),
-    tonumber(m),
-    tonumber(d)
-end
 
 local function indiceDiarioWeekday(
   year,
@@ -289,59 +230,29 @@ local function indiceDiarioEntry(
   p,
   cfg
 )
-  if type(p.name) ~= "string" then
+  if type(p.name) ~= "string"
+    or type(p.date) ~= "string"
+    or p.date == ""
+  then
     return nil
   end
 
-  local pattern =
-    indiceDiarioPattern(
-      cfg.PATTERN
+  local y, m, d =
+    p.date:match(
+      "^(%d%d%d%d)%-(%d%d)%-(%d%d)"
     )
 
-  if not p.name:match(pattern) then
+  if not y then
     return nil
   end
 
-  local y, m, d = nil, nil, nil
-  local dateValue = nil
-
-  if type(p.date) == "string"
-    and p.date ~= ""
-  then
-    y, m, d =
-      p.date:match(
-        "^(%d%d%d%d)%-(%d%d)%-(%d%d)"
-      )
-
-    if y then
-      y = tonumber(y)
-      m = tonumber(m)
-      d = tonumber(d)
-      dateValue = p.date
-    end
-  end
-
-  if not y then
-    y, m, d =
-      indiceDiarioDateFromPath(
-        p.name
-      )
-
-    if y and m and d then
-      dateValue =
-        string.format(
-          "%04d-%02d-%02d",
-          y,
-          m,
-          d
-        )
-    end
-  end
+  y = tonumber(y)
+  m = tonumber(m)
+  d = tonumber(d)
 
   if not y
     or not m
     or not d
-    or not dateValue
   then
     return nil
   end
@@ -357,7 +268,7 @@ local function indiceDiarioEntry(
 
   local entry = {
     path = p.name,
-    date = dateValue,
+    date = p.date,
     year = y,
     month = m,
     day = d,
@@ -381,97 +292,6 @@ local function indiceDiarioEntry(
   return entry
 end
 
-function indiceDiario.entriesBatch(
-  cfg,
-  beforeName
-)
-  cfg =
-    cfg
-    or indiceDiarioConfig()
-
-  local batchSize = cfg.BATCH
-  local pages = nil
-
-  -- Il cursore usa p.name, non p.date.
-  --
-  -- Le pagine Diario normalizzate iniziano con la data ISO:
-  -- Diario/YYYY-MM-DD...
-  --
-  -- Il nome è inoltre univoco, quindi la paginazione non perde
-  -- pagine quando esistono più note con la stessa data.
-  if beforeName
-    and beforeName ~= ""
-  then
-    pages = query[[
-      from p = index.subPages("Diario")
-      where p.date != nil
-        and p.name < beforeName
-      order by p.name desc
-      limit batchSize
-      select {
-        name = p.name,
-        date = p.date,
-        displayName = p.displayName,
-        description = p.description,
-        tags = p.tags,
-        luoghi = p.luoghi,
-        Viaggio = p.Viaggio
-      }
-    ]]
-  else
-    pages = query[[
-      from p = index.subPages("Diario")
-      where p.date != nil
-      order by p.name desc
-      limit batchSize
-      select {
-        name = p.name,
-        date = p.date,
-        displayName = p.displayName,
-        description = p.description,
-        tags = p.tags,
-        luoghi = p.luoghi,
-        Viaggio = p.Viaggio
-      }
-    ]]
-  end
-
-  local entries = {}
-
-  for _, p in ipairs(pages) do
-    local entry =
-      indiceDiarioEntry(
-        p,
-        cfg
-      )
-
-    if entry then
-      table.insert(
-        entries,
-        entry
-      )
-    end
-  end
-
-  local cursor = nil
-
-  if pages
-    and #pages > 0
-  then
-    cursor =
-      pages[#pages].name
-  end
-
-  return {
-    entries = entries,
-    cursor = cursor,
-    hasMore =
-      pages
-      and #pages >= batchSize
-      or false
-  }
-end
-
 function indiceDiario.entries(cfg)
   cfg =
     cfg
@@ -479,6 +299,7 @@ function indiceDiario.entries(cfg)
 
   local pages = query[[
     from p = index.subPages("Diario")
+    where p.date != nil
     select {
       name = p.name,
       date = p.date,
@@ -2036,15 +1857,14 @@ function widgets.IndiceDiario()
   local cfg =
     indiceDiarioConfig()
 
-  local firstBatch =
-    indiceDiario.entriesBatch(
-      cfg,
-      nil
-    )
+  -- Una sola query iniziale carica esclusivamente i metadati
+  -- già indicizzati. Le letture Markdown restano progressive
+  -- e avvengono solo quando una scheda viene renderizzata.
+  local allEntries =
+    indiceDiario.entries(cfg)
 
-  if not firstBatch
-    or not firstBatch.entries
-    or #firstBatch.entries == 0
+  if not allEntries
+    or #allEntries == 0
   then
     return widget.htmlBlock(
       dom.div {
@@ -2371,22 +2191,16 @@ function widgets.IndiceDiario()
 
   local currentFilter = ""
 
-  local streamEntries =
-    firstBatch.entries
+  filter.placeholder =
+    "Filtra "
+    .. #allEntries
+    .. " pagine…"
 
-  local streamCursor =
-    firstBatch.cursor
-
-  local streamHasMore =
-    firstBatch.hasMore
-
-  local allEntries = nil
   local activeEntries =
-    streamEntries
+    allEntries
 
   local renderedCount = 0
   local lastMonthKey = nil
-  local filtering = false
 
   local function appendMonth(entry)
     local monthKey =
@@ -2464,45 +2278,6 @@ function widgets.IndiceDiario()
     renderedCount = last
   end
 
-  local function loadNextStreamBatch()
-    if not streamHasMore
-      or not streamCursor
-      or streamCursor == ""
-    then
-      return
-    end
-
-    local batch =
-      indiceDiario.entriesBatch(
-        cfg,
-        streamCursor
-      )
-
-    if not batch
-      or not batch.entries
-    then
-      streamHasMore = false
-      return
-    end
-
-    for _, entry in ipairs(
-      batch.entries
-    ) do
-      table.insert(
-        streamEntries,
-        entry
-      )
-    end
-
-    streamCursor = batch.cursor
-    streamHasMore =
-      batch.hasMore
-      and #batch.entries > 0
-
-    activeEntries = streamEntries
-    renderNextBatch()
-  end
-
   local function resetList(entries)
     activeEntries = entries
     renderedCount = 0
@@ -2525,22 +2300,6 @@ function widgets.IndiceDiario()
     list.scrollTop = 0
   end
 
-  local function ensureAllEntries()
-    if allEntries then
-      return allEntries
-    end
-
-    allEntries =
-      indiceDiario.entries(cfg)
-
-    filter.placeholder =
-      "Filtra "
-      .. #allEntries
-      .. " pagine…"
-
-    return allEntries
-  end
-
   list.addEventListener(
     "scroll",
     function()
@@ -2549,21 +2308,9 @@ function widgets.IndiceDiario()
         - list.scrollTop
         - list.clientHeight
 
-      if remaining >= 180 then
-        return
-      end
-
-      if filtering then
+      if remaining < 180 then
         renderNextBatch()
-        return
       end
-
-      if renderedCount < #activeEntries then
-        renderNextBatch()
-        return
-      end
-
-      loadNextStreamBatch()
     end
   )
 
@@ -2579,33 +2326,22 @@ function widgets.IndiceDiario()
     if not trimmed
       or trimmed == ""
     then
-      filtering = false
-
-      if allEntries then
-        streamEntries = allEntries
-        streamCursor = nil
-        streamHasMore = false
-
-        resetList(allEntries)
-      else
-        resetList(streamEntries)
-      end
+      resetList(
+        allEntries
+      )
 
       return
     end
 
-    filtering = true
-
-    local entries =
-      ensureAllEntries()
-
     local filtered =
       indiceDiario.filterIndexed(
-        entries,
+        allEntries,
         trimmed
       )
 
-    resetList(filtered)
+    resetList(
+      filtered
+    )
   end
 
   local filterTimer = nil
@@ -2931,6 +2667,36 @@ Separato il livello dati/filtro dal rendering del widget; la sorgente delle pagi
 ## Note della revisione 0.1-03
 
 Il rendering delle card usa CSS Grid con layout responsive per smartphone.
+
+## Revisione 0.1-15
+
+Semplificata la costruzione dell'indice eliminando completamente la paginazione delle query.
+
+La nuova architettura è:
+
+```text
+index.subPages("Diario")
+        ↓
+una sola query dei metadati indicizzati
+        ↓
+ordinamento completo in memoria
+        ↓
+rendering di batchSize schede alla volta
+```
+
+Modifiche principali:
+
+* eliminata `indiceDiario.entriesBatch()`;
+* eliminati cursori, `streamEntries`, `streamCursor`, `streamHasMore` e le query successive durante lo scrolling;
+* il filtro lavora direttamente sul dataset già caricato e non esegue più una query completa alla prima ricerca;
+* lo scrolling mantiene il rendering progressivo e quindi `space.readPage()` continua a essere eseguito soltanto per le schede effettivamente visualizzate;
+* rimosso `journalPathPattern`;
+* una pagina Diario è ora valida quando appartiene a `Diario/` e possiede `p.date`;
+* rimossi parsing e fallback della data dal nome della pagina.
+
+Questo rende coerenti indice inline, ricerca e Virtual Page mensile anche per pagine con suffisso nel nome, ad esempio `Diario/YYYY-MM-DD-...`.
+
+La revisione 0.1-14 e i precedenti tentativi di paginazione tramite cursore sono quindi superati.
 
 ## Correzione 0.1-14
 
