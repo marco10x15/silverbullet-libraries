@@ -2,7 +2,7 @@
 name: "Library/MG/Mio_Diario_Indice"
 tags: meta/library
 description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
-version: "0.1-16"
+version: "0.1-17"
 versionDate: 2026-08-31
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
@@ -12,7 +12,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
 
 **IndiceDiario** visualizza direttamente in una pagina SilverBullet un indice compatto delle pagine del Diario.
 
-**Versione:** 0.1-16 — 31.08.2026
+**Versione:** 0.1-17 — 31.08.2026
 
 La libreria è autonoma e non dipende da Journal Explorer.
 
@@ -20,7 +20,8 @@ La libreria è autonoma e non dipende da Journal Explorer.
 
 * **Indice inline** — inseribile con `${widgets.IndiceDiario()}`.
 * **Riepilogo annuale virtuale** — `diario:anno:YYYY`, costruito soltanto da attributi indicizzati del Diario.
-* **Alias annuale compatto** — l'anno nell'indice apre `Diario:YYYY`, alias della Virtual Page annuale.
+* **Link annuale con fallback** — l'anno nell'indice apre `riepiloghi/YYYY` quando la pagina fisica esiste; altrimenti apre `Diario:YYYY`.
+* **Riepilogo annuale incorporabile** — `${widgets.RiepilogoAnno()}` inserisce nella pagina fisica `riepiloghi/YYYY` lo stesso riepilogo automatico della Virtual Page.
 * **Data compatta** — mese, giorno e giorno della settimana nello stile calendario.
 * **Titolo** — `displayName` → nome pagina, visualizzato in grassetto e collegato alla pagina Diario.
 * **Immagine** — prima immagine trovata nella pagina, se presente.
@@ -1108,6 +1109,74 @@ end
 
 
 -- Renderizza il riepilogo annuale usando soltanto dati indicizzati.
+-- Restituisce la pagina fisica riepiloghi/YYYY
+-- soltanto quando esiste già nello Space.
+function indiceDiario.yearSummaryPage(year)
+  local y =
+    tonumber(year)
+
+  if not y then
+    return nil
+  end
+
+  local pageName =
+    "riepiloghi/"
+    .. string.format(
+      "%04d",
+      y
+    )
+
+  local pages = query[[
+    from p = index.pages()
+    where p.name == pageName
+    select {
+      name = p.name
+    }
+    limit 1
+  ]]
+
+  if pages
+    and pages[1]
+    and pages[1].name == pageName
+  then
+    return pageName
+  end
+
+  return nil
+end
+
+
+-- Apre il riepilogo fisico dell'anno quando esiste.
+-- In assenza della pagina Markdown apre la Virtual Page annuale.
+function indiceDiario.openYear(year)
+  local y =
+    tonumber(year)
+
+  if not y then
+    return
+  end
+
+  local physical =
+    indiceDiario.yearSummaryPage(
+      y
+    )
+
+  if physical then
+    editor.open(
+      physical
+    )
+  else
+    editor.open(
+      "Diario:"
+      .. string.format(
+        "%04d",
+        y
+      )
+    )
+  end
+end
+
+
 function indiceDiario.renderYear(year)
   local y =
     tonumber(year)
@@ -1353,6 +1422,35 @@ function indiceDiario.renderYear(year)
     rows,
     "\n"
   ) .. "\n"
+end
+
+
+-- Inserisce il riepilogo automatico dell'anno nella pagina
+-- fisica riepiloghi/YYYY.
+--
+-- Non crea né modifica alcuna pagina.
+function widgets.RiepilogoAnno()
+  local current =
+    editor.getCurrentPage()
+
+  local year =
+    type(current) == "string"
+    and current:match(
+      "^riepiloghi/(%d%d%d%d)$"
+    )
+    or nil
+
+  if not year then
+    return widget.markdownBlock(
+      "_RiepilogoAnno è utilizzabile nelle pagine `riepiloghi/YYYY`._"
+    )
+  end
+
+  return widget.markdownBlock(
+    indiceDiario.renderYear(
+      year
+    )
+  )
 end
 
 
@@ -2292,11 +2390,8 @@ function widgets.IndiceDiario()
           class = "id-year-link",
 
           onclick = function()
-            editor.open(
-              "Diario:"
-                .. tostring(
-                  entry.year
-                )
+            indiceDiario.openYear(
+              entry.year
             )
           end,
 
@@ -2767,6 +2862,37 @@ Separato il livello dati/filtro dal rendering del widget; la sorgente delle pagi
 ## Note della revisione 0.1-03
 
 Il rendering delle card usa CSS Grid con layout responsive per smartphone.
+
+## Revisione 0.1-17
+
+Aggiunto `widgets.RiepilogoAnno()` per le pagine fisiche:
+
+```text
+riepiloghi/YYYY
+```
+
+Il widget ricava automaticamente l'anno dalla pagina corrente tramite `editor.getCurrentPage()` e riusa `indiceDiario.renderYear()`. La pagina fisica può quindi contenere semplicemente:
+
+```space-lua
+${widgets.RiepilogoAnno()}
+```
+
+Il link dell'anno nell'indice usa ora questa logica:
+
+```text
+riepiloghi/YYYY esiste
+        ↓ sì
+apri riepiloghi/YYYY
+
+        ↓ no
+apri Diario:YYYY
+```
+
+La verifica avviene al click tramite l'indice delle pagine; non viene creata né modificata alcuna pagina Markdown.
+
+Dal frontmatter della libreria sono stati inoltre rimossi i metadati locali di sincronizzazione `share.hash` e `share.mode`.
+
+`share.uri` rimane invariato.
 
 ## Revisione 0.1-16
 
