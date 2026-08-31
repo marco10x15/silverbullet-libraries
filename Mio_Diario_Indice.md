@@ -2,7 +2,7 @@
 name: "Library/MG/Mio_Diario_Indice"
 tags: meta/library
 description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
-version: "0.1-15"
+version: "0.1-16"
 versionDate: 2026-08-31
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
@@ -12,7 +12,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
 
 **IndiceDiario** visualizza direttamente in una pagina SilverBullet un indice compatto delle pagine del Diario.
 
-**Versione:** 0.1-15 — 31.08.2026
+**Versione:** 0.1-16 — 31.08.2026
 
 La libreria è autonoma e non dipende da Journal Explorer.
 
@@ -20,6 +20,7 @@ La libreria è autonoma e non dipende da Journal Explorer.
 
 * **Indice inline** — inseribile con `${widgets.IndiceDiario()}`.
 * **Riepilogo annuale virtuale** — `diario:anno:YYYY`, costruito soltanto da attributi indicizzati del Diario.
+* **Alias annuale compatto** — l'anno nell'indice apre `Diario:YYYY`, alias della Virtual Page annuale.
 * **Data compatta** — mese, giorno e giorno della settimana nello stile calendario.
 * **Titolo** — `displayName` → nome pagina, visualizzato in grassetto e collegato alla pagina Diario.
 * **Immagine** — prima immagine trovata nella pagina, se presente.
@@ -29,7 +30,7 @@ La libreria è autonoma e non dipende da Journal Explorer.
 * **Livello dati riutilizzabile** — raccolta pagine e filtro indicizzato sono separati dal rendering e pronti per le Virtual Page.
 * **Navigazione diretta** — i titoli usano `editor.open()` e restano raggiungibili anche dopo caricamento progressivo o filtro.
 * **Raggruppamento mensile** — separazione delle pagine per mese e anno.
-* **Virtual Page mensile** — il titolo del mese apre `diario:mese:YYYY-MM`.
+* **Virtual Page mensile** — il nome del mese apre `Diario:YYYY:MM`; la forma storica `diario:mese:YYYY-MM` resta disponibile.
 * **Virtual Page di ricerca** — il filtro può essere aperto come `diario:ricerca:...`, ricalcolato esclusivamente sui dati indicizzati.
 * **Tags e luoghi** — visualizzati nelle ultime due righe della scheda con carattere ridotto; i luoghi sono navigabili.
 * **Layout responsive** — su smartphone il calendario resta nell'header, mentre snippet, tags e luoghi sfruttano quasi tutta la larghezza della scheda.
@@ -1581,51 +1582,99 @@ virtualPage.define {
   end
 }
 
+function indiceDiario.renderMonth(period)
+  local year, month =
+    tostring(
+      period
+      or ""
+    ):match(
+      "^(%d%d%d%d)%-(%d%d)$"
+    )
+
+  local y = tonumber(year)
+  local m = tonumber(month)
+
+  if not y
+    or not m
+    or m < 1
+    or m > 12
+  then
+    return "# Diario\n\nPeriodo non valido.\n"
+  end
+
+  local cfg =
+    indiceDiarioConfig()
+
+  local entries =
+    indiceDiario.month(
+      indiceDiario.entries(cfg),
+      y,
+      m
+    )
+
+  local monthName =
+    cfg.MONTHS[m]
+    or string.format(
+      "%02d",
+      m
+    )
+
+  return indiceDiario.renderVirtual(
+    "Diario — "
+      .. monthName
+      .. " "
+      .. tostring(y),
+    entries
+  )
+end
+
+
 virtualPage.define {
   pattern =
     "^diario:mese:(%d%d%d%d%-%d%d)$",
 
   run = function(period)
-    local year, month =
-      period:match(
-        "^(%d%d%d%d)%-(%d%d)$"
+    return indiceDiario.renderMonth(
+      period
+    )
+  end
+}
+
+
+-- Alias compatti usati dall'indice visuale:
+--
+-- Diario:2026
+-- Diario:2026:07
+--
+-- Le Virtual Page precedenti restano disponibili per compatibilità.
+virtualPage.define {
+  pattern =
+    "^Diario:(.+)$",
+
+  run = function(spec)
+    local year =
+      spec:match(
+        "^(%d%d%d%d)$"
       )
 
-    local y = tonumber(year)
-    local m = tonumber(month)
-
-    if not y
-      or not m
-      or m < 1
-      or m > 12
-    then
-      return "# Diario\n\nPeriodo non valido.\n"
+    if year then
+      return indiceDiario.renderYear(
+        year
+      )
     end
 
-    local cfg =
-      indiceDiarioConfig()
-
-    local entries =
-      indiceDiario.month(
-        indiceDiario.entries(cfg),
-        y,
-        m
+    local y, m =
+      spec:match(
+        "^(%d%d%d%d):(%d%d)$"
       )
 
-    local monthName =
-      cfg.MONTHS[m]
-      or string.format(
-        "%02d",
-        m
+    if y and m then
+      return indiceDiario.renderMonth(
+        y .. "-" .. m
       )
+    end
 
-    return indiceDiario.renderVirtual(
-      "Diario — "
-        .. monthName
-        .. " "
-        .. tostring(y),
-      entries
-    )
+    return "# Diario\n\nPeriodo non valido.\n"
   end
 }
 
@@ -1857,23 +1906,10 @@ function widgets.IndiceDiario()
   local cfg =
     indiceDiarioConfig()
 
-  -- Una sola query iniziale carica esclusivamente i metadati
-  -- già indicizzati. Le letture Markdown restano progressive
-  -- e avvengono solo quando una scheda viene renderizzata.
-  local allEntries =
-    indiceDiario.entries(cfg)
-
-  if not allEntries
-    or #allEntries == 0
-  then
-    return widget.htmlBlock(
-      dom.div {
-        class = "id-index",
-        "Nessuna pagina del Diario trovata."
-      }
-    )
-  end
-
+  -- Il widget viene restituito prima della query iniziale.
+  -- Un breve defer consente al browser di mostrare il messaggio
+  -- di caricamento mentre vengono letti i metadati indicizzati.
+  local allEntries = nil
   local contentCache = {}
 
   local function ensureContent(entry)
@@ -2162,6 +2198,7 @@ function widgets.IndiceDiario()
     dom.input {
       class = "id-filter",
       type = "search",
+      disabled = true,
       placeholder =
         "Filtra il Diario…"
     }
@@ -2181,24 +2218,24 @@ function widgets.IndiceDiario()
       openSearch
     }
 
+  local loading =
+    dom.div {
+      class = "id-loading",
+      __rawText =
+        "Lettura pagine Diario in corso…"
+    }
+
   local list =
     dom.div {
       class = "id-list"
     }
 
   root.appendChild(filterBar)
+  root.appendChild(loading)
   root.appendChild(list)
 
   local currentFilter = ""
-
-  filter.placeholder =
-    "Filtra "
-    .. #allEntries
-    .. " pagine…"
-
-  local activeEntries =
-    allEntries
-
+  local activeEntries = {}
   local renderedCount = 0
   local lastMonthKey = nil
 
@@ -2231,15 +2268,40 @@ function widgets.IndiceDiario()
 
           onclick = function()
             editor.open(
-              "diario:mese:"
-                .. monthKey
+              "Diario:"
+                .. tostring(
+                  entry.year
+                )
+                .. ":"
+                .. string.format(
+                  "%02d",
+                  entry.month
+                )
             )
           end,
 
           __rawText =
             monthName
-            .. " "
-            .. tostring(
+        },
+
+        dom.span {
+          __rawText = " "
+        },
+
+        dom.a {
+          class = "id-year-link",
+
+          onclick = function()
+            editor.open(
+              "Diario:"
+                .. tostring(
+                  entry.year
+                )
+            )
+          end,
+
+          __rawText =
+            tostring(
               entry.year
             )
         }
@@ -2315,6 +2377,10 @@ function widgets.IndiceDiario()
   )
 
   local function applyFilter(value)
+    if not allEntries then
+      return
+    end
+
     local trimmed =
       tostring(
         value
@@ -2397,7 +2463,41 @@ function widgets.IndiceDiario()
     end
   )
 
-  renderNextBatch()
+  js.window.setTimeout(
+    function()
+      local entries =
+        indiceDiario.entries(cfg)
+
+      allEntries =
+        entries
+        or {}
+
+      loading.replaceChildren()
+
+      if #allEntries == 0 then
+        list.replaceChildren(
+          dom.div {
+            class = "id-empty",
+            "Nessuna pagina del Diario trovata."
+          }
+        )
+
+        return
+      end
+
+      filter.disabled = false
+
+      filter.placeholder =
+        "Filtra "
+        .. #allEntries
+        .. " pagine…"
+
+      resetList(
+        allEntries
+      )
+    end,
+    20
+  )
 
   return widget.htmlBlock(root)
 end
@@ -2668,6 +2768,28 @@ Separato il livello dati/filtro dal rendering del widget; la sorgente delle pagi
 
 Il rendering delle card usa CSS Grid con layout responsive per smartphone.
 
+## Revisione 0.1-16
+
+Aggiunto un bootstrap visuale del widget: prima della query iniziale viene mostrato il messaggio **“Lettura pagine Diario in corso…”**. Il filtro resta disabilitato finché il dataset indicizzato non è disponibile.
+
+L'intestazione mensile è ora composta da due link distinti:
+
+```text
+Luglio 2026
+```
+
+* `Luglio` → `Diario:2026:07`
+* `2026` → `Diario:2026`
+
+Sono state aggiunte le corrispondenti Virtual Page compatte:
+
+```text
+Diario:YYYY
+Diario:YYYY:MM
+```
+
+Le forme già esistenti `diario:anno:YYYY` e `diario:mese:YYYY-MM` rimangono disponibili per compatibilità.
+
 ## Revisione 0.1-15
 
 Semplificata la costruzione dell'indice eliminando completamente la paginazione delle query.
@@ -2823,6 +2945,27 @@ Non vengono letti H1, corpo Markdown, immagini o gallerie.
   flex-direction: column;
   gap: 8px;
   font-size: inherit;
+}
+
+.id-loading {
+  padding: 8px 2px;
+  color: var(--id-muted);
+  font-size: 0.86em;
+  font-style: italic;
+}
+
+.id-loading:empty {
+  display: none;
+}
+
+.id-year-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.id-year-link:hover {
+  text-decoration: underline;
 }
 
 .id-filter-bar {
