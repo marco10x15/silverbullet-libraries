@@ -2,7 +2,7 @@
 name: "Library/MG/Mio_Diario_Indice"
 tags: meta/library
 description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
-version: "0.1-13"
+version: "0.1-14"
 versionDate: 2026-08-31
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
@@ -12,7 +12,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
 
 **IndiceDiario** visualizza direttamente in una pagina SilverBullet un indice compatto delle pagine del Diario.
 
-**Versione:** 0.1-13 — 31.08.2026
+**Versione:** 0.1-14 — 31.08.2026
 
 La libreria è autonoma e non dipende da Journal Explorer.
 
@@ -383,7 +383,7 @@ end
 
 function indiceDiario.entriesBatch(
   cfg,
-  beforeDate
+  beforeName
 )
   cfg =
     cfg
@@ -392,14 +392,21 @@ function indiceDiario.entriesBatch(
   local batchSize = cfg.BATCH
   local pages = nil
 
-  if beforeDate
-    and beforeDate ~= ""
+  -- Il cursore usa p.name, non p.date.
+  --
+  -- Le pagine Diario normalizzate iniziano con la data ISO:
+  -- Diario/YYYY-MM-DD...
+  --
+  -- Il nome è inoltre univoco, quindi la paginazione non perde
+  -- pagine quando esistono più note con la stessa data.
+  if beforeName
+    and beforeName ~= ""
   then
     pages = query[[
       from p = index.subPages("Diario")
       where p.date != nil
-        and p.date < beforeDate
-      order by p.date desc
+        and p.name < beforeName
+      order by p.name desc
       limit batchSize
       select {
         name = p.name,
@@ -415,7 +422,7 @@ function indiceDiario.entriesBatch(
     pages = query[[
       from p = index.subPages("Diario")
       where p.date != nil
-      order by p.date desc
+      order by p.name desc
       limit batchSize
       select {
         name = p.name,
@@ -452,7 +459,7 @@ function indiceDiario.entriesBatch(
     and #pages > 0
   then
     cursor =
-      pages[#pages].date
+      pages[#pages].name
   end
 
   return {
@@ -2924,6 +2931,32 @@ Separato il livello dati/filtro dal rendering del widget; la sorgente delle pagi
 ## Note della revisione 0.1-03
 
 Il rendering delle card usa CSS Grid con layout responsive per smartphone.
+
+## Correzione 0.1-14
+
+Corretta la paginazione progressiva di `widgets.IndiceDiario()`.
+
+Il cursore dei batch non usa più `p.date`, ma il nome univoco della pagina `p.name`.
+
+La precedente logica:
+
+```text
+order by p.date desc
+p.date < cursor
+```
+
+era fragile perché `date` non è necessariamente univoca: nel dataset corrente esistono più giornate con due pagine aventi la stessa data. Inoltre il cursore dipendeva dal tipo restituito dall'indice per `p.date`.
+
+La nuova logica usa:
+
+```text
+order by p.name desc
+p.name < cursor
+```
+
+Poiché le pagine Diario normalizzate hanno path `Diario/YYYY-MM-DD...`, l'ordine del nome coincide con l'ordine cronologico e, nello stesso giorno, rimane deterministico. `p.name` è inoltre univoco, quindi nessuna pagina può essere saltata tra due batch.
+
+Non cambia il caricamento progressivo né il numero di pagine renderizzate per batch.
 
 ## Correzione 0.1-13
 
