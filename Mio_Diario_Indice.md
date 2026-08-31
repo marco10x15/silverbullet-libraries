@@ -2,7 +2,7 @@
 name: "Library/MG/Mio_Diario_Indice"
 tags: meta/library
 description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
-version: "0.1-12"
+version: "0.1-13"
 versionDate: 2026-08-31
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
@@ -12,7 +12,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
 
 **IndiceDiario** visualizza direttamente in una pagina SilverBullet un indice compatto delle pagine del Diario.
 
-**Versione:** 0.1-12 — 31.08.2026
+**Versione:** 0.1-13 — 31.08.2026
 
 La libreria è autonoma e non dipende da Journal Explorer.
 
@@ -1727,12 +1727,14 @@ end
 
 virtualPage.define {
   pattern =
-    "^diario:luogo:(%d%d%d%d):(luoghi/.+)$",
+    "^diario:luogo:(.+)$",
 
-  run = function(
-    year,
-    pageName
-  )
+  run = function(spec)
+    local year, pageName =
+      spec:match(
+        "^(%d%d%d%d):(luoghi/.+)$"
+      )
+
     return indiceDiario.renderYearPlace(
       year,
       pageName
@@ -2922,6 +2924,29 @@ Separato il livello dati/filtro dal rendering del widget; la sorgente delle pagi
 ## Note della revisione 0.1-03
 
 Il rendering delle card usa CSS Grid con layout responsive per smartphone.
+
+## Correzione 0.1-13
+
+Corretta la cattura dei parametri della Virtual Page `diario:luogo:YYYY:luoghi/...`.
+
+La definizione ora usa un solo gruppo catturato nella `virtualPage.define` e separa internamente:
+
+```text
+YYYY:luoghi/...
+```
+
+in:
+
+```text
+year
+pageName
+```
+
+Questo evita che uno dei due parametri risulti `nil` durante la generazione della Virtual Page, mantenendo invariato il nome pubblico, ad esempio:
+
+```text
+diario:luogo:2023:luoghi/HUN
+```
 
 ## Novità 0.1-12
 
