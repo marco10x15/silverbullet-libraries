@@ -2,22 +2,24 @@
 name: "Library/MG/Mio_Diario_Indice"
 tags: meta/library
 description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
-version: "0.1-10"
-versionDate: 2026-08-28
+version: "0.1-11"
+versionDate: 2026-08-31
 pageDecoration.prefix: "📔 "
+share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
 ---
 
 # 📔 IndiceDiario
 
 **IndiceDiario** visualizza direttamente in una pagina SilverBullet un indice compatto delle pagine del Diario.
 
-**Versione:** 0.1-10 — 28.08.2026
+**Versione:** 0.1-11 — 31.08.2026
 
 La libreria è autonoma e non dipende da Journal Explorer.
 
 ## Main Features
 
 * **Indice inline** — inseribile con `${widgets.IndiceDiario()}`.
+* **Riepilogo annuale virtuale** — `diario:anno:YYYY`, costruito soltanto da attributi indicizzati del Diario.
 * **Data compatta** — mese, giorno e giorno della settimana nello stile calendario.
 * **Titolo** — `displayName` → nome pagina, visualizzato in grassetto e collegato alla pagina Diario.
 * **Immagine** — prima immagine trovata nella pagina, se presente.
@@ -1048,8 +1050,393 @@ end
 
 
 -- ============================================================
+-- RIEPILOGO ANNUALE
+-- ============================================================
+
+-- Verifica la presenza esatta di un tag.
+-- Supporta sia la forma corrente a stringa separata da spazi,
+-- sia eventuali liste restituite dall'indice.
+local function indiceDiarioHasTag(
+  value,
+  wanted
+)
+  if type(value) == "string" then
+    for tag in value:gmatch("%S+") do
+      if tag == wanted then
+        return true
+      end
+    end
+
+    return false
+  end
+
+  if type(value) == "table" then
+    for _, tag in ipairs(value) do
+      if tag == wanted then
+        return true
+      end
+    end
+  end
+
+  return false
+end
+
+
+-- Estrae il target di un wikilink senza leggere la pagina.
+local function indiceDiarioAnnualTarget(value)
+  if type(value) ~= "string"
+    or value == ""
+  then
+    return nil
+  end
+
+  return value:match(
+    "^%[%[([^]|]+)"
+  )
+end
+
+
+-- Recupera esclusivamente gli attributi indicizzati necessari
+-- per il riepilogo di un anno.
+function indiceDiario.yearEntries(year)
+  local y =
+    tonumber(year)
+
+  if not y then
+    return {}
+  end
+
+  local prefix =
+    string.format(
+      "%04d-",
+      y
+    )
+
+  return query[[
+    from p = index.subPages("Diario")
+    where p.date
+      and string.startsWith(
+        p.date,
+        prefix
+      )
+    order by p.date, p.name
+    select {
+      name = p.name,
+      date = p.date,
+      displayName = p.displayName,
+      tags = p.tags,
+      luoghi = p.luoghi,
+      Viaggio = p.Viaggio
+    }
+  ]]
+end
+
+
+-- Costruisce il link visuale di una giornata.
+local function indiceDiarioAnnualDayLink(p)
+  local label =
+    type(p.displayName) == "string"
+    and p.displayName ~= ""
+    and p.displayName
+    or p.name:match(
+      "([^/]+)$"
+    )
+    or p.name
+
+  return string.format(
+    "[[%s|%s]]",
+    p.name,
+    label
+  )
+end
+
+
+-- Chiave geografica di ordinamento.
+--
+-- Il parent geografico ha precedenza; all'interno dello stesso
+-- ramo i luoghi seguono la data della prima comparsa nell'anno.
+local function indiceDiarioGeoParent(target)
+  return target:match(
+    "^(.*)/[^/]+$"
+  ) or target
+end
+
+
+-- Renderizza il riepilogo annuale usando soltanto dati indicizzati.
+function indiceDiario.renderYear(year)
+  local y =
+    tonumber(year)
+
+  if not y then
+    return "# Riepilogo\n\nAnno non valido.\n"
+  end
+
+  local entries =
+    indiceDiario.yearEntries(y)
+
+  local rows = {
+    "# Riepilogo " .. tostring(y),
+    "",
+    tostring(#entries)
+      .. (
+        #entries == 1
+        and " giornata"
+        or " giornate"
+      ),
+    ""
+  }
+
+  -- Date da ricordare
+  local ricorda = {}
+
+  for _, p in ipairs(entries) do
+    if indiceDiarioHasTag(
+      p.tags,
+      "ricorda"
+    ) then
+      table.insert(
+        ricorda,
+        string.format(
+          "- %s — %s",
+          date.format(p.date),
+          indiceDiarioAnnualDayLink(p)
+        )
+      )
+    end
+  end
+
+  table.insert(
+    rows,
+    "## Date da ricordare"
+  )
+  table.insert(rows, "")
+
+  if #ricorda > 0 then
+    table.insert(
+      rows,
+      table.concat(
+        ricorda,
+        "\n"
+      )
+    )
+  else
+    table.insert(
+      rows,
+      "Nessuna data registrata."
+    )
+  end
+
+  table.insert(rows, "")
+
+  -- Viaggi deduplicati, nell'ordine della prima giornata.
+  local viaggi = {}
+  local seenViaggi = {}
+
+  for _, p in ipairs(entries) do
+    local target =
+      indiceDiarioAnnualTarget(
+        p.Viaggio
+      )
+
+    if target
+      and not seenViaggi[target]
+    then
+      table.insert(
+        viaggi,
+        p.Viaggio
+      )
+
+      seenViaggi[target] =
+        true
+    end
+  end
+
+  table.insert(
+    rows,
+    "## Viaggi"
+  )
+  table.insert(rows, "")
+
+  if #viaggi > 0 then
+    for _, viaggio in ipairs(viaggi) do
+      table.insert(
+        rows,
+        "- " .. viaggio
+      )
+    end
+  else
+    table.insert(
+      rows,
+      "Nessun viaggio registrato."
+    )
+  end
+
+  table.insert(rows, "")
+
+  -- Luoghi deduplicati.
+  --
+  -- Per ogni luogo conserva la prima data di comparsa.
+  -- L'ordinamento finale è:
+  -- 1. ramo geografico;
+  -- 2. prima data di visita;
+  -- 3. path del luogo come spareggio stabile.
+  local placesByTarget = {}
+
+  for _, p in ipairs(entries) do
+    if type(p.luoghi) == "table" then
+      for _, luogo in ipairs(p.luoghi) do
+        local target =
+          indiceDiarioAnnualTarget(
+            luogo
+          )
+
+        if target
+          and not placesByTarget[target]
+        then
+          placesByTarget[target] = {
+            target = target,
+            link = luogo,
+            firstDate = p.date,
+            parent =
+              indiceDiarioGeoParent(
+                target
+              )
+          }
+        end
+      end
+    elseif type(p.luoghi) == "string"
+      and p.luoghi ~= ""
+    then
+      local target =
+        indiceDiarioAnnualTarget(
+          p.luoghi
+        )
+
+      if target
+        and not placesByTarget[target]
+      then
+        placesByTarget[target] = {
+          target = target,
+          link = p.luoghi,
+          firstDate = p.date,
+          parent =
+            indiceDiarioGeoParent(
+              target
+            )
+        }
+      end
+    end
+  end
+
+  local places = {}
+
+  for _, luogo in pairs(
+    placesByTarget
+  ) do
+    table.insert(
+      places,
+      luogo
+    )
+  end
+
+  table.sort(
+    places,
+    function(a, b)
+      if a.parent ~= b.parent then
+        return a.parent < b.parent
+      end
+
+      if a.firstDate ~= b.firstDate then
+        return a.firstDate < b.firstDate
+      end
+
+      return a.target < b.target
+    end
+  )
+
+  table.insert(
+    rows,
+    "## Luoghi visitati"
+  )
+  table.insert(rows, "")
+
+  if #places > 0 then
+    for _, luogo in ipairs(places) do
+      table.insert(
+        rows,
+        "- " .. luogo.link
+      )
+    end
+  else
+    table.insert(
+      rows,
+      "Nessun luogo registrato."
+    )
+  end
+
+  table.insert(rows, "")
+
+  -- Record
+  local records = {}
+
+  for _, p in ipairs(entries) do
+    if indiceDiarioHasTag(
+      p.tags,
+      "record"
+    ) then
+      table.insert(
+        records,
+        string.format(
+          "- %s — %s",
+          date.format(p.date),
+          indiceDiarioAnnualDayLink(p)
+        )
+      )
+    end
+  end
+
+  table.insert(
+    rows,
+    "## Record"
+  )
+  table.insert(rows, "")
+
+  if #records > 0 then
+    table.insert(
+      rows,
+      table.concat(
+        records,
+        "\n"
+      )
+    )
+  else
+    table.insert(
+      rows,
+      "Nessun record registrato."
+    )
+  end
+
+  return table.concat(
+    rows,
+    "\n"
+  ) .. "\n"
+end
+
+
+-- ============================================================
 -- VIRTUAL PAGES
 -- ============================================================
+
+virtualPage.define {
+  pattern =
+    "^diario:anno:(%d%d%d%d)$",
+
+  run = function(year)
+    return indiceDiario.renderYear(
+      year
+    )
+  end
+}
 
 virtualPage.define {
   pattern =
@@ -2222,6 +2609,25 @@ Separato il livello dati/filtro dal rendering del widget; la sorgente delle pagi
 ## Note della revisione 0.1-03
 
 Il rendering delle card usa CSS Grid con layout responsive per smartphone.
+
+## Novità 0.1-11
+
+Aggiunta la Virtual Page:
+
+```text
+diario:anno:YYYY
+```
+
+Il riepilogo annuale usa una sola query su `index.subPages("Diario")` e soltanto gli attributi indicizzati `date`, `displayName`, `tags`, `Viaggio` e `luoghi`.
+
+Le sezioni sono:
+
+* **Date da ricordare** — giornate con tag esatto `ricorda`;
+* **Viaggi** — `Viaggio` deduplicato, mantenendo l'ordine della prima giornata;
+* **Luoghi visitati** — `luoghi` deduplicati; ordinamento per ramo geografico e, all'interno dello stesso ramo, per prima data di visita;
+* **Record** — giornate con tag esatto `record`.
+
+Non vengono letti H1, corpo Markdown, immagini o gallerie.
 
 ## Space Style
 
