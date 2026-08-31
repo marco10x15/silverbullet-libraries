@@ -2,7 +2,7 @@
 name: "Library/MG/Mio_Diario_Indice"
 tags: meta/library
 description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
-version: "0.1-11"
+version: "0.1-12"
 versionDate: 2026-08-31
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
@@ -12,7 +12,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
 
 **IndiceDiario** visualizza direttamente in una pagina SilverBullet un indice compatto delle pagine del Diario.
 
-**Versione:** 0.1-11 — 31.08.2026
+**Versione:** 0.1-12 — 31.08.2026
 
 La libreria è autonoma e non dipende da Journal Explorer.
 
@@ -1096,6 +1096,122 @@ local function indiceDiarioAnnualTarget(value)
 end
 
 
+-- Verifica se una pagina Diario contiene il luogo richiesto
+-- oppure un suo discendente geografico.
+local function indiceDiarioEntryHasPlace(
+  p,
+  pageName
+)
+  if not p
+    or type(pageName) ~= "string"
+    or pageName == ""
+  then
+    return false
+  end
+
+  local values = p.luoghi
+
+  if type(values) == "string" then
+    values = { values }
+  end
+
+  if type(values) ~= "table" then
+    return false
+  end
+
+  local prefix =
+    pageName .. "/"
+
+  for _, value in ipairs(values) do
+    local target =
+      indiceDiarioAnnualTarget(
+        value
+      )
+
+    if target == pageName
+      or (
+        target
+        and string.startsWith(
+          target,
+          prefix
+        )
+      )
+    then
+      return true
+    end
+  end
+
+  return false
+end
+
+
+-- Restituisce il primo livello geografico sotto luoghi/.
+-- Esempio:
+-- luoghi/ITA/21/Torino -> luoghi/ITA
+local function indiceDiarioCountryPath(target)
+  if type(target) ~= "string" then
+    return nil
+  end
+
+  local country =
+    target:match(
+      "^luoghi/([^/]+)"
+    )
+
+  if not country then
+    return nil
+  end
+
+  return "luoghi/" .. country
+end
+
+
+-- Restituisce il label indicizzato di una pagina luogo.
+local function indiceDiarioPlaceLabel(pageName)
+  local pages = query[[
+    from p = index.pages()
+    where p.name == pageName
+    select {
+      name = p.name,
+      displayName = p.displayName,
+      aliases = p.aliases
+    }
+    limit 1
+  ]]
+
+  local p =
+    pages
+    and pages[1]
+    or nil
+
+  if p then
+    if type(p.displayName) == "string"
+      and p.displayName ~= ""
+    then
+      return p.displayName
+    end
+
+    if type(p.aliases) == "string"
+      and p.aliases ~= ""
+    then
+      return p.aliases
+    end
+
+    if type(p.aliases) == "table"
+      and #p.aliases > 0
+      and type(p.aliases[1]) == "string"
+      and p.aliases[1] ~= ""
+    then
+      return p.aliases[1]
+    end
+  end
+
+  return pageName:match(
+    "([^/]+)$"
+  ) or pageName
+end
+
+
 -- Recupera esclusivamente gli attributi indicizzati necessari
 -- per il riepilogo di un anno.
 function indiceDiario.yearEntries(year)
@@ -1273,84 +1389,62 @@ function indiceDiario.renderYear(year)
 
   table.insert(rows, "")
 
-  -- Luoghi deduplicati.
+  -- Stati visitati.
   --
-  -- Per ogni luogo conserva la prima data di comparsa.
-  -- L'ordinamento finale è:
-  -- 1. ramo geografico;
-  -- 2. prima data di visita;
-  -- 3. path del luogo come spareggio stabile.
-  local placesByTarget = {}
+  -- Viene mantenuto soltanto il primo livello sotto luoghi/.
+  -- Ogni Stato apre la Virtual Page di dettaglio per l'anno.
+  local countriesByPath = {}
 
   for _, p in ipairs(entries) do
-    if type(p.luoghi) == "table" then
-      for _, luogo in ipairs(p.luoghi) do
+    local values = p.luoghi
+
+    if type(values) == "string" then
+      values = { values }
+    end
+
+    if type(values) == "table" then
+      for _, luogo in ipairs(values) do
         local target =
           indiceDiarioAnnualTarget(
             luogo
           )
 
-        if target
-          and not placesByTarget[target]
+        local countryPath =
+          indiceDiarioCountryPath(
+            target
+          )
+
+        if countryPath
+          and not countriesByPath[countryPath]
         then
-          placesByTarget[target] = {
-            target = target,
-            link = luogo,
-            firstDate = p.date,
-            parent =
-              indiceDiarioGeoParent(
-                target
-              )
+          countriesByPath[countryPath] = {
+            path = countryPath,
+            firstDate = p.date
           }
         end
-      end
-    elseif type(p.luoghi) == "string"
-      and p.luoghi ~= ""
-    then
-      local target =
-        indiceDiarioAnnualTarget(
-          p.luoghi
-        )
-
-      if target
-        and not placesByTarget[target]
-      then
-        placesByTarget[target] = {
-          target = target,
-          link = p.luoghi,
-          firstDate = p.date,
-          parent =
-            indiceDiarioGeoParent(
-              target
-            )
-        }
       end
     end
   end
 
-  local places = {}
+  local countries = {}
 
-  for _, luogo in pairs(
-    placesByTarget
+  for _, country in pairs(
+    countriesByPath
   ) do
     table.insert(
-      places,
-      luogo
+      countries,
+      country
     )
   end
 
   table.sort(
-    places,
+    countries,
     function(a, b)
-      if a.parent ~= b.parent then
-        return a.parent < b.parent
-      end
-
       if a.firstDate ~= b.firstDate then
         return a.firstDate < b.firstDate
       end
 
-      return a.target < b.target
+      return a.path < b.path
     end
   )
 
@@ -1360,11 +1454,21 @@ function indiceDiario.renderYear(year)
   )
   table.insert(rows, "")
 
-  if #places > 0 then
-    for _, luogo in ipairs(places) do
+  if #countries > 0 then
+    for _, country in ipairs(countries) do
+      local label =
+        indiceDiarioPlaceLabel(
+          country.path
+        )
+
       table.insert(
         rows,
-        "- " .. luogo.link
+        string.format(
+          "- [[diario:luogo:%04d:%s|%s]]",
+          y,
+          country.path,
+          label
+        )
       )
     end
   else
@@ -1423,9 +1527,218 @@ function indiceDiario.renderYear(year)
 end
 
 
+-- Costruisce il dettaglio annuale per un luogo e i suoi
+-- discendenti geografici.
+--
+-- Esempio:
+-- diario:luogo:2025:luoghi/ITA
+function indiceDiario.renderYearPlace(
+  year,
+  pageName
+)
+  local y =
+    tonumber(year)
+
+  if not y
+    or type(pageName) ~= "string"
+    or not string.startsWith(
+      pageName,
+      "luoghi/"
+    )
+  then
+    return "# Luogo visitato\n\nParametri non validi.\n"
+  end
+
+  local entries =
+    indiceDiario.yearEntries(y)
+
+  local filtered = {}
+
+  for _, p in ipairs(entries) do
+    if indiceDiarioEntryHasPlace(
+      p,
+      pageName
+    ) then
+      table.insert(
+        filtered,
+        p
+      )
+    end
+  end
+
+  local label =
+    indiceDiarioPlaceLabel(
+      pageName
+    )
+
+  local rows = {
+    "# "
+      .. label
+      .. " — "
+      .. tostring(y),
+    ""
+  }
+
+  -- Viaggi deduplicati nell'ordine della prima giornata.
+  local viaggi = {}
+  local seenViaggi = {}
+
+  for _, p in ipairs(filtered) do
+    local target =
+      indiceDiarioAnnualTarget(
+        p.Viaggio
+      )
+
+    if target
+      and not seenViaggi[target]
+    then
+      table.insert(
+        viaggi,
+        p.Viaggio
+      )
+
+      seenViaggi[target] =
+        true
+    end
+  end
+
+  table.insert(
+    rows,
+    "## Viaggi"
+  )
+  table.insert(rows, "")
+
+  if #viaggi > 0 then
+    for _, viaggio in ipairs(viaggi) do
+      table.insert(
+        rows,
+        "- " .. viaggio
+      )
+    end
+  else
+    table.insert(
+      rows,
+      "Nessun viaggio registrato."
+    )
+  end
+
+  table.insert(rows, "")
+
+  -- Luoghi deduplicati appartenenti al ramo richiesto.
+  -- L'ordinamento resta geografico e poi temporale.
+  local placesByTarget = {}
+  local prefix =
+    pageName .. "/"
+
+  for _, p in ipairs(filtered) do
+    local values = p.luoghi
+
+    if type(values) == "string" then
+      values = { values }
+    end
+
+    if type(values) == "table" then
+      for _, luogo in ipairs(values) do
+        local target =
+          indiceDiarioAnnualTarget(
+            luogo
+          )
+
+        if target
+          and (
+            target == pageName
+            or string.startsWith(
+              target,
+              prefix
+            )
+          )
+          and not placesByTarget[target]
+        then
+          placesByTarget[target] = {
+            target = target,
+            link = luogo,
+            firstDate = p.date,
+            parent =
+              indiceDiarioGeoParent(
+                target
+              )
+          }
+        end
+      end
+    end
+  end
+
+  local places = {}
+
+  for _, luogo in pairs(
+    placesByTarget
+  ) do
+    table.insert(
+      places,
+      luogo
+    )
+  end
+
+  table.sort(
+    places,
+    function(a, b)
+      if a.parent ~= b.parent then
+        return a.parent < b.parent
+      end
+
+      if a.firstDate ~= b.firstDate then
+        return a.firstDate < b.firstDate
+      end
+
+      return a.target < b.target
+    end
+  )
+
+  table.insert(
+    rows,
+    "## Luoghi visitati"
+  )
+  table.insert(rows, "")
+
+  if #places > 0 then
+    for _, luogo in ipairs(places) do
+      table.insert(
+        rows,
+        "- " .. luogo.link
+      )
+    end
+  else
+    table.insert(
+      rows,
+      "Nessun luogo registrato."
+    )
+  end
+
+  return table.concat(
+    rows,
+    "\n"
+  ) .. "\n"
+end
+
+
 -- ============================================================
 -- VIRTUAL PAGES
 -- ============================================================
+
+virtualPage.define {
+  pattern =
+    "^diario:luogo:(%d%d%d%d):(luoghi/.+)$",
+
+  run = function(
+    year,
+    pageName
+  )
+    return indiceDiario.renderYearPlace(
+      year,
+      pageName
+    )
+  end
+}
 
 virtualPage.define {
   pattern =
@@ -2609,6 +2922,29 @@ Separato il livello dati/filtro dal rendering del widget; la sorgente delle pagi
 ## Note della revisione 0.1-03
 
 Il rendering delle card usa CSS Grid con layout responsive per smartphone.
+
+## Novità 0.1-12
+
+Il riepilogo `diario:anno:YYYY` mostra ora nella sezione **Luoghi visitati** soltanto gli Stati, deduplicati nell'ordine della prima visita dell'anno.
+
+Ogni Stato apre una nuova Virtual Page:
+
+```text
+diario:luogo:YYYY:luoghi/XXX
+```
+
+Esempio:
+
+```text
+diario:luogo:2025:luoghi/ITA
+```
+
+La pagina di dettaglio contiene:
+
+* **Viaggi** — deduplicati nell'ordine della prima giornata;
+* **Luoghi visitati** — tutti i luoghi appartenenti al ramo geografico richiesto, deduplicati e ordinati prima geograficamente e poi per data della prima visita.
+
+La Virtual Page è generica e può quindi essere richiamata anche per livelli inferiori a uno Stato.
 
 ## Novità 0.1-11
 
