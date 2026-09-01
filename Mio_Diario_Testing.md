@@ -108,14 +108,15 @@ end
 .photo-collage {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
   width: 100%;
 }
 
 .photo-collage-item {
-  flex: 1 1 220px;
-  height: 180px;
+  flex: 1 1 240px;
+  height: 190px;
   overflow: hidden;
+  border-radius: 4px;
 }
 
 .photo-collage-item p {
