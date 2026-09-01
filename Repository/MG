@@ -31,6 +31,11 @@ uri: github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_Indice.md
 description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
 ---
+name: "📷 Mio Diario - Collage"
+uri: github:marco10x15/silverbullet-libraries/Mio_Diario_Collage.md
+website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_Collage.md
+description: "Collage fotografico responsive e Virtual Page per le immagini del Diario."
+---
 name: "⚠️ Mio Diario - Testing ⚠️"
 uri: github:marco10x15/silverbullet-libraries/Mio_Diario_Testing.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_Testing.md
