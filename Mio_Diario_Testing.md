@@ -19,7 +19,8 @@ La libreria è autonoma.
 - `diarioImages(pageName)` — seleziona automaticamente le immagini associate a una pagina Diario.
 - `collage()` — visualizza automaticamente le immagini della pagina corrente come collage responsive.
 - `collage(images)` — visualizza un elenco esplicito di immagini dello Space.
-- Virtual Page `gallery:NomePagina` — visualizza le immagini associate alla pagina Diario a dimensione completa.
+- `galleryLink(prefix, count)` — genera automaticamente il collegamento alla Virtual Page della galleria.
+- Virtual Page `gallery:YYYYMMDD` — visualizza tutte le immagini associate alla giornata.
 - Convenzione dati: le immagini del Diario sono memorizzate sotto `media/` e iniziano con il prefisso `YYYYMMDD`.
 - Layout collage:
   - smartphone: 3 colonne
@@ -88,6 +89,18 @@ e seleziona automaticamente i documenti:
 media/20260830...
 ```
 
+Il widget mostra il collage e aggiunge automaticamente il collegamento:
+
+```text
+📷 Galleria · N foto
+```
+
+che apre:
+
+```text
+gallery:20260830
+```
+
 ### Collage manuale
 
 ```space-lua
@@ -98,21 +111,23 @@ ${collage {
 }}
 ```
 
+Nel collage manuale il collegamento alla Virtual Page non viene aggiunto automaticamente.
+
 ### Virtual Page
 
-Link alla galleria completa:
-
-```markdown
-[[gallery:Diario/20260830-descrizione|📷 Galleria immagini]]
-```
-
-La Virtual Page:
+La Virtual Page usa il pattern:
 
 ```text
-gallery:Diario/20260830-descrizione
+gallery:YYYYMMDD
 ```
 
-ricava nuovamente il prefisso `20260830`, usa `diarioImages()` e visualizza tutte le immagini associate alla pagina.
+Esempio:
+
+```text
+gallery:20260830
+```
+
+La Virtual Page richiama `diarioImagesByPrefix()` con lo stesso prefisso e visualizza tutte le immagini associate alla giornata.
 
 ### Ricerca immagini
 
@@ -149,7 +164,8 @@ Limiti noti:
 - un'immagine senza il prefisso data non viene inclusa;
 - più pagine Diario con lo stesso prefisso `YYYYMMDD` condividono le stesse immagini;
 - qualsiasi immagine con lo stesso prefisso viene inclusa, anche se non è una fotografia;
-- l'ordinamento è alfabetico sul path e, con nomi `YYYYMMDD-HHMMSS...`, coincide normalmente con l'ordine cronologico.
+- l'ordinamento è alfabetico sul path e, con nomi `YYYYMMDD-HHMMSS...`, coincide normalmente con l'ordine cronologico;
+- la Virtual Page lavora sul solo prefisso `YYYYMMDD` e non conserva direttamente il nome completo della pagina Diario di origine.
 
 ## Implementazione
 
@@ -172,18 +188,7 @@ local function isImageDocument(name)
     or lower:match("%.gif$")
 end
 
-local function sortByName(items)
-  table.sort(items, function(a, b)
-    return a < b
-  end)
-
-  return items
-end
-
-function diarioImages(pageName)
-  pageName = pageName or editor.getCurrentPage()
-
-  local prefix = diarioPrefix(pageName)
+local function diarioImagesByPrefix(prefix)
   if not prefix then
     return {}
   end
@@ -191,19 +196,37 @@ function diarioImages(pageName)
   local images = {}
 
   for _, doc in ipairs(index.documents()) do
-    local name = doc.name or doc.ref or ""
+    local name = doc.name or ""
 
     if name:match("^media/" .. prefix) and isImageDocument(name) then
       table.insert(images, name)
     end
   end
 
-  return sortByName(images)
+  table.sort(images)
+
+  return images
+end
+
+function diarioImages(pageName)
+  pageName = pageName or editor.getCurrentPage()
+  return diarioImagesByPrefix(diarioPrefix(pageName))
+end
+
+local function galleryLink(prefix, count)
+  return dom.div {
+    class = "photo-collage-link",
+    "[📷 Galleria · " .. count .. " foto](gallery:" .. prefix .. ")"
+  }
 end
 
 function collage(images)
+  local prefix
+
   if images == nil then
-    images = diarioImages()
+    local pageName = editor.getCurrentPage()
+    prefix = diarioPrefix(pageName)
+    images = diarioImagesByPrefix(prefix)
   end
 
   if not images or #images == 0 then
@@ -221,21 +244,32 @@ function collage(images)
     )
   end
 
-  return widget.htmlBlock(
+  local content = {
     dom.div {
       class = "photo-collage",
       table.unpack(items)
     }
+  }
+
+  if prefix then
+    table.insert(content, galleryLink(prefix, #images))
+  end
+
+  return widget.htmlBlock(
+    dom.div {
+      class = "photo-collage-wrapper",
+      table.unpack(content)
+    }
   )
 end
 
-local function galleryMarkdown(pageName)
-  local images = diarioImages(pageName)
+local function galleryMarkdown(prefix)
+  local images = diarioImagesByPrefix(prefix)
 
   local lines = {
     "# 📷 Galleria immagini",
     "",
-    "[[" .. pageName .. "|← Torna alla pagina]]",
+    "**" .. #images .. " immagini**",
     ""
   }
 
@@ -253,14 +287,18 @@ local function galleryMarkdown(pageName)
 end
 
 virtualPage.define {
-  pattern = "gallery:(.+)",
-  run = function(pageName)
-    return galleryMarkdown(pageName)
+  pattern = "gallery:(%d%d%d%d%d%d%d%d)",
+  run = function(prefix)
+    return galleryMarkdown(prefix)
   end
 }
 ```
 
 ```space-style
+.photo-collage-wrapper {
+  width: 100%;
+}
+
 .photo-collage {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -285,6 +323,12 @@ virtualPage.define {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.photo-collage-link {
+  margin-top: 6px;
+  text-align: right;
+  font-size: 0.9em;
 }
 
 @media (min-width: 601px) {
