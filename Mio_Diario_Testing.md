@@ -2,7 +2,7 @@
 name: "Library/MG/Mio_Diario_Testing"
 tags: meta/library
 description: "Widget, funzioni, in fase di sviluppo. ATTENZIONE! PERICOLO!"
-version: "0.0-01"
+version: "0.0-02"
 versionDate: 2026-09-01
 pageDecoration.prefix: "⚠️ "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Testing.md"
@@ -10,7 +10,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Testing.md"
 
 # ⚠️️⚠️ Funzioni Diario in Sviluppo ⚠⚠
 
-**Versione:** 0.0-01 — 01.09.2026
+**Versione:** 0.0-02 — 01.09.2026
 
 La libreria è autonoma.
 
@@ -19,9 +19,12 @@ La libreria è autonoma.
 - `diarioImages(pageName)` — seleziona automaticamente le immagini associate a una pagina Diario.
 - `collage()` — visualizza automaticamente le immagini della pagina corrente come collage responsive.
 - `collage(images)` — visualizza un elenco esplicito di immagini dello Space.
-- `galleryLink(prefix, count)` — genera automaticamente il collegamento alla Virtual Page della galleria.
-- Virtual Page `gallery:YYYYMMDD` — visualizza tutte le immagini associate alla giornata.
-- Convenzione dati: le immagini del Diario sono memorizzate sotto `media/` e iniziano con il prefisso `YYYYMMDD`.
+- Il collegamento alla galleria viene generato automaticamente da `collage()`.
+- Virtual Page `gallery:NomePagina` — visualizza le immagini della pagina Diario.
+- La Virtual Page supporta sia la selezione automatica sia, quando l'elenco è scritto direttamente nella pagina, le immagini passate esplicitamente a `collage`.
+- Convenzione dati automatica:
+  - pagina Diario: `YYYY-MM-DD`
+  - immagini: `media/YYYYMMDD...`
 - Layout collage:
   - smartphone: 3 colonne
   - tablet: 4 colonne
@@ -31,19 +34,19 @@ La libreria è autonoma.
 
 ## Configurazione
 
-Configurazione minima consigliata in una pagina Diario:
+Configurazione minima, con selezione automatica delle immagini:
 
 ```space-lua
 ${collage()}
 ```
 
-Configurazione manuale:
+Configurazione con passaggio esplicito delle immagini:
 
 ```space-lua
 ${collage {
-  "media/foto1.jpg",
-  "media/foto2.jpg",
-  "media/foto3.jpg"
+  "media/20260830-183349.jpeg",
+  "media/20260830-183349 (1).jpeg",
+  "media/20260830-183349 (2).jpeg"
 }}
 ```
 
@@ -63,33 +66,35 @@ Il layout utilizza i valori definiti nello Space Style:
 
 ## Uso
 
-### Collage automatico
+### Selezione automatica
 
-Per una pagina, ad esempio:
+Per una pagina:
 
 ```text
-Diario/20260830-descrizione
+Diario/2026-08-30
 ```
 
-la funzione:
+è sufficiente:
 
 ```space-lua
 ${collage()}
 ```
 
-ricava il prefisso:
+La funzione ricava:
 
 ```text
+2026-08-30
+        ↓
 20260830
 ```
 
-e seleziona automaticamente i documenti:
+e seleziona dall'indice i documenti:
 
 ```text
 media/20260830...
 ```
 
-Il widget mostra il collage e aggiunge automaticamente il collegamento:
+Il collage aggiunge automaticamente il link:
 
 ```text
 📷 Galleria · N foto
@@ -98,43 +103,97 @@ Il widget mostra il collage e aggiunge automaticamente il collegamento:
 che apre:
 
 ```text
-gallery:20260830
+gallery:Diario/2026-08-30
 ```
 
-### Collage manuale
+La Virtual Page utilizza la stessa pagina sorgente e ripete la selezione automatica.
+
+### Passaggio esplicito delle immagini
+
+È possibile definire esattamente quali immagini mostrare e in quale ordine:
 
 ```space-lua
 ${collage {
   "media/20260830-183349.jpeg",
-  "media/20260830-183349 (1).jpeg",
-  "media/20260830-183349 (2).jpeg"
+  "media/20260830-183112 (2).jpeg",
+  "media/20260830-183111.jpeg"
 }}
 ```
 
-Nel collage manuale il collegamento alla Virtual Page non viene aggiunto automaticamente.
+In questo caso `collage(images)` non interroga l'indice: utilizza direttamente l'elenco ricevuto.
 
-### Virtual Page
-
-La Virtual Page usa il pattern:
+Il link automatico apre comunque:
 
 ```text
-gallery:YYYYMMDD
+gallery:Diario/2026-08-30
+```
+
+La Virtual Page legge il Markdown della pagina sorgente e recupera l'elenco scritto nel blocco `${collage { ... }}`.
+
+L'ordine delle immagini passate esplicitamente viene mantenuto.
+
+### Virtual Page con immagini esplicite
+
+La Virtual Page può quindi essere utilizzata anche quando le immagini sono passate esplicitamente, senza duplicare l'elenco.
+
+Il funzionamento è:
+
+```text
+Pagina Diario
+    ↓
+${collage { "media/...", ... }}
+    ↓
+link automatico gallery:Pagina
+    ↓
+space.readPage(Pagina)
+    ↓
+estrazione dell'elenco dal blocco collage
+    ↓
+galleria completa
+```
+
+Vincolo della modalità esplicita:
+
+la Virtual Page può ricostruire l'elenco solo quando i file sono scritti direttamente nel blocco:
+
+```space-lua
+${collage {
+  "media/foto1.jpg",
+  "media/foto2.jpg"
+}}
+```
+
+Non può ricostruire automaticamente una lista creata dinamicamente, ad esempio:
+
+```space-lua
+${collage(miaLista)}
+```
+
+perché il valore runtime di `miaLista` non è persistito nel Markdown.
+
+Se nella stessa pagina sono presenti più blocchi `${collage { ... }}`, la Virtual Page unisce le immagini dei blocchi nell'ordine in cui compaiono, eliminando eventuali duplicati.
+
+### Ricerca automatica immagini
+
+La modalità automatica usa la convenzione:
+
+```text
+Pagina:    Diario/YYYY-MM-DD
+Immagini:  media/YYYYMMDD...
 ```
 
 Esempio:
 
 ```text
-gallery:20260830
+Diario/2026-08-30
 ```
 
-La Virtual Page richiama `diarioImagesByPrefix()` con lo stesso prefisso e visualizza tutte le immagini associate alla giornata.
-
-### Ricerca immagini
-
-La selezione automatica usa la convenzione:
+corrisponde a:
 
 ```text
-media/YYYYMMDD...
+media/20260830-183111.jpeg
+media/20260830-183112.jpeg
+media/20260830-183349.jpeg
 ```
 
 Sono considerate immagini le estensioni:
@@ -145,14 +204,14 @@ Sono considerate immagini le estensioni:
 - `.webp`
 - `.gif`
 
-Il prefisso `YYYYMMDD` viene ricavato dalle prime 8 cifre del nome della pagina.
+Il prefisso `YYYYMMDD` viene ricavato da una data `YYYY-MM-DD` posta all'inizio del nome della pagina.
 
 Esempi validi:
 
 ```text
-Diario/20260830
-Diario/20260830-descrizione
-Diario/20260830 Escursione
+Diario/2026-08-30
+Diario/2026-08-30-descrizione
+Diario/2026-08-30 Escursione
 ```
 
 Vincolo adottato:
@@ -161,11 +220,12 @@ Vincolo adottato:
 
 Limiti noti:
 
-- un'immagine senza il prefisso data non viene inclusa;
-- più pagine Diario con lo stesso prefisso `YYYYMMDD` condividono le stesse immagini;
+- un'immagine senza il prefisso data non viene inclusa nella selezione automatica;
+- più pagine Diario con la stessa data iniziale condividono la stessa selezione automatica;
 - qualsiasi immagine con lo stesso prefisso viene inclusa, anche se non è una fotografia;
-- l'ordinamento è alfabetico sul path e, con nomi `YYYYMMDD-HHMMSS...`, coincide normalmente con l'ordine cronologico;
-- la Virtual Page lavora sul solo prefisso `YYYYMMDD` e non conserva direttamente il nome completo della pagina Diario di origine.
+- nella selezione automatica l'ordinamento è alfabetico sul path e, con nomi `YYYYMMDD-HHMMSS...`, coincide normalmente con l'ordine cronologico;
+- nella modalità esplicita la Virtual Page riconosce gli elenchi scritti direttamente come `${collage { ... }}`;
+- liste Lua costruite dinamicamente non sono ricostruibili dalla Virtual Page.
 
 ## Implementazione
 
@@ -175,7 +235,14 @@ local function diarioBasename(pageName)
 end
 
 local function diarioPrefix(pageName)
-  return diarioBasename(pageName):match("^(%d%d%d%d%d%d%d%d)")
+  local name = diarioBasename(pageName)
+  local y, m, d = name:match("^(%d%d%d%d)%-(%d%d)%-(%d%d)")
+
+  if not y then
+    return nil
+  end
+
+  return y .. m .. d
 end
 
 local function isImageDocument(name)
@@ -213,20 +280,52 @@ function diarioImages(pageName)
   return diarioImagesByPrefix(diarioPrefix(pageName))
 end
 
-local function galleryLink(prefix, count)
+local function explicitCollageImages(pageName)
+  local ok, text = pcall(function()
+    return space.readPage(pageName)
+  end)
+
+  if not ok or not text then
+    return {}
+  end
+
+  local images = {}
+  local seen = {}
+
+  for body in text:gmatch("%$%{%s*collage%s*%{(.-)%}%s*%}") do
+    for path in body:gmatch('"(media/[^"]+)"') do
+      if isImageDocument(path) and not seen[path] then
+        table.insert(images, path)
+        seen[path] = true
+      end
+    end
+  end
+
+  return images
+end
+
+local function galleryImages(pageName)
+  local explicit = explicitCollageImages(pageName)
+
+  if #explicit > 0 then
+    return explicit
+  end
+
+  return diarioImages(pageName)
+end
+
+local function galleryLink(pageName, count)
   return dom.div {
     class = "photo-collage-link",
-    "[📷 Galleria · " .. count .. " foto](gallery:" .. prefix .. ")"
+    "[[gallery:" .. pageName .. "|📷 Galleria · " .. count .. " foto]]"
   }
 end
 
 function collage(images)
-  local prefix
+  local pageName = editor.getCurrentPage()
 
   if images == nil then
-    local pageName = editor.getCurrentPage()
-    prefix = diarioPrefix(pageName)
-    images = diarioImagesByPrefix(prefix)
+    images = diarioImages(pageName)
   end
 
   if not images or #images == 0 then
@@ -244,30 +343,27 @@ function collage(images)
     )
   end
 
-  local content = {
-    dom.div {
-      class = "photo-collage",
-      table.unpack(items)
-    }
-  }
-
-  if prefix then
-    table.insert(content, galleryLink(prefix, #images))
-  end
-
   return widget.htmlBlock(
     dom.div {
       class = "photo-collage-wrapper",
-      table.unpack(content)
+
+      dom.div {
+        class = "photo-collage",
+        table.unpack(items)
+      },
+
+      galleryLink(pageName, #images)
     }
   )
 end
 
-local function galleryMarkdown(prefix)
-  local images = diarioImagesByPrefix(prefix)
+local function galleryMarkdown(pageName)
+  local images = galleryImages(pageName)
 
   local lines = {
     "# 📷 Galleria immagini",
+    "",
+    "[[" .. pageName .. "|← Torna alla pagina]]",
     "",
     "**" .. #images .. " immagini**",
     ""
@@ -287,9 +383,9 @@ local function galleryMarkdown(prefix)
 end
 
 virtualPage.define {
-  pattern = "gallery:(%d%d%d%d%d%d%d%d)",
-  run = function(prefix)
-    return galleryMarkdown(prefix)
+  pattern = "gallery:(.+)",
+  run = function(pageName)
+    return galleryMarkdown(pageName)
   end
 }
 ```
