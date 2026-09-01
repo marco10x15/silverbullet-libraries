@@ -32,7 +32,7 @@ website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diar
 description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
 ---
 name: "⚠️ Mio Diario - Testing ⚠️"
-uri: github:marco10x15/silverbullet-libraries/Testing.md
+uri: github:marco10x15/silverbullet-libraries/Mio_Diario_Testing.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_Testing.md
 description: "Funzioni, widget in fase di sviluppo. PERICOLOSO!."
 ---
