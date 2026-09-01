@@ -4,7 +4,7 @@ tags: meta/library
 description: "Widget, funzioni, in fase di sviluppo. ATTENZIONE! PERICOLO!"
 version: "0.0-00"
 versionDate: 2026-09-01
-pageDecoration.prefix: "📔 "
+pageDecoration.prefix: "⚠️ "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Testing.md"
 ---
 
