@@ -90,7 +90,7 @@ function collage(images)
     table.insert(items,
       dom.div {
         class = "photo-collage-item",
-        "![](<" .. path .. ">)"
+        "![[" .. path .. "]]"
       }
     )
   end
