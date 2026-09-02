@@ -2,8 +2,8 @@
 name: "Library/MG/Mio_Diario_Indice"
 tags: meta/library
 description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
-version: "0.1-17"
-versionDate: 2026-08-31
+version: "0.1-18"
+versionDate: 2026-09-02
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
 ---
@@ -12,7 +12,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
 
 **IndiceDiario** visualizza direttamente in una pagina SilverBullet un indice compatto delle pagine del Diario.
 
-**Versione:** 0.1-17 — 31.08.2026
+**Versione:** 0.1-18 — 02.09.2026
 
 La libreria è autonoma e non dipende da Journal Explorer.
 
@@ -24,16 +24,16 @@ La libreria è autonoma e non dipende da Journal Explorer.
 * **Riepilogo annuale incorporabile** — `${widgets.RiepilogoAnno()}` inserisce nella pagina fisica `riepiloghi/YYYY` lo stesso riepilogo automatico della Virtual Page.
 * **Data compatta** — mese, giorno e giorno della settimana nello stile calendario.
 * **Titolo** — `displayName` → nome pagina, visualizzato in grassetto e collegato alla pagina Diario.
-* **Immagine** — prima immagine trovata nella pagina, se presente.
-* **Snippet** — estratto dal testo della pagina.
-* **Rendering progressivo** — all'apertura carica in una sola query i metadati indicizzati del Diario, ma renderizza soltanto il primo batch; le schede successive vengono costruite durante lo scrolling.
-* **Filtro globale indicizzato** — ricerca con logica AND su path, titolo visualizzato, `displayName`, `description`, tags, luoghi e Viaggio; lo snippet resta solo un elemento visuale.
+* **Description** — `description` è l’unica fonte del testo sintetico; se manca viene mostrato `Descrizione non presente`.
+* **Rendering progressivo** — all’apertura carica i metadati indicizzati del Diario e l’indice dei documenti `media/`, ma renderizza soltanto il primo batch; le schede successive vengono costruite durante lo scrolling.
+* **Filtro globale indicizzato** — ricerca con logica AND su path, titolo visualizzato, `displayName`, `description`, tags, luoghi e Viaggio.
 * **Livello dati riutilizzabile** — raccolta pagine e filtro indicizzato sono separati dal rendering e pronti per le Virtual Page.
 * **Navigazione diretta** — i titoli usano `editor.open()` e restano raggiungibili anche dopo caricamento progressivo o filtro.
 * **Raggruppamento mensile** — separazione delle pagine per mese e anno.
 * **Virtual Page mensile** — il nome del mese apre `Diario:YYYY:MM`; la forma storica `diario:mese:YYYY-MM` resta disponibile.
 * **Virtual Page di ricerca** — il filtro può essere aperto come `diario:ricerca:...`, ricalcolato esclusivamente sui dati indicizzati.
 * **Tags e luoghi** — visualizzati nelle ultime due righe della scheda con carattere ridotto; i luoghi sono navigabili.
+* **Galleria** — se esistono immagini `media/YYYYMMDD...` (`jpg`, `jpeg`, `png`, `webp`, `gif`), la scheda mostra `📷 Galleria` e apre la Virtual Page `gallery:...` già gestita da `Mio_Diario_Collage`.
 * **Layout responsive** — su smartphone il calendario resta nell'header, mentre snippet, tags e luoghi sfruttano quasi tutta la larghezza della scheda.
 * **Ricerca Luoghi** — `${widgets.CercaLuoghi()}` parte con elenco vuoto e mostra soltanto le pagine `luoghi/` che soddisfano la ricerca.
 
@@ -54,9 +54,7 @@ Configurazione completa con i valori di default:
 ```space-lua
 config.set("indiceDiario", {
   batchSize          = 10,
-  showThumbnails     = true,
   showSnippets       = true,
-  snippetStartMarker = "",
   monthNames = {
     "Gennaio", "Febbraio", "Marzo", "Aprile",
     "Maggio", "Giugno", "Luglio", "Agosto",
@@ -77,7 +75,7 @@ Il filtro è applicato con un debounce di circa 280 ms per evitare una scansione
 
 Per compatibilità con le revisioni precedenti, se `batchSize` non è definito viene ancora accettato `limit` come fallback per il solo rendering progressivo.
 
-> **note** Lo snippet viene letto soltanto quando la relativa scheda viene renderizzata; non partecipa al filtro.
+> **note** `description` è già disponibile nell’indice e non richiede letture del corpo Markdown. Se manca o è vuota viene mostrato `Descrizione non presente`.
 
 > **note** Il titolo delle pagine Diario viene letto esclusivamente da `displayName`; non viene interrogato `p.title` e non viene eseguita alcuna scansione di `index.headers()`.
 
@@ -118,9 +116,7 @@ config.define("indiceDiario", {
   type = "object",
   properties = {
     batchSize = schema.number(),
-    showThumbnails = schema.boolean(),
     showSnippets = schema.boolean(),
-    snippetStartMarker = schema.string(),
     monthNames = {
       type = "array",
       items = {
@@ -151,17 +147,8 @@ local function indiceDiarioConfig()
           or 10
         )
       ),
-
-    THUMBNAILS =
-      c.showThumbnails ~= false,
-
     SNIPPETS =
       c.showSnippets ~= false,
-
-    SNIPPET_MARKER =
-      c.snippetStartMarker
-      or "",
-
     MONTHS =
       c.monthNames
       or {
@@ -603,14 +590,19 @@ function indiceDiario.renderVirtual(
       )
     )
 
-    if type(entry.description) == "string"
-      and entry.description ~= ""
-    then
-      table.insert(
-        rows,
-        entry.description
+    local description =
+      type(entry.description) == "string"
+      and entry.description:match(
+        "^%s*(.-)%s*$"
       )
-    end
+      or ""
+
+    table.insert(
+      rows,
+      description ~= ""
+      and description
+      or "Descrizione non presente"
+    )
 
     local tags =
       indiceDiario.valueText(
@@ -1800,178 +1792,81 @@ virtualPage.define {
 
 
 -- ============================================================
--- CONTENUTO DELLE PAGINE
+-- GALLERIE DIARIO
 -- ============================================================
 
-local function indiceDiarioExtractInfo(
-  content,
-  startMarker
-)
-  if not content then
-    return "", nil, nil
+local function indiceDiarioIsImageExtension(extension)
+  if type(extension) ~= "string" then
+    return false
   end
 
-  local body = content
+  local ext =
+    string.lower(extension)
 
-  local _, fmEnd =
-    body:find(
-      "^%-%-%-.-%-%-%-[\n\r]*"
+  return ext == "jpg"
+    or ext == "jpeg"
+    or ext == "png"
+    or ext == "webp"
+    or ext == "gif"
+end
+
+
+-- Costruisce una lookup YYYYMMDD -> true con una sola query
+-- sull'indice dei documenti. Non legge i file media.
+--
+-- L'estensione usa direttamente il campo indicizzato
+-- document.extension di SilverBullet.
+function indiceDiario.galleryDates()
+  local documents = query[[
+    from d = index.documents()
+    where string.startsWith(
+      d.name,
+      "media/"
     )
+    select {
+      name = d.name,
+      extension = d.extension
+    }
+  ]]
 
-  if fmEnd then
-    body =
-      body:sub(
-        fmEnd + 1
-      )
-  end
+  local result = {}
 
-  local wikiImage =
-    body:match(
-      "!%[%[([^%]|]+)"
-    )
-
-  local markdownImage = nil
-
-  if not wikiImage then
-    markdownImage =
-      body:match(
-        "!%[[^%]]*%]%(([^%s%)]+)%)"
-      )
-  end
-
-  local snippetBody = body
-  local skipFirst = true
-
-  if startMarker
-    and startMarker ~= ""
-  then
-    local markerPos =
-      body:find(
-        startMarker,
-        1,
-        true
-      )
-
-    if markerPos then
-      snippetBody =
-        body:sub(
-          markerPos
-          + #startMarker
+  for _, d in ipairs(documents) do
+    if indiceDiarioIsImageExtension(
+      d.extension
+    ) then
+      local dayKey =
+        d.name:match(
+          "^media/(%d%d%d%d%d%d%d%d)"
         )
 
-      skipFirst = false
-    end
-  end
-
-  local function cleanSnippetText(value)
-    value =
-      value:gsub(
-        "!%[%[.-%]%]",
-        "..."
-      )
-
-    value =
-      value:gsub(
-        "!%[[^%]]*%]%([^%)]+%)",
-        "..."
-      )
-
-    value =
-      value:gsub(
-        "%[%[.-%]%]",
-        "..."
-      )
-
-    value =
-      value:gsub(
-        "%[[^%]]*%]%([^%)]+%)",
-        "..."
-      )
-
-    value =
-      value:gsub(
-        "%s+",
-        " "
-      )
-
-    value =
-      value:gsub(
-        "%.%.%.%s+%.%.%.",
-        "..."
-      )
-
-    return value:match(
-      "^%s*(.-)%s*$"
-    )
-  end
-
-  local parts = {}
-  local skipped =
-    not skipFirst
-
-  for line in
-    snippetBody:gmatch(
-      "[^\r\n]+"
-    )
-  do
-    local value =
-      line:match(
-        "^%s*(.-)%s*$"
-      )
-
-    if value
-      and value ~= ""
-    then
-      if not skipped then
-        skipped = true
-      elseif not value:match(
-        "^#+%s"
-      ) then
-        value =
-          cleanSnippetText(value)
-
-        if value
-          and value ~= ""
-        then
-          table.insert(
-            parts,
-            value
-          )
-
-          if #table.concat(
-            parts,
-            " "
-          ) >= 150
-          then
-            break
-          end
-        end
+      if dayKey then
+        result[dayKey] = true
       end
     end
   end
 
-  local snippet =
-    table.concat(
-      parts,
-      " "
-    )
+  return result
+end
 
-  snippet =
-    cleanSnippetText(snippet)
 
-  if #snippet > 130 then
-    snippet =
-      snippet:sub(
-        1,
-        127
-      )
-      .. "…"
+local function indiceDiarioEntryDayKey(entry)
+  if not entry
+    or type(entry.date) ~= "string"
+  then
+    return nil
   end
 
-  return
-    snippet,
-    wikiImage,
-    markdownImage
+  local y, m, d =
+    entry.date:match(
+      "^(%d%d%d%d)%-(%d%d)%-(%d%d)"
+    )
+
+  if not y then
+    return nil
+  end
+
+  return y .. m .. d
 end
 
 
@@ -1979,69 +1874,14 @@ end
 -- RENDERING
 -- ============================================================
 
-local function indiceDiarioThumbnail(
-  wikiImage,
-  markdownImage
-)
-  if wikiImage then
-    return dom.div {
-      class = "id-thumb",
-      "![[" .. wikiImage .. "]]"
-    }
-  end
-
-  if markdownImage then
-    return dom.div {
-      class = "id-thumb",
-      "![](" .. markdownImage .. ")"
-    }
-  end
-
-  return nil
-end
-
 function widgets.IndiceDiario()
   local cfg =
     indiceDiarioConfig()
 
-  -- Il widget viene restituito prima della query iniziale.
-  -- Un breve defer consente al browser di mostrare il messaggio
-  -- di caricamento mentre vengono letti i metadati indicizzati.
+  -- Metadati Diario e documenti media vengono letti soltanto
+  -- dagli indici SilverBullet. Nessun corpo Markdown viene letto.
   local allEntries = nil
-  local contentCache = {}
-
-  local function ensureContent(entry)
-    local cached =
-      contentCache[entry.path]
-
-    if cached then
-      return cached
-    end
-
-    local raw =
-      space.readPage(
-        entry.path
-      )
-
-    local snippet,
-      wikiImage,
-      markdownImage =
-        indiceDiarioExtractInfo(
-          raw or "",
-          cfg.SNIPPET_MARKER
-        )
-
-    cached = {
-      snippet = snippet or "",
-      wikiImage = wikiImage,
-      markdownImage = markdownImage
-    }
-
-    contentCache[entry.path] =
-      cached
-
-    return cached
-  end
+  local galleryDates = {}
 
   local function buildTagsNode(entry)
     local tags =
@@ -2167,10 +2007,37 @@ function widgets.IndiceDiario()
     return row
   end
 
-  local function buildEntryNode(entry)
-    local info =
-      ensureContent(entry)
+  local function buildGalleryNode(entry)
+    local dayKey =
+      indiceDiarioEntryDayKey(
+        entry
+      )
 
+    if not dayKey
+      or not galleryDates[dayKey]
+    then
+      return nil
+    end
+
+    return dom.div {
+      class = "id-meta-row id-gallery",
+
+      dom.a {
+        class = "id-meta-link",
+
+        onclick = function()
+          editor.open(
+            "gallery:"
+              .. entry.path
+          )
+        end,
+
+        __rawText = "📷 Galleria"
+      }
+    }
+  end
+
+  local function buildEntryNode(entry)
     local dayName =
       indiceDiarioWeekday(
         entry.year,
@@ -2246,14 +2113,24 @@ function widgets.IndiceDiario()
         titleNode
       }
 
-    if cfg.SNIPPETS
-      and info.snippet ~= ""
-    then
+    if cfg.SNIPPETS then
+      local description =
+        type(entry.description) == "string"
+        and entry.description:match(
+          "^%s*(.-)%s*$"
+        )
+        or ""
+
+      if description == "" then
+        description =
+          "Descrizione non presente"
+      end
+
       row.appendChild(
         dom.div {
           class = "id-snippet",
           __rawText =
-            info.snippet
+            description
         }
       )
     end
@@ -2272,16 +2149,13 @@ function widgets.IndiceDiario()
       row.appendChild(luoghiNode)
     end
 
-    if cfg.THUMBNAILS then
-      local thumb =
-        indiceDiarioThumbnail(
-          info.wikiImage,
-          info.markdownImage
-        )
+    local galleryNode =
+      buildGalleryNode(entry)
 
-      if thumb then
-        row.appendChild(thumb)
-      end
+    if galleryNode then
+      row.appendChild(
+        galleryNode
+      )
     end
 
     return row
@@ -2566,6 +2440,9 @@ function widgets.IndiceDiario()
       allEntries =
         entries
         or {}
+
+      galleryDates =
+        indiceDiario.galleryDates()
 
       loading.replaceChildren()
 
@@ -2862,6 +2739,25 @@ Separato il livello dati/filtro dal rendering del widget; la sorgente delle pagi
 ## Note della revisione 0.1-03
 
 Il rendering delle card usa CSS Grid con layout responsive per smartphone.
+
+## Revisione 0.1-18
+
+Semplificato `widgets.IndiceDiario()` eliminando ogni lettura del corpo delle pagine.
+
+Modifiche principali:
+
+* `description` è ora l’unica fonte del testo sintetico della scheda;
+* se `description` manca o è vuota viene mostrato `Descrizione non presente`;
+* eliminate completamente le thumbnail;
+* eliminate tutte le chiamate `space.readPage()` dall’indice;
+* rimossi `indiceDiarioExtractInfo()`, `contentCache`, `snippetStartMarker`, `showThumbnails` e la relativa configurazione;
+* le Virtual Page mensili e di ricerca mostrano anch’esse `Descrizione non presente` quando necessario;
+* aggiunta una sola query indicizzata su `index.documents()` per individuare le immagini sotto `media/`;
+* sono riconosciute come immagini soltanto le estensioni già usate da `Mio_Diario_Collage`: `jpg`, `jpeg`, `png`, `webp`, `gif`;
+* un documento `media/YYYYMMDD...` rende disponibile il link `📷 Galleria` per la giornata corrispondente;
+* il link apre la Virtual Page già esistente `gallery:<pagina Diario>` senza duplicare il rendering della galleria.
+
+La scheda dell’Indice è quindi costruita soltanto da dati indicizzati; il corpo Markdown non viene più letto.
 
 ## Revisione 0.1-17
 
@@ -3194,12 +3090,13 @@ Non vengono letti H1, corpo Markdown, immagini o gallerie.
 
 .id-entry {
   display: grid;
-  grid-template-columns: 50px minmax(0, 1fr) auto;
+  grid-template-columns: 50px minmax(0, 1fr);
   grid-template-areas:
-    "cal title thumb"
-    "cal snippet thumb"
-    "cal tags thumb"
-    "cal luoghi thumb";
+    "cal title"
+    "cal snippet"
+    "cal tags"
+    "cal luoghi"
+    "cal gallery";
   column-gap: 10px;
   row-gap: 4px;
   align-items: center;
@@ -3284,8 +3181,7 @@ Non vengono letti H1, corpo Markdown, immagini o gallerie.
 }
 
 .id-title p,
-.id-snippet p,
-.id-thumb p {
+.id-snippet p {
   margin: 0;
 }
 
@@ -3315,6 +3211,10 @@ Non vengono letti H1, corpo Markdown, immagini o gallerie.
   grid-area: luoghi;
 }
 
+.id-gallery {
+  grid-area: gallery;
+}
+
 .id-meta-link {
   color: inherit;
   text-decoration: none;
@@ -3324,26 +3224,6 @@ Non vengono letti H1, corpo Markdown, immagini o gallerie.
 .id-meta-link:hover {
   text-decoration: underline;
 }
-
-.id-thumb {
-  grid-area: thumb;
-  width: 56px;
-  height: 56px;
-  align-self: center;
-  overflow: hidden;
-  border: 1px solid var(--id-border);
-  border-radius: 6px;
-  background: var(--id-bg);
-}
-
-.id-thumb img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  object-fit: cover;
-}
-
 .cl-index {
   display: flex;
   flex-direction: column;
@@ -3418,12 +3298,13 @@ Non vengono letti H1, corpo Markdown, immagini o gallerie.
   }
 
   .id-entry {
-    grid-template-columns: 50px minmax(0, 1fr) auto;
+    grid-template-columns: 50px minmax(0, 1fr);
     grid-template-areas:
-      "cal title title"
-      "snippet snippet thumb"
-      "tags tags tags"
-      "luoghi luoghi luoghi";
+      "cal title"
+      "snippet snippet"
+      "tags tags"
+      "luoghi luoghi"
+      "gallery gallery";
     column-gap: 8px;
     row-gap: 5px;
     align-items: start;
@@ -3442,12 +3323,6 @@ Non vengono letti H1, corpo Markdown, immagini o gallerie.
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
     overflow: hidden;
-  }
-
-  .id-thumb {
-    width: 48px;
-    height: 48px;
-    align-self: start;
   }
 
   .id-meta-row {
