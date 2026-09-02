@@ -2,7 +2,7 @@
 name: "Library/MG/Mio_Diario_Indice"
 tags: meta/library
 description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
-version: "0.1-18"
+version: "0.1-19"
 versionDate: 2026-09-02
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
@@ -12,7 +12,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
 
 **IndiceDiario** visualizza direttamente in una pagina SilverBullet un indice compatto delle pagine del Diario.
 
-**Versione:** 0.1-18 — 02.09.2026
+**Versione:** 0.1-19 — 02.09.2026
 
 La libreria è autonoma e non dipende da Journal Explorer.
 
@@ -32,8 +32,8 @@ La libreria è autonoma e non dipende da Journal Explorer.
 * **Raggruppamento mensile** — separazione delle pagine per mese e anno.
 * **Virtual Page mensile** — il nome del mese apre `Diario:YYYY:MM`; la forma storica `diario:mese:YYYY-MM` resta disponibile.
 * **Virtual Page di ricerca** — il filtro può essere aperto come `diario:ricerca:...`, ricalcolato esclusivamente sui dati indicizzati.
-* **Tags e luoghi** — visualizzati nelle ultime due righe della scheda con carattere ridotto; i luoghi sono navigabili.
-* **Galleria** — se esistono immagini `media/YYYYMMDD...` (`jpg`, `jpeg`, `png`, `webp`, `gif`), la scheda mostra `📷 Galleria` e apre la Virtual Page `gallery:...` già gestita da `Mio_Diario_Collage`.
+* **Tags e luoghi** — visualizzati nelle ultime righe della scheda con carattere ridotto; ogni tag apre la Virtual Page nativa `tag:<tag>` e i luoghi sono navigabili.
+* **Galleria lazy** — le prime schede vengono mostrate senza attendere `index.documents()`; in un secondo passaggio vengono aggiunti i link `📷 Galleria` per le giornate con immagini `media/YYYYMMDD...`.
 * **Layout responsive** — su smartphone il calendario resta nell'header, mentre snippet, tags e luoghi sfruttano quasi tutta la larghezza della scheda.
 * **Ricerca Luoghi** — `${widgets.CercaLuoghi()}` parte con elenco vuoto e mostra soltanto le pagine `luoghi/` che soddisfano la ricerca.
 
@@ -215,10 +215,7 @@ local function indiceDiarioWeekday(
     or ""
 end
 
-local function indiceDiarioEntry(
-  p,
-  cfg
-)
+local function indiceDiarioEntry(p)
   if type(p.name) ~= "string"
     or type(p.date) ~= "string"
     or p.date == ""
@@ -273,19 +270,10 @@ local function indiceDiarioEntry(
       + d
   }
 
-  entry.indexedSearchText =
-    indiceDiario.indexedSearchText(
-      entry
-    )
-
   return entry
 end
 
-function indiceDiario.entries(cfg)
-  cfg =
-    cfg
-    or indiceDiarioConfig()
-
+function indiceDiario.entries()
   local pages = query[[
     from p = index.subPages("Diario")
     where p.date != nil
@@ -304,10 +292,7 @@ function indiceDiario.entries(cfg)
 
   for _, p in ipairs(pages) do
     local entry =
-      indiceDiarioEntry(
-        p,
-        cfg
-      )
+      indiceDiarioEntry(p)
 
     if entry then
       table.insert(
@@ -457,8 +442,7 @@ end
 
 function indiceDiario.filter(
   entries,
-  value,
-  extraTextFn
+  value
 )
   local terms =
     indiceDiarioTerms(value)
@@ -470,41 +454,17 @@ function indiceDiario.filter(
   local filtered = {}
 
   for _, entry in ipairs(entries) do
-    local searchText =
-      entry.indexedSearchText
-      or indiceDiario.indexedSearchText(
-        entry
-      )
-
-    local matches =
-      indiceDiarioMatches(
-        searchText,
-        terms
-      )
-
-    if not matches
-      and extraTextFn
-    then
-      local extraText =
-        extraTextFn(entry)
-
-      searchText = searchText
-        .. " "
-        .. string.lower(
-          tostring(
-            extraText
-            or ""
-          )
-        )
-
-      matches =
-        indiceDiarioMatches(
-          searchText,
-          terms
+    if not entry.indexedSearchText then
+      entry.indexedSearchText =
+        indiceDiario.indexedSearchText(
+          entry
         )
     end
 
-    if matches then
+    if indiceDiarioMatches(
+      entry.indexedSearchText,
+      terms
+    ) then
       table.insert(
         filtered,
         entry
@@ -521,8 +481,7 @@ function indiceDiario.filterIndexed(
 )
   return indiceDiario.filter(
     entries,
-    value,
-    nil
+    value
   )
 end
 
@@ -1697,7 +1656,7 @@ function indiceDiario.renderMonth(period)
 
   local entries =
     indiceDiario.month(
-      indiceDiario.entries(cfg),
+      indiceDiario.entries(),
       y,
       m
     )
@@ -1778,7 +1737,7 @@ virtualPage.define {
 
     local entries =
       indiceDiario.filterIndexed(
-        indiceDiario.entries(cfg),
+        indiceDiario.entries(),
         searchText
       )
 
@@ -1882,10 +1841,43 @@ function widgets.IndiceDiario()
   -- dagli indici SilverBullet. Nessun corpo Markdown viene letto.
   local allEntries = nil
   local galleryDates = {}
+  local entryNodes = {}
+
+  local function entryTags(value)
+    local result = {}
+
+    if type(value) == "string" then
+      for tag in value:gmatch("%S+") do
+        if tag ~= "" then
+          table.insert(
+            result,
+            tag
+          )
+        end
+      end
+
+      return result
+    end
+
+    if type(value) == "table" then
+      for _, tag in ipairs(value) do
+        if type(tag) == "string"
+          and tag ~= ""
+        then
+          table.insert(
+            result,
+            tag
+          )
+        end
+      end
+    end
+
+    return result
+  end
 
   local function buildTagsNode(entry)
     local tags =
-      indiceDiario.list(
+      entryTags(
         entry.tags
       )
 
@@ -1893,41 +1885,45 @@ function widgets.IndiceDiario()
       return nil
     end
 
-    local labels = {}
+    local row =
+      dom.div {
+        class = "id-meta-row id-tags"
+      }
 
-    for _, tag in ipairs(tags) do
-      if type(tag) == "string"
-        and tag ~= ""
-      then
-        if string.startsWith(
-          tag,
-          "#"
-        ) then
-          table.insert(
-            labels,
-            tag
-          )
-        else
-          table.insert(
-            labels,
-            "#" .. tag
+    for i, rawTag in ipairs(tags) do
+      local tag =
+        rawTag:gsub(
+          "^#",
+          ""
+        )
+
+      if tag ~= "" then
+        if i > 1 then
+          row.appendChild(
+            dom.span {
+              __rawText = " "
+            }
           )
         end
+
+        row.appendChild(
+          dom.a {
+            class = "id-meta-link id-tag-link",
+
+            onclick = function()
+              editor.open(
+                "tag:" .. tag
+              )
+            end,
+
+            __rawText =
+              "#" .. tag
+          }
+        )
       end
     end
 
-    if #labels == 0 then
-      return nil
-    end
-
-    return dom.div {
-      class = "id-meta-row id-tags",
-      __rawText =
-        table.concat(
-          labels,
-          " "
-        )
-    }
+    return row
   end
 
   local function buildLuoghiNode(entry)
@@ -2158,6 +2154,11 @@ function widgets.IndiceDiario()
       )
     end
 
+    entryNodes[entry.path] = {
+      row = row,
+      entry = entry
+    }
+
     return row
   end
 
@@ -2313,6 +2314,7 @@ function widgets.IndiceDiario()
     activeEntries = entries
     renderedCount = 0
     lastMonthKey = nil
+    entryNodes = {}
 
     list.replaceChildren()
 
@@ -2435,14 +2437,11 @@ function widgets.IndiceDiario()
   js.window.setTimeout(
     function()
       local entries =
-        indiceDiario.entries(cfg)
+        indiceDiario.entries()
 
       allEntries =
         entries
         or {}
-
-      galleryDates =
-        indiceDiario.galleryDates()
 
       loading.replaceChildren()
 
@@ -2464,8 +2463,39 @@ function widgets.IndiceDiario()
         .. #allEntries
         .. " pagine…"
 
+      -- Prima visualizzazione: non attende la scansione dei media.
       resetList(
         allEntries
+      )
+
+      -- La presenza delle gallerie è un arricchimento successivo.
+      -- Viene caricata in un secondo task, dopo che le prime
+      -- schede sono già state consegnate al browser.
+      js.window.setTimeout(
+        function()
+          galleryDates =
+            indiceDiario.galleryDates()
+
+
+          -- Aggiorna soltanto le schede già renderizzate.
+          -- Le successive useranno galleryDates direttamente
+          -- quando verranno costruite durante lo scrolling.
+          for _, item in pairs(
+            entryNodes
+          ) do
+            local galleryNode =
+              buildGalleryNode(
+                item.entry
+              )
+
+            if galleryNode then
+              item.row.appendChild(
+                galleryNode
+              )
+            end
+          end
+        end,
+        20
       )
     end,
     20
@@ -2739,6 +2769,22 @@ Separato il livello dati/filtro dal rendering del widget; la sorgente delle pagi
 ## Note della revisione 0.1-03
 
 Il rendering delle card usa CSS Grid con layout responsive per smartphone.
+
+## Revisione 0.1-19
+
+Ottimizzato il percorso critico della prima visualizzazione.
+
+* la query `index.documents()` non blocca più l'apertura dell'Indice;
+* prima vengono caricati i metadati Diario e renderizzate le prime schede;
+* la lookup delle gallerie viene costruita in un secondo task;
+* quando la lookup è pronta vengono arricchite soltanto le schede già renderizzate; le schede successive ricevono il link durante il normale rendering;
+* `indexedSearchText` non viene più costruito per tutte le pagine all'avvio: viene calcolato e memorizzato solo quando il filtro viene realmente utilizzato;
+* rimosso il parametro `cfg` inutilizzato da `indiceDiarioEntry()`;
+* semplificato il filtro eliminando il vecchio ramo `extraTextFn`;
+* i tag in forma stringa separata da spazi vengono ora trattati come tag distinti;
+* ogni tag visualizzato è cliccabile e apre la Virtual Page nativa `tag:<tag>`.
+
+Il rendering progressivo delle schede rimane invariato.
 
 ## Revisione 0.1-18
 
