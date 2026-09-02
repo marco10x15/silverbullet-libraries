@@ -2,7 +2,7 @@
 name: "Library/MG/Mio_Diario_Indice"
 tags: meta/library
 description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
-version: "0.1-19"
+version: "0.1-20"
 versionDate: 2026-09-02
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
@@ -12,7 +12,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
 
 **IndiceDiario** visualizza direttamente in una pagina SilverBullet un indice compatto delle pagine del Diario.
 
-**Versione:** 0.1-19 — 02.09.2026
+**Versione:** 0.1-20 — 02.09.2026
 
 La libreria è autonoma e non dipende da Journal Explorer.
 
@@ -30,7 +30,7 @@ La libreria è autonoma e non dipende da Journal Explorer.
 * **Livello dati riutilizzabile** — raccolta pagine e filtro indicizzato sono separati dal rendering e pronti per le Virtual Page.
 * **Navigazione diretta** — i titoli usano `editor.open()` e restano raggiungibili anche dopo caricamento progressivo o filtro.
 * **Raggruppamento mensile** — separazione delle pagine per mese e anno.
-* **Virtual Page mensile** — il nome del mese apre `Diario:YYYY:MM`; la forma storica `diario:mese:YYYY-MM` resta disponibile.
+* **Virtual Page mensile** — il nome del mese apre `Diario:YYYY:MM`; ogni giornata mostra `description` e una sola riga finale con tag cliccabili, luoghi e Viaggio. La forma storica `diario:mese:YYYY-MM` resta disponibile.
 * **Virtual Page di ricerca** — il filtro può essere aperto come `diario:ricerca:...`, ricalcolato esclusivamente sui dati indicizzati.
 * **Tags e luoghi** — visualizzati nelle ultime righe della scheda con carattere ridotto; ogni tag apre la Virtual Page nativa `tag:<tag>` e i luoghi sono navigabili.
 * **Galleria lazy** — le prime schede vengono mostrate senza attendere `index.documents()`; in un secondo passaggio vengono aggiunti i link `📷 Galleria` per le giornate con immagini `media/YYYYMMDD...`.
@@ -536,6 +536,84 @@ function indiceDiario.renderVirtual(
     ) .. "\n"
   end
 
+  local function renderTagLinks(value)
+    local tags = {}
+
+    if type(value) == "string" then
+      for tag in value:gmatch("%S+") do
+        tag =
+          tag:gsub(
+            "^#",
+            ""
+          )
+
+        if tag ~= "" then
+          table.insert(
+            tags,
+            string.format(
+              "[[tag:%s|#%s]]",
+              tag,
+              tag
+            )
+          )
+        end
+      end
+    elseif type(value) == "table" then
+      for _, rawTag in ipairs(value) do
+        if type(rawTag) == "string"
+          and rawTag ~= ""
+        then
+          local tag =
+            rawTag:gsub(
+              "^#",
+              ""
+            )
+
+          if tag ~= "" then
+            table.insert(
+              tags,
+              string.format(
+                "[[tag:%s|#%s]]",
+                tag,
+                tag
+              )
+            )
+          end
+        end
+      end
+    end
+
+    return table.concat(
+      tags,
+      " "
+    )
+  end
+
+  local function renderWikiList(value)
+    local values =
+      indiceDiario.list(
+        value
+      )
+
+    local parts = {}
+
+    for _, item in ipairs(values) do
+      if type(item) == "string"
+        and item ~= ""
+      then
+        table.insert(
+          parts,
+          item
+        )
+      end
+    end
+
+    return table.concat(
+      parts,
+      " · "
+    )
+  end
+
   for _, entry in ipairs(entries) do
     table.insert(
       rows,
@@ -563,26 +641,28 @@ function indiceDiario.renderVirtual(
       or "Descrizione non presente"
     )
 
+    local meta = {}
+
     local tags =
-      indiceDiario.valueText(
+      renderTagLinks(
         entry.tags
       )
 
     if tags ~= "" then
       table.insert(
-        rows,
-        "**Tags:** " .. tags
+        meta,
+        tags
       )
     end
 
     local luoghi =
-      indiceDiario.valueText(
+      renderWikiList(
         entry.luoghi
       )
 
     if luoghi ~= "" then
       table.insert(
-        rows,
+        meta,
         "📍 " .. luoghi
       )
     end
@@ -591,8 +671,18 @@ function indiceDiario.renderVirtual(
       and entry.Viaggio ~= ""
     then
       table.insert(
-        rows,
+        meta,
         "🧭 " .. entry.Viaggio
+      )
+    end
+
+    if #meta > 0 then
+      table.insert(
+        rows,
+        table.concat(
+          meta,
+          "   "
+        )
       )
     end
 
@@ -2769,6 +2859,28 @@ Separato il livello dati/filtro dal rendering del widget; la sorgente delle pagi
 ## Note della revisione 0.1-03
 
 Il rendering delle card usa CSS Grid con layout responsive per smartphone.
+
+## Revisione 0.1-20
+
+Compattato il rendering delle Virtual Page mensili e di ricerca.
+
+Per ogni giornata l'output è ora:
+
+```text
+data — displayName
+description
+#tag   📍 luogo · luogo   🧭 viaggio
+```
+
+Modifiche principali:
+
+* i tag sono resi singolarmente cliccabili e aprono `tag:<tag>`;
+* `luoghi` rimane composto dai wikilink originali ed è visualizzato in linea;
+* `Viaggio` rimane il wikilink originale ed è visualizzato in linea;
+* tag, luoghi e Viaggio condividono un'unica riga di metadati;
+* se uno dei tre gruppi manca, gli altri vengono mostrati senza spazi o righe vuote aggiuntive;
+* il browser può effettuare il normale wrapping della riga sui display stretti;
+* nessuna nuova query e nessuna lettura del corpo Markdown.
 
 ## Revisione 0.1-19
 
