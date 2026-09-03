@@ -31,6 +31,11 @@ uri: github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_Indice.md
 description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
 ---
+name: "📷 Mio Diario - Photo Gallery"
+uri: github:marco10x15/silverbullet-libraries/Photo_Gallery.md
+website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_Photo_Gallery.md
+description: "Galleria Fotografica che utilizza le imamgini di Synology Photos."
+---
 name: "📷 Mio Diario - Collage"
 uri: github:marco10x15/silverbullet-libraries/Mio_Diario_Collage.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_Collage.md
