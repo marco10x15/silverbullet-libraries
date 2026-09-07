@@ -36,10 +36,10 @@ uri: github:marco10x15/silverbullet-libraries/Mio_Diario_Photo_Gallery.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_Photo_Gallery.md
 description: "Galleria Fotografica che utilizza le imamgini di Synology Photos."
 ---
-name: "⚠️ Mio Diario - Testing ⚠️"
+name: "🗺️ Mio Diario - Luoghi e Mappe ⚠️"
 uri: github:marco10x15/silverbullet-libraries/Mio_Diario_LuoghiMappa.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_LuoghiMappa.md
-description: "Funzioni, widget per visualizzare i luoghi."
+description: "Funzioni, widget per visualizzare luoghi e mappe."
 ---
 name: "⚙️ Le mie configurazioni"
 uri: github:marco10x15/silverbullet-libraries/Mie_Configurazioni.md
