@@ -1,21 +1,22 @@
 ---
-name: "Library/MG/Mio_Diario_PhotoGallery"
+name: "Library/MG/Mio_Diario_Photo_Gallery"
 tags: meta/library
 description: "Integrazione della PhotoGallery WebUI Python nelle pagine Diario."
-version: "0.7-03"
-versionDate: 2026-09-06
+version: "0.8-01"
+versionDate: 2026-09-08
 pageDecoration.prefix: "📷 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Photo_Gallery.md"
 ---
 
 # Mio Diario — Photo Gallery
 
-**Versione:** 0.7-03 TEST — 06 settembre 2026
+**Versione:** 0.8-01 — 08 settembre 2026
 
 Versione coordinata con **PhotoGallery WebUI Python 0.1-04**.
 
-Il Bottom Widget parte **chiuso per default**. Quando `defaultOpen=false`
-l'elemento `<details>` viene creato senza attributo HTML `open`.
+La libreria non registra più Bottom Widget autonomi. Espone il renderer
+`photoGalleryWidget()` e gli helper di disponibilità/URL usati dal componente
+unificato di `Mio_Diario`.
 
 ## Configurazione
 
@@ -24,15 +25,15 @@ photoGalleryConfig = photoGalleryConfig or {
   webUiBase =
     "https://sb2.fm-nas.net/gallery/",
 
+  apiBase =
+    "https://sb2.fm-nas.net/api/gallery/",
+
   diaryPagePrefix =
     "Diario/",
-
-  defaultOpen =
-    false,
 }
 
 
-local function photoGalleryDiaryDate(pageName)
+function photoGalleryDiaryDate(pageName)
   if type(pageName) ~= "string" then
     return nil
   end
@@ -46,7 +47,7 @@ local function photoGalleryDiaryDate(pageName)
 end
 
 
-local function photoGalleryEmbeddedUrl(date)
+function photoGalleryEmbeddedUrl(date)
   return
     photoGalleryConfig.webUiBase ..
     date ..
@@ -54,16 +55,77 @@ local function photoGalleryEmbeddedUrl(date)
 end
 
 
-local function photoGalleryFullUrl(date)
+function photoGalleryFullUrl(date)
   return
     photoGalleryConfig.webUiBase ..
     date
 end
 
 
-function photoGalleryAutoBottom()
-  local date =
-    photoGalleryDiaryDate(
+photoGalleryInfoCache =
+  photoGalleryInfoCache
+  or {}
+
+
+function photoGalleryInfo(date)
+  if not date or date == "" then
+    return nil
+  end
+
+  if photoGalleryInfoCache[date] ~= nil then
+    local cached =
+      photoGalleryInfoCache[date]
+
+    return cached ~= false
+      and cached
+      or nil
+  end
+
+  local response =
+    net.proxyFetch(
+      photoGalleryConfig.apiBase
+        .. date
+    )
+
+  if not response
+    or not response.ok
+    or type(response.body) ~= "table"
+  then
+    photoGalleryInfoCache[date] = false
+    return nil
+  end
+
+  photoGalleryInfoCache[date] =
+    response.body
+
+  return response.body
+end
+
+
+function photoGalleryHasPhotos(date)
+  local info =
+    photoGalleryInfo(date)
+
+  if not info then
+    return false
+  end
+
+  return info.exists ~= false
+    and tonumber(
+      info.count or 0
+    ) > 0
+end
+
+
+function photoGalleryWidget(
+  date,
+  options
+)
+  options = options or {}
+
+  date =
+    date
+    or photoGalleryDiaryDate(
       editor.getCurrentPage()
     )
 
@@ -71,14 +133,11 @@ function photoGalleryAutoBottom()
     return nil
   end
 
-  local meta =
-    editor.getCurrentPageMeta()
-
-  if not meta or
-     meta.PhotoGallery == false then
+  if options.requirePhotos ~= false
+    and not photoGalleryHasPhotos(date)
+  then
     return nil
   end
-
 
   local details = {
     class =
@@ -88,7 +147,8 @@ function photoGalleryAutoBottom()
       class =
         "photo-gallery-summary",
 
-      "📷 Foto della giornata",
+      options.caption
+        or "PhotoGallery",
     },
 
     dom.div {
@@ -120,21 +180,17 @@ function photoGalleryAutoBottom()
         photoGalleryEmbeddedUrl(date),
 
       title =
-        "Galleria fotografica " ..
-        date,
+        "Galleria fotografica "
+          .. date,
 
       loading =
         "lazy",
     },
   }
 
-
-  -- Gli attributi booleani HTML dipendono dalla presenza:
-  -- quando false NON aggiungiamo affatto "open".
-  if photoGalleryConfig.defaultOpen == true then
+  if options.open == true then
     details.open = true
   end
-
 
   return widget.htmlBlock(
     dom.details(details)
@@ -142,15 +198,6 @@ function photoGalleryAutoBottom()
 end
 
 
-event.listen {
-  name =
-    "hooks:renderBottomWidgets",
-
-  run =
-    function(e)
-      return photoGalleryAutoBottom()
-    end
-}
 ```
 
 ## Space Style
@@ -206,32 +253,70 @@ event.listen {
 
 ## Comportamento
 
-Per default:
+La libreria non crea più un Bottom Widget automatico.
+
+`photoGalleryWidget(date, options)` è il renderer standalone canonico della
+PhotoGallery. Il componente unificato `mediaLuoghiWidget()` usa gli helper
+pubblici di questa libreria per:
+
+* verificare se esistono fotografie;
+* costruire URL embedded e full-page;
+* mostrare `📷` soltanto quando la galleria contiene immagini.
+
+L'opzione `options.open=true` riguarda esclusivamente l'uso standalone di
+`photoGalleryWidget()`.
+
+## Strategia di consolidamento PhotoGallery
+
+Stato corrente:
+
+* `photoGalleryWidget()` è il renderer standalone canonico;
+* `mediaLuoghiWidget()` incorpora l'iframe nel proprio sandbox per consentire
+  il cambio vista `📋 / 🗺️ / 🧭 / 📷`;
+* `photoGalleryInfo()` mantiene una cache per data.
+
+Per eliminare l'N+1 HTTP nelle pagine `Viaggi/...`, il passo successivo
+consigliato è aggiungere a PhotoGateway un endpoint batch, ad esempio:
 
 ```text
-▶ 📷 Foto della giornata
+GET /api/gallery?dates=2026-06-17,2026-06-18,2026-06-19
 ```
 
-Solo dopo il click:
+con risposta minima per data:
 
-```text
-▼ 📷 Foto della giornata
-   [PhotoGallery embedded]
+```json
+{
+  "2026-06-17": {"exists": true, "count": 24},
+  "2026-06-18": {"exists": false, "count": 0}
+}
 ```
 
-Per aprirlo esplicitamente per default:
-
-```space-lua
-photoGalleryConfig.defaultOpen = true
-```
-
-Per disabilitarlo su una singola pagina:
-
-```yaml
-PhotoGallery: false
-```
+La libreria Lua potrà così eseguire una sola `net.proxyFetch()` per viaggio e
+riempire la cache già esistente. Questa soluzione evita richieste HTTP per ogni
+giornata e non introduce dati persistenti nelle note.
 
 ## Changelog
+
+### 0.8-01 — 2026-09-08
+
+- rimossa la configurazione `defaultOpen`, non più utilizzata;
+- chiarito che `photoGalleryWidget()` è il renderer standalone canonico;
+- corretta la documentazione del comportamento corrente;
+- documentata la strategia batch proposta per eliminare l'N+1 HTTP nei Viaggi.
+
+### 0.8-00 — 2026-09-08
+
+- rimosso il listener `hooks:renderBottomWidgets`;
+- aggiunti `photoGalleryInfo()` e `photoGalleryHasPhotos()` con cache;
+- la disponibilità usa `/api/gallery/YYYY-MM-DD` e `count > 0`;
+- `photoGalleryWidget()` resta renderer autonomo.
+
+
+### 0.7-04 TEST — 2026-09-07
+
+- Bottom Widget invariato tecnicamente ma con summary `PhotoGallery`;
+- `<details>` resta chiuso per default;
+- nessuna modifica alla WebUI o al caricamento iframe.
 
 ### 0.7-03 TEST — 2026-09-06
 
