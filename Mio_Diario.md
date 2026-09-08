@@ -2,8 +2,8 @@
 name: "Library/MG/Mio_Diario"
 tags: meta/library
 description: "Utility per gestire, navigare e aggregare il Diario personale in SilverBullet."
-version: "1.07"
-versionDate: 2026-08-28
+version: "1.16"
+versionDate: 2026-09-08
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario.md"
 share.hash: 1ee5469a
@@ -14,7 +14,7 @@ share.mode: pull
 
 **Mio Diario** è la raccolta di utility per gestire, navigare e aggregare il Mio Diario con SilverBullet.
 
-**Versione:** 1.07 — 28.08.2026
+**Versione:** 1.16 — 08.09.2026
 
 La libreria mantiene le pagine Markdown come fonte primaria dei dati e costruisce dinamicamente navigazione, relazioni geografiche, viaggi e riepiloghi tramite gli indici di SilverBullet.
 
@@ -28,6 +28,21 @@ La struttura principale dello Space utilizzata dalla libreria è:
   * pagine descrittive dei viaggi;
 * `riepiloghi/`
   * pagine destinate ai riepiloghi periodici e annuali.
+
+## Dipendenze
+
+Questa libreria richiede la libreria esterna personale:
+
+```text
+Library/MG/DateFormat
+```
+
+che fornisce `date.format()`. `DateFormat` non è incorporata in questo file e
+deve essere installata nello Space insieme alle altre librerie MG.
+
+Le funzioni cartografiche e media sono fornite da
+`Library/MG/Mio_Diario_LuoghiMappa` e
+`Library/MG/Mio_Diario_PhotoGallery`.
 
 ## Struttura dati attesa
 
@@ -188,8 +203,9 @@ function luoghi.getPage(pageName)
       continente = p.continente,
       tipoAmministrativo = p.tipoAmministrativo,
       divisioneIntermedia = p.divisioneIntermedia,
-      tags = p.tags,
-      wikipedia = p.wikipedia
+      wikipedia = p.wikipedia,
+      coordinate = p.coordinate,
+      luoghi = p.luoghi
     }
     limit 1
   ]]
@@ -217,11 +233,100 @@ function luoghi.children(pageName)
       continente = p.continente,
       tipoAmministrativo = p.tipoAmministrativo,
       divisioneIntermedia = p.divisioneIntermedia,
-      tags = p.tags,
-      wikipedia = p.wikipedia
+      wikipedia = p.wikipedia,
+      coordinate = p.coordinate
     }
   ]]
 end
+
+-- Risolve nomi pagina / wikilink con una sola query.
+-- Mantiene l'ordine di input ed elimina i duplicati.
+function luoghi.resolvePages(values)
+  if values == nil then
+    return {}
+  end
+
+  if type(values) ~= "table" then
+    values = {values}
+  end
+
+  local names = {}
+  local seen = {}
+  local suppliedPages = {}
+
+  for _, value in ipairs(values) do
+    local name = nil
+
+    if type(value) == "table"
+      and luoghi.hasString(value.name)
+    then
+      name = value.name
+      suppliedPages[name] = value
+    else
+      name =
+        luoghi.wikilinkTarget(value)
+        or tostring(value or "")
+    end
+
+    if name ~= ""
+      and not seen[name]
+    then
+      table.insert(names, name)
+      seen[name] = true
+    end
+  end
+
+  if #names == 0 then
+    return {}
+  end
+
+  local missing = {}
+
+  for _, name in ipairs(names) do
+    if not suppliedPages[name] then
+      table.insert(missing, name)
+    end
+  end
+
+  if #missing > 0 then
+    local rows = query[[
+      from p = index.pages()
+      where table.includes(
+        missing,
+        p.name
+      )
+      select {
+        name = p.name,
+        title = p.title,
+        displayName = p.displayName,
+        aliases = p.aliases,
+        continente = p.continente,
+        tipoAmministrativo = p.tipoAmministrativo,
+        divisioneIntermedia = p.divisioneIntermedia,
+        wikipedia = p.wikipedia,
+        coordinate = p.coordinate
+      }
+    ]]
+
+    for _, row in ipairs(rows or {}) do
+      suppliedPages[row.name] = row
+    end
+  end
+
+  local result = {}
+
+  for _, name in ipairs(names) do
+    if suppliedPages[name] then
+      table.insert(
+        result,
+        suppliedPages[name]
+      )
+    end
+  end
+
+  return result
+end
+
 
 function luoghi.wikilinkTarget(link)
   if not luoghi.hasString(link) then
@@ -674,15 +779,6 @@ function luoghi.renderTipo(p)
         .. p.tipoAmministrativo
         .. "`"
     )
-  elseif luoghi.hasList(p.tags) then
-    for _, tag in ipairs(p.tags) do
-      if luoghi.hasString(tag) then
-        table.insert(
-          elementi,
-          "#" .. tag
-        )
-      end
-    end
   end
 
   if luoghi.hasString(p.wikipedia) then
@@ -701,14 +797,15 @@ function luoghi.renderTipo(p)
 end
 
 function luoghi.renderStato(p)
-  local text =
-    luoghi.renderTipo(p)
+  local parts = {}
 
   if luoghi.hasString(p.continente) then
-    text = text
-      .. "\n\nSi trova in **"
-      .. p.continente
-      .. "**."
+    table.insert(
+      parts,
+      "Si trova in **"
+        .. p.continente
+        .. "**."
+    )
   end
 
   local children =
@@ -724,19 +821,20 @@ function luoghi.renderStato(p)
       )
     end
 
-    text = text
-      .. "\n\nIn cui ci sono "
-      .. #children
-      .. " suddivisioni: "
-      .. table.concat(links, ", ")
+    table.insert(
+      parts,
+      "In cui ci sono "
+        .. #children
+        .. " suddivisioni: "
+        .. table.concat(links, ", ")
+    )
   end
 
-  return text
+  return table.concat(parts, "\n\n")
 end
 
 function luoghi.renderSuddivisione(p)
-  local text =
-    luoghi.renderTipo(p)
+  local parts = {}
 
   local children =
     luoghi.children(p.name)
@@ -780,11 +878,13 @@ function luoghi.renderSuddivisione(p)
       )
     end
 
-    text = text
-      .. "\n\nIn cui sono rappresentate "
-      .. #divisioni
-      .. " divisioni intermedie: "
-      .. table.concat(links, ", ")
+    table.insert(
+      parts,
+      "In cui sono rappresentate "
+        .. #divisioni
+        .. " divisioni intermedie: "
+        .. table.concat(links, ", ")
+    )
   end
 
   if #altriLuoghi > 0 then
@@ -799,26 +899,24 @@ function luoghi.renderSuddivisione(p)
       )
     end
 
-    if #divisioni > 0 then
-      text = text
-        .. "\n\nAltri luoghi direttamente nella suddivisione: "
-    else
-      text = text
-        .. "\n\nIn cui ci sono "
+    local label =
+      #divisioni > 0
+      and "Altri luoghi direttamente nella suddivisione: "
+      or "In cui ci sono "
         .. #altriLuoghi
         .. " luoghi: "
-    end
 
-    text = text
-      .. table.concat(links, ", ")
+    table.insert(
+      parts,
+      label .. table.concat(links, ", ")
+    )
   end
 
-  return text
+  return table.concat(parts, "\n\n")
 end
 
 function luoghi.renderLuogo(p)
-  local text =
-    luoghi.renderTipo(p)
+  local parts = {}
 
   local parentName =
     luoghi.parentName(p.name)
@@ -830,23 +928,16 @@ function luoghi.renderLuogo(p)
       luoghi.getPage(parentName)
   end
 
-  local frase =
-    luoghi.pageLink(p)
-
   if parent then
-    frase = frase
-      .. " che si trova in "
-      .. luoghi.pageLink(parent)
-  end
-
-  if luoghi.hasString(
-    p.divisioneIntermedia
-  ) then
-    frase = frase
-      .. ", appartiene a "
-      .. luoghi.divisioneLink(
-        p.divisioneIntermedia
+    table.insert(
+      parts,
+      luoghi.label(
+        p,
+        luoghi.basename(p.name)
       )
+        .. " si trova in "
+        .. luoghi.pageLink(parent)
+    )
   end
 
   local children =
@@ -862,37 +953,60 @@ function luoghi.renderLuogo(p)
       )
     end
 
-    frase = frase
-      .. " e include: "
-      .. table.concat(links, ", ")
+    table.insert(
+      parts,
+      "In cui ci sono "
+        .. #children
+        .. " luoghi: "
+        .. table.concat(links, ", ")
+    )
   end
 
-  if text ~= "" then
-    text = text .. "\n\n"
+  return table.concat(parts, "\n\n")
+end
+
+function luoghi.breadcrumb(pageName)
+  local parts =
+    string.split(pageName, "/")
+
+  local links = {
+    "[[luoghi|🗺️]]"
+  }
+
+  local path = "luoghi"
+
+  for i = 2, #parts - 1 do
+    path = path .. "/" .. parts[i]
+
+    local p =
+      luoghi.getPage(path)
+
+    if p then
+      table.insert(
+        links,
+        luoghi.pageLink(p)
+      )
+    else
+      table.insert(
+        links,
+        string.format(
+          "[[%s|%s]]",
+          path,
+          parts[i]
+        )
+      )
+    end
   end
 
-  return text .. frase
+  return table.concat(links, "|")
 end
 
 function luoghi.withBreadcrumb(
   pageName,
   text
 )
-  if not page
-    or not page.breadcrumb
-  then
-    return text
-  end
-
   local trail =
-    page.breadcrumb(
-      pageName,
-      false
-    )
-
-  if not luoghi.hasString(trail) then
-    return text
-  end
+    luoghi.breadcrumb(pageName)
 
   if not luoghi.hasString(text) then
     return trail
@@ -1152,56 +1266,6 @@ function widgets.siamoStatiQuiGiorni(
   )
 end
 
--- Wrapper mantenuto per compatibilità con gli usi precedenti.
-function widgets.siamoStatiQui(pageName)
-  pageName =
-    pageName
-    or editor.getCurrentPage()
-
-  if not luoghi.siamoStatiQuiEnabled(
-    pageName
-  ) then
-    return ""
-  end
-
-  local diarioInfo =
-    luoghi.diarioPerLuogo(pageName)
-
-  local sezioni = {}
-
-  local viaggiText =
-    luoghi.renderViaggiPerLuogo(
-      pageName,
-      diarioInfo
-    )
-
-  if viaggiText ~= "" then
-    table.insert(
-      sezioni,
-      viaggiText
-    )
-  end
-
-  local giorniText =
-    luoghi.renderGiorniPerLuogo(
-      pageName,
-      diarioInfo
-    )
-
-  if giorniText ~= "" then
-    table.insert(
-      sezioni,
-      giorniText
-    )
-  end
-
-  return table.concat(
-    sezioni,
-    "\n\n"
-  )
-end
-
-
 -- ============================================================
 -- INFO VIAGGIO
 -- ============================================================
@@ -1241,12 +1305,89 @@ function viaggiDiarioInfo(pageName)
       page = p.name,
       date = p.date,
       displayName = p.displayName,
-      luoghi = p.luoghi
+      luoghi = p.luoghi,
+      PhotoGallery = p.PhotoGallery
     }
   ]]
 end
 
-function widgets.infoViaggioLuoghi(
+-- ------------------------------------------------------------
+-- Dati pagina Diario
+-- ------------------------------------------------------------
+
+function widgets.diarioPageInfo(pageName)
+  pageName =
+    pageName
+    or editor.getCurrentPage()
+
+  if not string.startsWith(
+    pageName,
+    "Diario/"
+  ) then
+    return nil
+  end
+
+  local rows = query[[
+    from p = index.pages()
+    where p.name == pageName
+    select {
+      page = p.name,
+      date = p.date,
+      displayName = p.displayName,
+      luoghi = p.luoghi,
+      PhotoGallery = p.PhotoGallery
+    }
+    limit 1
+  ]]
+
+  return rows and rows[1] or nil
+end
+
+
+function widgets.photoGalleryItems(diarioInfo)
+  if type(photoGalleryHasPhotos) ~= "function"
+    or type(photoGalleryEmbeddedUrl) ~= "function"
+    or type(photoGalleryFullUrl) ~= "function"
+  then
+    return {}
+  end
+
+  local result = {}
+  local seen = {}
+
+  for _, info in ipairs(diarioInfo or {}) do
+    local iso =
+      string.match(
+        tostring(info.date or ""),
+        "(%d%d%d%d%-%d%d%-%d%d)"
+      )
+
+    if iso
+      and info.PhotoGallery ~= false
+      and not seen[iso]
+      and photoGalleryHasPhotos(iso)
+    then
+      table.insert(
+        result,
+        {
+          date = iso,
+          label = date.format(info.date),
+          embeddedUrl =
+            photoGalleryEmbeddedUrl(iso),
+          fullUrl =
+            photoGalleryFullUrl(iso)
+        }
+      )
+
+      seen[iso] = true
+    end
+  end
+
+  return result
+end
+
+
+function widgets.infoViaggioLuoghiList(
   pageName,
   diarioInfo
 )
@@ -1257,7 +1398,7 @@ function widgets.infoViaggioLuoghi(
   if not diarioInfo
     or #diarioInfo == 0
   then
-    return ""
+    return {}
   end
 
   local luoghiVisitati = {}
@@ -1284,27 +1425,14 @@ function widgets.infoViaggioLuoghi(
     end
   end
 
-  local text =
-    "## Luoghi visitati\n"
-
-  if #luoghiVisitati > 0 then
-    text = text
-      .. table.concat(
-        luoghiVisitati,
-        ", "
-      )
-      .. "\n"
-  else
-    text = text
-      .. "Nessun luogo registrato.\n"
-  end
-
-  return text
+  return luoghiVisitati
 end
+
 
 function widgets.infoViaggioDiario(
   pageName,
-  diarioInfo
+  diarioInfo,
+  gpxByDate
 )
   diarioInfo =
     diarioInfo
@@ -1333,14 +1461,20 @@ function widgets.infoViaggioDiario(
         titolo
       )
 
-    if luoghi.hasList(info.luoghi) then
+    local iso =
+      string.match(
+        tostring(info.date or ""),
+        "(%d%d%d%d%-%d%d%-%d%d)"
+      )
+
+    if iso
+      and gpxByDate
+      and gpxByDate[iso]
+    then
       riga = riga
-        .. " ("
-        .. table.concat(
-          info.luoghi,
-          ", "
-        )
-        .. ")"
+        .. " [[GPX/"
+        .. iso
+        .. "|🗺️]]"
     end
 
     table.insert(
@@ -1359,58 +1493,66 @@ function widgets.infoViaggioDiario(
     .. "\n"
 end
 
-function widgets.infoViaggio(pageName)
+
+-- ============================================================
+-- WIDGET SUPERIORE PAGINE LUOGHI
+-- ============================================================
+
+function widgets.topLuogo(pageName)
   pageName =
     pageName
     or editor.getCurrentPage()
 
-  local diarioInfo =
-    viaggiDiarioInfo(pageName)
-
-  if not diarioInfo
-    or #diarioInfo == 0
-  then
+  if not string.startsWith(
+    pageName,
+    "luoghi/"
+  ) then
     return ""
   end
 
-  local sezioni = {}
+  local p =
+    luoghi.getPage(pageName)
 
-  local luoghiText =
-    widgets.infoViaggioLuoghi(
-      pageName,
-      diarioInfo
-    )
-
-  if luoghiText ~= "" then
-    table.insert(
-      sezioni,
-      luoghiText
-    )
+  if not p then
+    return ""
   end
 
-  local diarioText =
-    widgets.infoViaggioDiario(
-      pageName,
-      diarioInfo
-    )
+  local titolo =
+    luoghi.hasString(p.displayName)
+    and p.displayName
+    or luoghi.basename(pageName)
 
-  if diarioText ~= "" then
-    table.insert(
-      sezioni,
-      diarioText
-    )
+  local tipo =
+    luoghi.renderTipo(p)
+
+  if tipo ~= "" then
+    return "# " .. titolo
+      .. "\n"
+      .. tipo
+      .. "\n\n---"
   end
 
-  return table.concat(
-    sezioni,
-    "\n"
-  )
+  return "# " .. titolo
+    .. "\n\n---"
 end
-
 
 -- ============================================================
 -- ATTIVAZIONE WIDGET
 -- ============================================================
+
+event.listen {
+  name = "hooks:renderTopWidgets",
+
+  run = function(e)
+    local text =
+      widgets.topLuogo()
+
+    if text ~= "" then
+      return widget.markdownBlock(text)
+    end
+  end
+}
+
 
 if config.get(
   "std.widgets.linkedInfoLuoghi.enabled"
@@ -1443,6 +1585,80 @@ if config.get(
   }
 end
 
+-- Il componente Luoghi è il secondo Bottom Widget:
+-- breadcrumb/info geografiche -> Luoghi -> viaggi -> giorni.
+event.listen {
+  name = "hooks:renderBottomWidgets",
+
+  run = function(e)
+    local pageName =
+      editor.getCurrentPage()
+
+    if not pageName
+      or not string.startsWith(
+        pageName,
+        "luoghi/"
+      )
+      or type(mediaLuoghiWidget) ~= "function"
+    then
+      return
+    end
+
+    local current =
+      luoghi.getPage(pageName)
+
+    if not current then
+      return
+    end
+
+    local children =
+      luoghi.children(pageName)
+      or {}
+
+    local mapPages = {current}
+
+    for _, child in ipairs(children) do
+      table.insert(mapPages, child)
+    end
+
+    local diarioInfo =
+      luoghi.diarioPerLuogo(
+        pageName
+      )
+
+    luoghi._siamoStatiQuiPending = {
+      pageName = pageName,
+      diarioInfo = diarioInfo
+    }
+
+    local tracks = {}
+
+    if #diarioInfo > 0
+      and type(gpxCatalogByDate) == "function"
+      and type(gpxTracksForDiarioInfo) == "function"
+    then
+      local gpxByDate =
+        gpxCatalogByDate()
+
+      tracks =
+        gpxTracksForDiarioInfo(
+          diarioInfo,
+          gpxByDate
+        )
+    end
+
+    return mediaLuoghiWidget({
+      caption = "Luoghi",
+      mapPages = mapPages,
+      listPages = children,
+      gpxTracks = tracks,
+      photos = {},
+      silentEmpty = true
+    })
+  end
+}
+
+
 -- I due widget Siamo stati qui condividono la stessa query.
 if config.get(
   "std.widgets.siamoStatiQui.enabled"
@@ -1460,15 +1676,27 @@ if config.get(
         return
       end
 
-      local diarioInfo =
-        luoghi.diarioPerLuogo(
-          pageName
-        )
+      local pending =
+        luoghi._siamoStatiQuiPending
 
-      luoghi._siamoStatiQuiPending = {
-        pageName = pageName,
-        diarioInfo = diarioInfo
-      }
+      local diarioInfo = nil
+
+      if pending
+        and pending.pageName == pageName
+      then
+        diarioInfo =
+          pending.diarioInfo
+      else
+        diarioInfo =
+          luoghi.diarioPerLuogo(
+            pageName
+          )
+
+        luoghi._siamoStatiQuiPending = {
+          pageName = pageName,
+          diarioInfo = diarioInfo
+        }
+      end
 
       local text =
         widgets.siamoStatiQuiViaggi(
@@ -1527,9 +1755,167 @@ if config.get(
   }
 end
 
+-- ------------------------------------------------------------
+-- Bottom Widget unificato: Diario
+-- ------------------------------------------------------------
+
+event.listen {
+  name = "hooks:renderBottomWidgets",
+
+  run = function(e)
+    local pageName =
+      editor.getCurrentPage()
+
+    if not pageName
+      or not string.startsWith(
+        pageName,
+        "Diario/"
+      )
+      or type(mediaLuoghiWidget) ~= "function"
+    then
+      return
+    end
+
+    local info =
+      widgets.diarioPageInfo(
+        pageName
+      )
+
+    if not info then
+      return
+    end
+
+    local places =
+      luoghi.resolvePages(
+        info.luoghi
+      )
+
+    local tracks = {}
+
+    if type(gpxPathForDate) == "function"
+      and info.date
+    then
+      local path =
+        gpxPathForDate(
+          info.date
+        )
+
+      if path then
+        table.insert(
+          tracks,
+          {
+            date =
+              string.match(
+                tostring(info.date),
+                "(%d%d%d%d%-%d%d%-%d%d)"
+              ),
+            label =
+              date.format(info.date),
+            path = path
+          }
+        )
+      end
+    end
+
+    local photos = {}
+
+    if info.PhotoGallery ~= false then
+      photos =
+        widgets.photoGalleryItems({
+          info
+        })
+    end
+
+    return mediaLuoghiWidget({
+      caption = "Luoghi visitati",
+      mapPages = places,
+      listPages = places,
+      gpxTracks = tracks,
+      photos = photos,
+      silentEmpty = true
+    })
+  end
+}
+
+
 if config.get(
   "std.widgets.infoViaggio.enabled"
 ) then
+  event.listen {
+    name = "hooks:renderBottomWidgets",
+
+    run = function(e)
+      local pageName =
+        editor.getCurrentPage()
+
+      if not string.startsWith(
+        pageName,
+        "Viaggi/"
+      )
+        or type(mediaLuoghiWidget) ~= "function"
+      then
+        return
+      end
+
+      local diarioInfo =
+        viaggiDiarioInfo(pageName)
+
+      if not diarioInfo
+        or #diarioInfo == 0
+      then
+        return
+      end
+
+      local luoghiVisitati =
+        widgets.infoViaggioLuoghiList(
+          pageName,
+          diarioInfo
+        )
+
+      local places =
+        luoghi.resolvePages(
+          luoghiVisitati
+        )
+
+      local gpxByDate = {}
+
+      if type(gpxCatalogByDate) == "function" then
+        gpxByDate =
+          gpxCatalogByDate()
+      end
+
+      local tracks = {}
+
+      if type(gpxTracksForDiarioInfo) == "function" then
+        tracks =
+          gpxTracksForDiarioInfo(
+            diarioInfo,
+            gpxByDate
+          )
+      end
+
+      local photos =
+        widgets.photoGalleryItems(
+          diarioInfo
+        )
+
+      widgets._infoViaggioPending = {
+        pageName = pageName,
+        diarioInfo = diarioInfo,
+        gpxByDate = gpxByDate
+      }
+
+      return mediaLuoghiWidget({
+        caption = "Luoghi visitati",
+        mapPages = places,
+        listPages = places,
+        gpxTracks = tracks,
+        photos = photos,
+        silentEmpty = true
+      })
+    end
+  }
+
   event.listen {
     name = "hooks:renderBottomWidgets",
 
@@ -1544,13 +1930,40 @@ if config.get(
         return
       end
 
+      local pending =
+        widgets._infoViaggioPending
+
+      local diarioInfo = nil
+      local gpxByDate = nil
+
+      if pending
+        and pending.pageName == pageName
+      then
+        diarioInfo =
+          pending.diarioInfo
+        gpxByDate =
+          pending.gpxByDate
+      else
+        diarioInfo =
+          viaggiDiarioInfo(pageName)
+
+        if type(gpxCatalogByDate) == "function" then
+          gpxByDate =
+            gpxCatalogByDate()
+        end
+      end
+
+      widgets._infoViaggioPending = nil
+
       local text =
-        widgets.infoViaggio(
-          pageName
+        widgets.infoViaggioDiario(
+          pageName,
+          diarioInfo,
+          gpxByDate
         )
 
       if text ~= "" then
-        return widget.markdown(text)
+        return widget.markdownBlock(text)
       end
     end
   }
@@ -1646,6 +2059,47 @@ function wTopDiario(path)
 end
 ```
 
+## Modifiche versione 1.16
+
+* `luoghi.getPage()` espone nuovamente l'attributo `luoghi`, necessario alla
+  compatibilità pubblica di `${luoghiMap()}` sulle pagine non-`luoghi/...`;
+* dichiarata esplicitamente la dipendenza esterna `Library/MG/DateFormat`;
+* nessuna modifica alle query Viaggio/Luogo in questa revisione.
+
+## Modifiche versione 1.15
+
+* eliminati i listener Bottom Widget duplicati;
+* Luogo: breadcrumb/info -> Luoghi -> In questi viaggi -> In questi giorni;
+* Diario: un solo `Luoghi visitati` con `📋 / 🗺️ / 🧭 / 📷`;
+* Viaggio: `Luoghi visitati` seguito da `X pagine del diario per questo viaggio`;
+* rimosso il Top Widget `# displayName` da `Viaggi/...`;
+* rimossi i wrapper/funzioni non più usati e `luoghi.renderTags()`;
+* aggiunto `luoghi.resolvePages()` per il lookup batch dei luoghi;
+* il controllo GPX delle righe Viaggio usa la mappa `data -> path` già calcolata.
+
+## Modifiche versione 1.13
+
+* Il componente `Luoghi visitati` viene riutilizzato anche sulle pagine `Diario/...`, leggendo direttamente il frontmatter `luoghi`.
+* Sulle pagine `luoghi/...` lo stesso componente mostra i figli diretti di primo livello con caption `Luoghi`.
+* Nessuna nuova scansione dello Space: Diario usa `index.pages()` sulla sola pagina corrente; Luogo usa una query per prefisso e filtra il solo primo livello.
+* Il comportamento della pagina `Viaggi/...` resta invariato.
+
+## Modifiche versione 1.12
+
+* `Luoghi visitati` non usa più `<details>`: l'elenco è sempre visibile come vista iniziale.
+* I controlli `Elenco` e `Mappa` sono ridotti a icone `📋` e `🗺️`, allineate al titolo.
+* Il link GPX delle giornate apre la Virtual Page `GPX/YYYY-MM-DD`; la data continua ad aprire la pagina Diario.
+* La Virtual Page GPX non crea alcun file Markdown persistente.
+
+## Modifiche versione 1.11
+
+* Le pagine `Viaggi/...` hanno un Top Widget minimale con il solo `displayName`; il frontmatter e il testo Markdown restano invariati.
+* `Info Viaggio` viene diviso in due Bottom Widget ordinati: **Luoghi visitati** e **N pagine del diario per questo viaggio**.
+* La lista dei luoghi viene calcolata una sola volta dalla query `viaggiDiarioInfo()` e passata a `luoghiMap()` per l'alternanza elenco/mappa.
+* Le righe del Diario non ripetono più l'elenco dei luoghi del singolo giorno.
+* Quando `gpxPathForPage()` trova un GPX relativo alla giornata, viene aggiunto il link `🗺️ GPX` alla relativa pagina Diario, che contiene il relativo Bottom Widget GPX.
+* Nessun dato viene scritto nelle pagine Markdown.
+
 ## Modifiche versione 1.06
 
 * `displayName` diventa il titolo canonico indicizzato delle pagine `Diario/`.
@@ -1653,6 +2107,14 @@ end
 * `luoghi.diarioLabel()` usa `displayName` con fallback al nome pagina.
 * `wTopDiario()` usa direttamente `p.displayName`, con fallback a `page.nome()`.
 * `Siamo stati qui` e `Info Viaggio` non dipendono più dall'attributo `title` né da `page.title()`.
+
+## Modifiche versione 1.08
+
+* Le pagine `luoghi/...` ricevono un Top Widget con `displayName`, `tipoAmministrativo` e collegamento Wikipedia.
+* Il Bottom Widget geografico contiene breadcrumb, relazione con il padre e figli diretti.
+* La mappa dei luoghi viene inserita subito dopo in un `<details>` chiuso di default.
+* Seguono, invariati nei dati, i widget `🧭 In questi viaggi` e `In questi giorni`.
+* Il fallback ai tag è stato rimosso dalla riga del tipo: viene mostrato esclusivamente `tipoAmministrativo`.
 
 ## Modifiche versione 1.07
 
@@ -1785,3 +2247,9 @@ La ricerca utilizza direttamente `p.luoghi` da `index.subPages("Diario")`.
 ## Space Style (Optional Theming Overrides)
 
 Non sono previste personalizzazioni CSS specifiche. La sezione resta disponibile per eventuali miglioramenti successivi dell'interfaccia.
+
+
+## Note versione 1.09
+
+* Il Top Widget delle pagine `luoghi/...` mostra anche i `tags`, quando presenti, dopo `tipoAmministrativo` e `wikipedia`.
+* Le sezioni senza risultati continuano a non restituire widget.
