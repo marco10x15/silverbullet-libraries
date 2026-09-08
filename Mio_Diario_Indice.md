@@ -2,8 +2,8 @@
 name: "Library/MG/Mio_Diario_Indice"
 tags: meta/library
 description: "Indice inline delle pagine Diario con data, titolo, description, metadati e filtro."
-version: "0.1-21"
-versionDate: 2026-09-05
+version: "0.1-22"
+versionDate: 2026-09-08
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
 ---
@@ -12,9 +12,20 @@ share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md"
 
 **IndiceDiario** visualizza direttamente in una pagina SilverBullet un indice compatto delle pagine del Diario.
 
-**Versione:** 0.1-21 — 05.09.2026
+**Versione:** 0.1-22 — 08.09.2026
 
 La libreria è autonoma e non dipende da Journal Explorer.
+
+## Dipendenze
+
+La libreria usa la libreria esterna personale:
+
+```text
+Library/MG/DateFormat
+```
+
+per `date.format()`. `DateFormat` deve essere installata nello Space; non è
+incorporata in `Mio_Diario_Indice`.
 
 ## Main Features
 
