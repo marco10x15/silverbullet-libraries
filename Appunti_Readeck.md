@@ -1,5 +1,9 @@
 ---
-name: Appunti Readeck
+name: "Library/MG/Appunti Readeck"
+tags: meta/library
+description: "Utility per gestire, navigare e aggregare appunti readeck in SilverBullet."
+pageDecoration.prefix: "📔 "
+share.uri: "github:marco10x15/silverbullet-libraries/Appunti Readeck.md"
 version: 0.08
 versionDate: 2026-09-29
 ---
