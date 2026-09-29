@@ -1,9 +1,9 @@
-# This is a collection of awesome SilverBullet libraries
+# This is a collection of SilverBullet libraries
 
 ## Available libraries
 
 ### Tools
-* OutlineParent(parent)
+* 
 
 ### Widgets
 * DateFormat(dataISO, "format")
