@@ -41,6 +41,11 @@ uri: github:marco10x15/silverbullet-libraries/Mio_Diario_LuoghiMappa.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_LuoghiMappa.md
 description: "Funzioni, widget per visualizzare luoghi e mappe."
 ---
+name: "📔 Appunti Readeck"
+uri: github:marco10x15/silverbullet-libraries/Appunti_Readeck.md
+website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Appunti_Readeck.md
+description: "Integrazione di readeck in silverbullet."
+---
 name: "⚙️ Le mie configurazioni"
 uri: github:marco10x15/silverbullet-libraries/Mie_Configurazioni.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mie_Configurazioni.md
