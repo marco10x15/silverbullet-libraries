@@ -2,9 +2,6 @@
 name: Appunti Readeck
 version: 0.08
 versionDate: 2026-09-29
-tags: 
-  - silverbullet
-  - readeck
 ---
 
 # Appunti Readeck
