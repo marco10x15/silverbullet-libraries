@@ -41,6 +41,11 @@ uri: github:marco10x15/silverbullet-libraries/Mio_Diario_LuoghiMappa.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_LuoghiMappa.md
 description: "Funzioni, widget per visualizzare luoghi e mappe."
 ---
+name: "🧳 Mio Viaggio"
+uri: github:marco10x15/silverbullet-libraries/Mio_Viaggio.md
+website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Viaggio.md
+description: "Pianificazione e gestione dei viaggi in SilverBullet: Viaggi, Giorni, Luoghi, ricerche e mappe."
+---
 name: "📔 Appunti Readeck"
 uri: github:marco10x15/silverbullet-libraries/Appunti_Readeck.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Appunti_Readeck.md
