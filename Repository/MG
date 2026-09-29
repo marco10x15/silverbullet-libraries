@@ -11,11 +11,6 @@ uri: github:marco10x15/silverbullet-libraries/PageNavigation.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/PageNavigation.md
 description: "Page Navigation Functions and Widgets"
 ---
-name: "📃 Page Widgets"
-uri: github:marco10x15/silverbullet-libraries/Page_Widgets.md
-website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Page_Widgets.md
-description: "Widgets: page.nome(). page.title()"
----
 name: "📆 Date Format"
 uri: github:marco10x15/silverbullet-libraries/DateFormat.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/DateFormat.md
@@ -25,21 +20,6 @@ name: "📔 Mio Diario"
 uri: github:marco10x15/silverbullet-libraries/Mio_Diario.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario.md
 description: "Documentazione, configurazioni, space-lua script, widget, tutto quello che costituisce la struttura del mio diario."
----
-name: "📔 Mio Diario - Indice"
-uri: github:marco10x15/silverbullet-libraries/Mio_Diario_Indice.md
-website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_Indice.md
-description: "Indice inline delle pagine Diario con data, titolo, immagine, snippet e filtro."
----
-name: "📷 Mio Diario - Photo Gallery"
-uri: github:marco10x15/silverbullet-libraries/Mio_Diario_Photo_Gallery.md
-website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_Photo_Gallery.md
-description: "Galleria Fotografica che utilizza le imamgini di Synology Photos."
----
-name: "🗺️ Mio Diario - Luoghi e Mappe ⚠️"
-uri: github:marco10x15/silverbullet-libraries/Mio_Diario_LuoghiMappa.md
-website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Diario_LuoghiMappa.md
-description: "Funzioni, widget per visualizzare luoghi e mappe."
 ---
 name: "🧳 Mio Viaggio"
 uri: github:marco10x15/silverbullet-libraries/Mio_Viaggio.md
