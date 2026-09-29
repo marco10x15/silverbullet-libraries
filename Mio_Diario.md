@@ -6,8 +6,6 @@ version: "1.16"
 versionDate: 2026-09-08
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario.md"
-share.hash: 1ee5469a
-share.mode: pull
 ---
 
 # 📔 Mio Diario
