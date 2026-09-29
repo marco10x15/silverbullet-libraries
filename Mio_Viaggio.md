@@ -54,18 +54,15 @@ La Library installa insieme al codice:
 
 Per avere il pulsante **Viaggio** nella barra:
 
+```lua
+
 ```space-lua
-config.set {
-  actionButtons = {
-    {
-      icon = "luggage",
-      description = "Viaggio",
-      priority = 2,
-      run = function()
-        editor.invokeCommand("Viaggio: Menu")
-      end,
-    },
-  },
+actionButton.define {
+  icon = "map",
+  description = "Viaggio",
+  command = "Viaggio: Menu",
+  priority = 2.5,
+  dropdown = false,
 }
 ```
 
