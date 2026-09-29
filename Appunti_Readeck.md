@@ -4,7 +4,7 @@ tags: meta/library
 description: "Utility per gestire, navigare e aggregare appunti readeck in SilverBullet."
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Appunti_Readeck.md"
-version: 0.08
+version: 0.09
 versionDate: 2026-09-29
 ---
 
@@ -12,7 +12,7 @@ versionDate: 2026-09-29
 
 Libreria indipendente per integrare Readeck in SilverBullet 2.11+.
 
-Quando una funzione non riceve una label esplicita, parte dalla pagina corrente e risale le pagine antenate fino alla prima che contiene nel frontmatter l'attributo `readeck`; il valore di tale attributo viene usato come label Readeck.
+La libreria non dipende da `Mio_Viaggio`. Quando una funzione non riceve una label esplicita, parte dalla pagina corrente e risale le pagine antenate fino alla prima che contiene nel frontmatter l'attributo `readeck`; il valore di tale attributo viene usato come label Readeck.
 
 ## Funzioni pubbliche
 
@@ -62,11 +62,11 @@ Aggiungere a `CONFIG`:
 config.set("readeck", {
   apiUrl = "http://172.30.250.14:8000",
   webUrl = "https://readeck.example.net",
-  tokenPage = "Library/MG/Mio_Viaggio/token",
+  tokenFile = "Library/MG/token.txt",
 })
 ```
 
-La pagina indicata da `tokenPage` deve contenere esclusivamente il token, senza frontmatter né altro testo.
+Il file indicato da `tokenFile` deve contenere esclusivamente il token Readeck, senza `Bearer`, virgolette o altre righe.
 
 ## Convenzione pagina con label Readeck
 
@@ -156,13 +156,13 @@ local function getConfig()
     error("Readeck: webUrl non configurato")
   end
 
-  if not cfg.tokenPage or trim(cfg.tokenPage) == "" then
-    error("Readeck: tokenPage non configurato")
+  if not cfg.tokenFile or trim(cfg.tokenFile) == "" then
+    error("Readeck: tokenFile non configurato")
   end
 
   cfg.apiUrl = normalizeBaseUrl(cfg.apiUrl)
   cfg.webUrl = normalizeBaseUrl(cfg.webUrl)
-  cfg.tokenPage = trim(cfg.tokenPage)
+  cfg.tokenFile = trim(cfg.tokenFile)
 
   return cfg
 end
@@ -170,11 +170,12 @@ end
 local function getToken()
   local cfg = getConfig()
 
-  if not space.pageExists(cfg.tokenPage) then
-    error("Readeck: pagina token non trovata: " .. cfg.tokenPage)
+  if not space.fileExists(cfg.tokenFile) then
+    error("Readeck: file token non trovato: " .. cfg.tokenFile)
   end
 
-  local token = trim(space.readPage(cfg.tokenPage))
+  local data = space.readFile(cfg.tokenFile)
+  local token = trim(encoding.utf8Decode(data))
 
   if token == "" then
     error("Readeck: token vuoto")
@@ -886,6 +887,14 @@ command.define {
 ```
 
 
+
+## Modifiche versione 0.09
+
+- Il token Readeck non viene più letto da una pagina SilverBullet.
+- La configurazione usa esclusivamente `tokenFile`.
+- Il token viene letto come file generico dello Space tramite `space.fileExists()` e `space.readFile()`, quindi convertito da UTF-8 con `encoding.utf8Decode()`.
+- Configurazione consigliata: `tokenFile = "Library/MG/token.txt"`.
+- Nessuna compatibilità mantenuta con il precedente parametro `tokenPage`.
 
 ## Modifiche versione 0.08
 
