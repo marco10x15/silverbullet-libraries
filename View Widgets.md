@@ -2,8 +2,8 @@
 name: "Library/MG/View Widgets"
 tags: meta/library
 description: "View generali."
-version: "0.01"
-versionDate: 2026-09-25
+version: "0.02"
+versionDate: 2026-10-06
 pageDecoration.prefix: "⚙️ "
 share.uri: "github:marco10x15/silverbullet-libraries/View_Widgets.md"
 ---
@@ -94,7 +94,7 @@ function page.viewSubpages(orderBy, direction, separator)
     )
   end
 
-  return view.new {
+  return widget.new {
     content = function()
       local currentPage = editor.getCurrentPage()
       local prefix = currentPage .. "/"

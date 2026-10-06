@@ -1,8 +1,8 @@
 ---
 name: "Library/MG/PageNavigation"
 tags: meta/library
-version: "1.06"
-versionDate: 2026-09-25
+version: "1.07"
+versionDate: 2026-10-06
 pageDecoration.prefix: "📃 "
 share.uri: "github:marco10x15/silverbullet-libraries/PageNavigation.md"
 ---
@@ -574,7 +574,7 @@ end
 -- è ammessa, restituisce il breadcrumb completo di navigazione
 -- precedente/successiva.
 --
--- Le esclusioni non vengono duplicate nel renderTopWidgets.
+-- Le esclusioni non vengono duplicate nella view page-top.
 function breadcrumb()
   local path =
     editor.getCurrentPage()
@@ -596,33 +596,30 @@ end
 -- ATTIVAZIONE
 -- ============================================================
 
--- Renderizza automaticamente il breadcrumb nella parte superiore
--- della pagina.
+-- Mostra automaticamente il breadcrumb nella parte superiore della
+-- pagina tramite una view page-top (sostituisce il listener
+-- hooks:renderTopWidgets, deprecato in SilverBullet 2.12).
 --
 -- La decisione di visualizzarlo o meno è delegata interamente a
 -- breadcrumb(), evitando controlli duplicati delle esclusioni.
-event.listen {
-  name = "hooks:renderTopWidgets",
-
-  run = function()
-    local text =
-      breadcrumb()
-
-    if not text
-      or text == ""
-    then
-      return
-    end
-
-    return widget.new {
-      markdown =
-        "\n\n"
-        .. text
-        .. "\n\n"
-    }
-  end
+-- Se breadcrumb() non restituisce testo, la view non mostra nulla.
+view.define {
+  name = "pageNavigation.breadcrumb",
+  title = "Breadcrumb",
+  dock = "page-top",
+  frame = "minimal",
+  defaultOpen = true,
+  refreshOn = { "navigate", "index" },
+  content = function()
+    return breadcrumb()
+  end,
 }
 ```
+
+## Modifiche 1.07
+
+* SilverBullet 2.12: il listener `hooks:renderTopWidgets` (deprecato) è sostituito dalla view `pageNavigation.breadcrumb` (`dock = "page-top"`, `frame = "minimal"`, `defaultOpen = true`);
+* la view può essere chiusa o spostata dall'utente e ne viene ricordato lo stato.
 
 ## Modifiche 1.06
 

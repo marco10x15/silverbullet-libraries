@@ -2,8 +2,8 @@
 name: "Library/MG/Mio_Diario"
 tags: meta/library
 description: "Libreria consolidata Markdown-first per Diario, Luoghi, Viaggi, Indice, Mappe/GPX, PhotoGallery, Riepiloghi e configurazione delle nuove pagine."
-version: "1.4-00"
-versionDate: 2026-09-14
+version: "1.4-01"
+versionDate: 2026-10-06
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario.md"
 files:
@@ -13,7 +13,7 @@ files:
 
 # 📔 Mio Diario
 
-**Versione consolidata:** 1.4-00 — 14.09.2026
+**Versione consolidata:** 1.4-01 — 06.10.2026
 
 Questa pagina è la sola libreria `Mio_Diario` da installare. Riunisce le implementazioni definitive contenute nelle precedenti librerie `Mio_Diario_*` senza cambiare il modello dati Markdown.
 
@@ -1814,12 +1814,6 @@ function widgets.siamoStatiQui(pageName)
   local viaggi = widgets.siamoStatiQuiViaggi(pageName, diarioInfo)
   local giorni = widgets.siamoStatiQuiGiorni(pageName, diarioInfo, catalog)
 
-  luoghi._siamoStatiQuiRender = {
-    pageName = pageName,
-    viaggi = viaggi,
-    giorni = giorni
-  }
-
   local sections = {}
 
   if viaggi ~= "" then
@@ -1834,22 +1828,6 @@ function widgets.siamoStatiQui(pageName)
 end
 
 
-function widgets.siamoStatiQuiRender(pageName)
-  pageName = pageName or editor.getCurrentPage()
-
-  local cached = luoghi._siamoStatiQuiRender
-
-  if cached
-    and cached.pageName == pageName
-  then
-    return cached
-  end
-
-  widgets.siamoStatiQui(pageName)
-  return luoghi._siamoStatiQuiRender
-end
-
-
 function widgets.infoViaggio(pageName)
   pageName = pageName or editor.getCurrentPage()
 
@@ -1857,20 +1835,9 @@ function widgets.infoViaggio(pageName)
     return ""
   end
 
-  local cached = widgets._infoViaggioRender
-  if cached
-    and cached.pageName == pageName
-  then
-    return cached.text or ""
-  end
-
   local diarioInfo = viaggiDiarioInfo(pageName)
 
   if not diarioInfo or #diarioInfo == 0 then
-    widgets._infoViaggioRender = {
-      pageName = pageName,
-      text = ""
-    }
     return ""
   end
 
@@ -1878,141 +1845,94 @@ function widgets.infoViaggio(pageName)
   local luoghiText = widgets.infoViaggioLuoghi(pageName, diarioInfo)
   local diarioText = widgets.infoViaggioDiario(pageName, diarioInfo, catalog)
 
-  local text = table.concat(
+  return table.concat(
     {luoghiText, diarioText},
     "\n\n"
   )
-
-  widgets._infoViaggioRender = {
-    pageName = pageName,
-    text = text
-  }
-
-  return text
 end
 
 
 -- ============================================================
--- LISTENER
+-- VIEW PAGE-TOP / PAGE-BOTTOM
 -- ============================================================
 
--- La cache è solo runtime e viene ricostruita a ogni caricamento pagina.
-local function resetSiamoStatiQuiRender()
-  luoghi._siamoStatiQuiRender = nil
-  widgets._infoViaggioRender = nil
-end
+-- Sostituiscono i listener hooks:renderTopWidgets/renderBottomWidgets
+-- (deprecati in SilverBullet 2.12). Contenuto vuoto = nessun widget.
+-- L'utente può chiudere o spostare ogni view; lo stato viene ricordato.
+-- Le view si aggiornano a ogni navigazione e a ogni reindicizzazione.
 
-
-event.listen {
-  name = "editor:pageLoaded",
-  run = resetSiamoStatiQuiRender
-}
-
-
-
--- Un solo listener Top Widget per Luogo e Diario.
-event.listen {
-  name = "hooks:renderTopWidgets",
-
-  run = function(e)
+-- Un'unica view top per Luogo e Diario.
+view.define {
+  name = "diario.topInfo",
+  title = "Info Luogo / Diario",
+  dock = "page-top",
+  frame = "minimal",
+  defaultOpen = true,
+  refreshOn = { "navigate", "index" },
+  content = function()
     local pageName = editor.getCurrentPage()
 
     if string.startsWith(pageName, "luoghi/") then
-      local text = widgets.topLuogo(pageName)
-      if text ~= "" then
-        return widget.markdownBlock(text)
-      end
-      return
+      return widgets.topLuogo(pageName)
     end
 
     if config.get("std.widgets.wTopDiario.enabled", true)
       and string.startsWith(pageName, "Diario/")
     then
-      local text = wTopDiario(pageName)
-      if text and text ~= "" then
-        return widget.markdownBlock(text)
-      end
+      return wTopDiario(pageName)
     end
   end
 }
 
 
 if config.get("std.widgets.linkedInfoLuoghi.enabled", true) then
-  event.listen {
-    name = "hooks:renderBottomWidgets",
-
-    run = function(e)
+  view.define {
+    name = "diario.linkedInfoLuoghi",
+    title = "Info luoghi collegati",
+    dock = "page-bottom",
+    frame = "minimal",
+    defaultOpen = true,
+    refreshOn = { "navigate", "index" },
+    content = function()
       local pageName = editor.getCurrentPage()
 
-      if pageName ~= "luoghi"
-        and not string.startsWith(pageName, "luoghi/")
+      if pageName == "luoghi"
+        or string.startsWith(pageName, "luoghi/")
       then
-        return
-      end
-
-      local text = widgets.linkedInfoLuoghi(pageName)
-      if text ~= "" then
-        return widget.markdownBlock(text)
+        return widgets.linkedInfoLuoghi(pageName)
       end
     end
   }
 end
 
 
--- Due Bottom Widget distinti, con acquisizione Diario condivisa.
+-- Viaggi e Giorni (prima due widget distinti) in un'unica view.
 if config.get("std.widgets.siamoStatiQui.enabled", true) then
-  event.listen {
-    name = "hooks:renderBottomWidgets",
-
-    run = function(e)
-      local pageName = editor.getCurrentPage()
-
-      if not luoghi.siamoStatiQuiEnabled(pageName) then
-        return
-      end
-
-      local rendered = widgets.siamoStatiQuiRender(pageName)
-      local text = rendered and rendered.viaggi or ""
-
-      if text ~= "" then
-        return widget.markdownBlock(text)
-      end
-    end
-  }
-
-  event.listen {
-    name = "hooks:renderBottomWidgets",
-
-    run = function(e)
-      local pageName = editor.getCurrentPage()
-
-      if not luoghi.siamoStatiQuiEnabled(pageName) then
-        return
-      end
-
-      local rendered = widgets.siamoStatiQuiRender(pageName)
-      local text = rendered and rendered.giorni or ""
-
-      if text ~= "" then
-        return widget.markdownBlock(text)
-      end
+  view.define {
+    name = "diario.siamoStatiQui",
+    title = "Siamo stati qui",
+    dock = "page-bottom",
+    frame = "minimal",
+    defaultOpen = true,
+    refreshOn = { "navigate", "index" },
+    content = function()
+      return widgets.siamoStatiQui(editor.getCurrentPage())
     end
   }
 end
 
 
--- Un solo Bottom Widget per Viaggio: Luoghi visitati + pagine Diario.
+-- Un'unica view per Viaggio: Luoghi visitati + pagine Diario.
 if config.get("std.widgets.infoViaggio.enabled", true) then
-  event.listen {
-    name = "hooks:renderBottomWidgets",
-
-    run = function(e)
-      local pageName = editor.getCurrentPage()
-      local text = widgets.infoViaggio(pageName)
-
-      if text ~= "" then
-        return widget.markdownBlock(text)
-      end
+  view.define {
+    name = "diario.infoViaggio",
+    title = "Info viaggio",
+    dock = "page-bottom",
+    frame = "minimal",
+    defaultOpen = true,
+    refreshOn = { "navigate", "index" },
+    content = function()
+      return widgets.infoViaggio(editor.getCurrentPage())
     end
   }
 end
