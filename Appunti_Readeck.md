@@ -4,13 +4,13 @@ tags: meta/library
 description: "Utility per gestire, navigare e aggregare appunti readeck in SilverBullet."
 pageDecoration.prefix: "📔 "
 share.uri: "github:marco10x15/silverbullet-libraries/Appunti_Readeck.md"
-version: 0.09
-versionDate: 2026-09-29
+version: 0.10
+versionDate: 2026-10-06
 ---
 
 # Appunti Readeck
 
-Libreria indipendente per integrare Readeck in SilverBullet 2.11+.
+Libreria indipendente per integrare Readeck in SilverBullet 2.12+.
 
 La libreria non dipende da `Mio_Viaggio`. Quando una funzione non riceve una label esplicita, parte dalla pagina corrente e risale le pagine antenate fino alla prima che contiene nel frontmatter l'attributo `readeck`; il valore di tale attributo viene usato come label Readeck.
 
@@ -499,7 +499,7 @@ local function catalogMarkdown(label)
 end
 
 function readeck.catalogView(label)
-  return view.new {
+  return widget.new {
     content = function()
       return catalogMarkdown(label)
     end,
@@ -744,7 +744,7 @@ local function annotatedMarkdown(label)
 end
 
 function readeck.annotatedView(label)
-  return view.new {
+  return widget.new {
     content = function()
       return annotatedMarkdown(label)
     end,
@@ -819,9 +819,11 @@ local function openArticleFromFrontmatter(field)
     title = oneLine(title),
     dock = "modal",
     supportedDocks = { "modal", "rhs", "bhs" },
-    content = function()
-      return preview
-    end,
+    widget = widget.new {
+      content = function()
+        return preview
+      end,
+    },
   }
 
   view.open("readeck.articleReader")
@@ -895,6 +897,11 @@ command.define {
 - Il token viene letto come file generico dello Space tramite `space.fileExists()` e `space.readFile()`, quindi convertito da UTF-8 con `encoding.utf8Decode()`.
 - Configurazione consigliata: `tokenFile = "Library/MG/token.txt"`.
 - Nessuna compatibilità mantenuta con il precedente parametro `tokenPage`.
+
+## Modifiche versione 0.10
+
+- Compatibilità SilverBullet 2.12: `view.new` è stato rimosso, `readeck.catalogView()` e `readeck.annotatedView()` usano `widget.new { content = … }`.
+- La view `readeck.articleReader` passa il contenuto tramite `widget = widget.new { content = … }`.
 
 ## Modifiche versione 0.08
 

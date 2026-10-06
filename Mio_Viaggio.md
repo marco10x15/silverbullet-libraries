@@ -2,8 +2,8 @@
 name: "Library/MG/Mio_Viaggio"
 tags: meta/library
 description: "Libreria autonoma per pianificare e gestire Viaggi, Giorni, Attività, Luoghi, ricerche e mappe in SilverBullet 2.11+."
-version: "0.4-00"
-versionDate: 2026-09-29
+version: "0.4-01"
+versionDate: 2026-10-06
 pageDecoration.prefix: "🧳 "
 share.uri: "github:marco10x15/silverbullet-libraries/Mio_Viaggio.md"
 files:
@@ -14,9 +14,11 @@ files:
 
 # 🧳 Mio Viaggio
 
-**Versione:** 0.4-00 — 29.09.2026
+**Versione:** 0.4-01 — 06.10.2026
 
-Libreria autonoma per SilverBullet 2.11+.
+Libreria autonoma per SilverBullet 2.12+.
+
+Il viaggio è riconosciuto dall'attributo frontmatter `readeck` (pagina corrente o antenata); il tag `#viaggio` non è più usato.
 
 Non dipende da `Mio_Diario`, `PhotoGallery` o servizi fotografici esterni.
 Mantiene il modello:
@@ -109,25 +111,6 @@ local function urlEncode(value)
   )
 end
 
-local function hasTag(meta, wanted)
-  if not meta then
-    return false
-  end
-
-  local tags = meta.tags or {}
-  if type(tags) == "string" then
-    return tags == wanted
-  end
-
-  for _, tag in ipairs(tags) do
-    if tag == wanted then
-      return true
-    end
-  end
-
-  return false
-end
-
 local function notify(message)
   editor.flashNotification(message)
 end
@@ -140,14 +123,23 @@ local function readMeta(pageName)
   return nil
 end
 
+-- Radice del viaggio: prima pagina corrente o antenata con attributo
+-- frontmatter `readeck` non vuoto (nessun tag richiesto).
 function viaggio.currentTripPage(pageName)
   local current = pageName or editor.getCurrentPage()
 
   while current and current ~= "" do
     local meta = readMeta(current)
-    if hasTag(meta, "viaggio") then
+    local label = meta and meta.readeck
+
+    if type(label) == "table" then
+      label = label[1]
+    end
+
+    if trim(label) ~= "" then
       return current, meta
     end
+
     current = parentPath(current)
   end
 
@@ -263,8 +255,7 @@ function viaggio.newTrip()
     "---\n"
     .. "displayName: " .. escapeYaml(name) .. "\n"
     .. "description: " .. escapeYaml(name) .. "\n"
-    .. "tags:\n"
-    .. "  - viaggio\n"
+    .. "readeck: " .. escapeYaml(name) .. "\n"
     .. "---\n\n"
     .. "# " .. name .. "\n"
 
@@ -280,7 +271,7 @@ function viaggio.newDay()
   local tripPage = viaggio.currentTripPage()
 
   if not tripPage then
-    notify("Nessuna pagina Viaggio trovata nella pagina corrente o nei parent")
+    notify("Nessuna pagina con attributo readeck nella pagina corrente o nei parent")
     return
   end
 

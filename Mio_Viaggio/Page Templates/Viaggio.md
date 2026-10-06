@@ -6,7 +6,7 @@ suggestedName: "Viaggi/"
 ---
 displayName: "${name}"
 description: "${name}"
-tags: viaggio
+readeck: "${name}"
 ---
 
 # ${name}
