@@ -2,8 +2,8 @@
 name: "Library/MG/View Widgets"
 tags: meta/library
 description: "View generali."
-version: "0.02"
-versionDate: 2026-10-06
+version: "0.03"
+versionDate: 2026-10-07
 pageDecoration.prefix: "⚙️ "
 share.uri: "github:marco10x15/silverbullet-libraries/View_Widgets.md"
 ---
@@ -43,6 +43,8 @@ Parametri:
 
 **Pagine restituite:**
 Vengono mostrate esclusivamente le sottopagine dirette della pagina corrente. I livelli gerarchici successivi non vengono inclusi.
+
+A parità di valore nel campo di ordinamento, le pagine sono ordinate per name (crescente con "asc", decrescente con "desc").
 
 **Visualizzazione:**
 Per ogni pagina vengono mostrati:
@@ -97,59 +99,19 @@ function page.viewSubpages(orderBy, direction, separator)
   return widget.new {
     content = function()
       local currentPage = editor.getCurrentPage()
-      local prefix = currentPage .. "/"
-      local pages
+      local restStart = #currentPage + 2
 
-      if orderBy == "displayName" then
-        if direction == "desc" then
-          pages = query[[
-            from p = index.subPages(currentPage)
-            where string.sub(p.name, 1, #prefix) == prefix
-              and not string.find(string.sub(p.name, #prefix + 1), "/")
-            order by p.displayName desc
-          ]]
-        else
-          pages = query[[
-            from p = index.subPages(currentPage)
-            where string.sub(p.name, 1, #prefix) == prefix
-              and not string.find(string.sub(p.name, #prefix + 1), "/")
-            order by p.displayName
-          ]]
-        end
+      -- index.subPages restituisce già i discendenti: il filtro tiene solo i figli diretti
+      local pages = query[[
+        from p = index.subPages(currentPage)
+        where not string.find(p.name, "/", restStart, true)
+        order by p[orderBy], p.name
+      ]]
 
-      elseif orderBy == "date" then
-        if direction == "desc" then
-          pages = query[[
-            from p = index.subPages(currentPage)
-            where string.sub(p.name, 1, #prefix) == prefix
-              and not string.find(string.sub(p.name, #prefix + 1), "/")
-            order by p.date desc
-          ]]
-        else
-          pages = query[[
-            from p = index.subPages(currentPage)
-            where string.sub(p.name, 1, #prefix) == prefix
-              and not string.find(string.sub(p.name, #prefix + 1), "/")
-            order by p.date
-          ]]
-        end
-
-      else
-        if direction == "desc" then
-          pages = query[[
-            from p = index.subPages(currentPage)
-            where string.sub(p.name, 1, #prefix) == prefix
-              and not string.find(string.sub(p.name, #prefix + 1), "/")
-            order by p.name desc
-          ]]
-        else
-          pages = query[[
-            from p = index.subPages(currentPage)
-            where string.sub(p.name, 1, #prefix) == prefix
-              and not string.find(string.sub(p.name, #prefix + 1), "/")
-            order by p.name
-          ]]
-        end
+      if direction == "desc" then
+        local reversed = {}
+        for i = #pages, 1, -1 do table.insert(reversed, pages[i]) end
+        pages = reversed
       end
 
       local result = {}
