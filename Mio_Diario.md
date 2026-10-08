@@ -759,7 +759,7 @@ end
 
 
 virtualPage.define {
-  pattern = "geo:divisione:(.+)",
+  pattern = "^geo:divisione:(.+)$",
 
   run = function(code)
     return luoghi.renderDivisione(code)
@@ -5460,9 +5460,10 @@ function luoghiMap(options)
         map = L.map("luoghi-map");
 
         L.tileLayer(
-          "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
           {
             maxZoom: 19,
+            referrerPolicy: "strict-origin-when-cross-origin",
             attribution:
               "&copy; OpenStreetMap contributors"
           }
@@ -5553,7 +5554,7 @@ end
 
 
 virtualPage.define {
-  pattern = "Mappa/(.+)",
+  pattern = "^Mappa/(.+)$",
 
   run = function(sourcePage)
     if not sourcePage
@@ -5562,9 +5563,9 @@ virtualPage.define {
       return "_Pagina sorgente non valida._"
     end
 
-    return "${luoghiMap({pageName = "
+    return " ${luoghiMap({pageName = "
       .. spaceLuaString(sourcePage)
-      .. "})}"
+      .. "})} "
   end
 }
 
@@ -7064,9 +7065,10 @@ function gpxMap(path, options)
         map = L.map("gpx-map");
 
         L.tileLayer(
-          "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
           {
             maxZoom: 19,
+            referrerPolicy: "strict-origin-when-cross-origin",
             attribution:
               "&copy; OpenStreetMap contributors"
           }
@@ -7100,7 +7102,7 @@ end
 
 
 virtualPage.define {
-  pattern = "GPX/(.+)",
+  pattern = "^GPX/(.+)$",
 
   run = function(isoDate)
     if not string.match(
@@ -7117,9 +7119,9 @@ virtualPage.define {
       return "_Nessun file GPX associato._"
     end
 
-    return "${gpxMap("
+    return " ${gpxMap("
       .. spaceLuaString(path)
-      .. ")}"
+      .. ")} "
   end
 }
 ```
