@@ -31,6 +31,11 @@ uri: github:marco10x15/silverbullet-libraries/Mio_Viaggio.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mio_Viaggio.md
 description: "Pianificazione e gestione dei viaggi in SilverBullet: Viaggi, Giorni, Luoghi, ricerche e mappe."
 ---
+name: "🌐 Wikidata"
+uri: github:marco10x15/silverbullet-libraries/Wikidata.md
+website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Wikidata.md
+description: "Ricerca e lettura dei dati di un luogo da Wikidata/Wikipedia (versione 0.00, test)."
+---
 name: "📔 Appunti Readeck"
 uri: github:marco10x15/silverbullet-libraries/Appunti_Readeck.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Appunti_Readeck.md
