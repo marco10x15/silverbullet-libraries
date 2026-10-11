@@ -17,7 +17,7 @@ Documentazione, configurazioni, space-lua script, widget, tutto quello che costi
 Pianificazione e gestione dei viaggi in SilverBullet: Viaggi, Giorni, Luoghi, ricerche e mappe.
 
 ### 🌐 Wikidata
-Ricerca dati e immagini di un luogo da Wikidata/Wikipedia, creazione e verifica delle pagine Luogo (versione 0.01, test).
+Ricerca dati e immagini di un luogo da Wikidata/Wikipedia, creazione e verifica delle pagine Luogo (versione 0.02, test).
 
 ### 📔 Appunti Readeck
 Integrazione di readeck in silverbullet."

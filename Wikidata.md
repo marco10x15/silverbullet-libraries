@@ -2,7 +2,7 @@
 name: "Library/MG/Wikidata"
 tags: meta/library
 description: "Ricerca dati e immagini di un luogo da Wikidata/Wikipedia, creazione e verifica delle pagine Luogo."
-version: "0.01"
+version: "0.02"
 versionDate: 2026-10-11
 pageDecoration.prefix: "🌐 "
 share.uri: "github:marco10x15/silverbullet-libraries/Wikidata.md"
@@ -10,7 +10,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/Wikidata.md"
 
 # 🌐 Wikidata
 
-**Versione:** 0.01 — 11.10.2026 (test)
+**Versione:** 0.02 — 11.10.2026 (test)
 
 Libreria indipendente per cercare un luogo su Wikidata/Wikipedia, leggerne i dati (compresa l'immagine simbolo) e creare o verificare le pagine Luogo. Estratta da `Mio_Diario` (Configurazioni, blocchi 1-5) e da `Mio_Viaggio` (`viaggio.wikidata*`, `viaggio.newPlace`), senza modificarle.
 
@@ -189,14 +189,14 @@ function wikidata.request(url)
   return body
 end
 
-function wikidata.search(text, language, limit)
+function wikidata.search(text, language, max)
   local data = wikidata.request(
     API .. "?action=wbsearchentities"
       .. "&search=" .. urlEncode(text)
       .. "&language=" .. (language or lang())
       .. "&uselang=" .. lang()
       .. "&type=item"
-      .. "&limit=" .. (limit or 8)
+      .. "&limit=" .. (max or 8)
       .. "&format=json&formatversion=2"
   )
 
@@ -516,7 +516,9 @@ function wikidata.imageInfo(file, width)
       .. "&format=json&formatversion=2"
   )
 
-  local page = data.query and data.query.pages and data.query.pages[1]
+  -- ["query"]: query è una parola riservata di Space Lua
+  local pages = data["query"] and data["query"].pages
+  local page = pages and pages[1]
   local info = page and not page.missing
     and page.imageinfo and page.imageinfo[1]
 
