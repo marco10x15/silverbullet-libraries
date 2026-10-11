@@ -2,7 +2,7 @@
 name: "Library/MG/Wikidata"
 tags: meta/library
 description: "Ricerca dati e immagini di un luogo da Wikidata/Wikipedia, creazione e verifica delle pagine Luogo."
-version: "0.02"
+version: "0.03"
 versionDate: 2026-10-11
 pageDecoration.prefix: "🌐 "
 share.uri: "github:marco10x15/silverbullet-libraries/Wikidata.md"
@@ -10,7 +10,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/Wikidata.md"
 
 # 🌐 Wikidata
 
-**Versione:** 0.02 — 11.10.2026 (test)
+**Versione:** 0.03 — 11.10.2026 (test)
 
 Libreria indipendente per cercare un luogo su Wikidata/Wikipedia, leggerne i dati (compresa l'immagine simbolo) e creare o verificare le pagine Luogo. Estratta da `Mio_Diario` (Configurazioni, blocchi 1-5) e da `Mio_Viaggio` (`viaggio.wikidata*`, `viaggio.newPlace`), senza modificarle.
 
@@ -59,6 +59,8 @@ Con `wikidata.luogoTemplate` impostato (per esempio `Library/MG/Mio_Diario/Page 
 | `wikidata.imageUrl(file, larghezza)` | link permanente `Special:FilePath` |
 | `wikidata.commonsPage(file)` | pagina Commons del file (licenza, autore) |
 | `wikidata.imageInfo(file, larghezza)` | `{url, thumbUrl, page, mime, width, height, license, author, attributionRequired}` |
+| `wikidata.chain(entity, max)` | catena amministrativa (P131): `{level, qid, label, tipo, tipoWikidata, iso}` |
+| `wikidata.country(entity)` | stato (P17) e continenti (P30): `{qid, label, continents}` |
 | `wikidata.summary(entity)` | dati base, senza altre richieste HTTP |
 | `wikidata.place(input)` | dati completi del luogo |
 | `wikidata.frontmatterLuogo(dati)` | frontmatter di una nuova pagina Luogo |
@@ -76,6 +78,7 @@ Con `wikidata.luogoTemplate` impostato (per esempio `Library/MG/Mio_Diario/Page 
 - `Wikidata: Nuovo Luogo`: sceglie la directory, cerca su Wikidata (più candidati: scelta da elenco, con la voce *Senza Wikidata* per una pagina vuota), poi crea la pagina.
 - `Wikidata: Verifica Luogo`: confronta la pagina corrente con Wikidata in un pannello e, solo su scelta esplicita, inserisce i dati mancanti. Non sovrascrive mai valori presenti.
 - `Wikidata: Immagini del Luogo`: elenca le immagini disponibili per il luogo della pagina corrente e inserisce quella scelta.
+- `Wikidata: Catena`: diagnostica, non scrive nulla. Mostra in un pannello la catena amministrativa (P131) del luogo con QID, etichetta, tipo e codice ISO di ogni livello, più stato (P17) e continente (P30), e la stessa tabella in testo da copiare. Serve a verificare su dati reali come cambia la catena da paese a paese prima di definire la creazione dei padri.
 - `Wikidata: Test`: notifica con i dati principali di un luogo, senza scrivere nulla.
 
 ## Immagini
@@ -420,6 +423,67 @@ function wikidata.isoDivision(entity)
       return iso
     end
   end
+end
+
+
+-- Catena amministrativa: risale P131 per al massimo `max` livelli (default 8),
+-- fermandosi su cicli. Livello 0 = l'elemento stesso.
+function wikidata.chain(entity, max)
+  local result = {}
+  local seen = {}
+  local current = entity
+
+  for level = 0, max or 8 do
+    if not current or seen[current.id] then
+      break
+    end
+    seen[current.id] = true
+
+    local tipo, tipoWikidata = wikidata.adminType(current)
+    local iso = wikidata.claim(current, "P300")
+
+    table.insert(result, {
+      level = level,
+      qid = current.id,
+      label = wikidata.label(current) or current.id,
+      tipo = tipo,
+      tipoWikidata = tipoWikidata,
+      iso = type(iso) == "string" and iso or nil
+    })
+
+    local parent = wikidata.claim(current, "P131")
+    current = parent and parent.id and wikidata.entity(parent.id)
+  end
+
+  return result
+end
+
+-- Stato (P17) con i suoi continenti (P30), come etichette
+function wikidata.country(entity)
+  local value = wikidata.claim(entity, "P17")
+  local country = value and value.id and wikidata.entity(value.id)
+
+  if not country then
+    return nil
+  end
+
+  local continents = {}
+
+  for _, continent in ipairs(wikidata.values(country, "P30")) do
+    local e = type(continent) == "table"
+      and continent.id
+      and wikidata.entity(continent.id)
+
+    if e then
+      table.insert(continents, wikidata.label(e) or e.id)
+    end
+  end
+
+  return {
+    qid = country.id,
+    label = wikidata.label(country) or country.id,
+    continents = continents
+  }
 end
 
 
@@ -1289,6 +1353,92 @@ function wikidata.inserisciImmagine()
     true
   )
 end
+
+
+-- ============================================================
+-- DIAGNOSTICA: CATENA AMMINISTRATIVA
+-- ============================================================
+
+-- Pannello con la catena P131 e, sotto, la stessa tabella in testo da copiare
+function wikidata.catenaHtml(info)
+  local cell = "<td style='vertical-align:top;border-bottom:1px solid #ddd;padding:.35rem'>"
+  local head = "<th style='text-align:left;border-bottom:1px solid #888;padding:.35rem'>"
+
+  local country = "non indicato (P17)"
+  if info.country then
+    country = info.country.label .. " (" .. info.country.qid .. ")"
+      .. " — continente (P30): "
+      .. (#info.country.continents > 0
+        and table.concat(info.country.continents, ", ")
+        or "non indicato")
+  end
+
+  local html = {
+    "<div style='font-family:sans-serif;padding:1rem'>",
+    "<h2>Catena amministrativa</h2>",
+    "<p><strong>" .. htmlEscape(info.place) .. "</strong> (" .. htmlEscape(info.qid) .. ")<br>"
+      .. "<strong>Stato:</strong> " .. htmlEscape(country) .. "</p>",
+    "<table style='width:100%;border-collapse:collapse'><thead><tr>",
+    head .. "Liv.</th>", head .. "QID</th>", head .. "Etichetta</th>",
+    head .. "Tipo</th>", head .. "Tipo Wikidata</th>", head .. "ISO 3166-2</th>",
+    "</tr></thead><tbody>"
+  }
+
+  local text = {}
+
+  for _, row in ipairs(info.chain) do
+    local cols = {
+      tostring(row.level), row.qid, row.label,
+      row.tipo or "-", row.tipoWikidata or "-", row.iso or "-"
+    }
+
+    local tr = { "<tr>" }
+    for _, col in ipairs(cols) do
+      table.insert(tr, cell .. htmlEscape(col) .. "</td>")
+    end
+    table.insert(tr, "</tr>")
+    table.insert(html, table.concat(tr))
+
+    table.insert(text, table.concat(cols, " | "))
+  end
+
+  table.insert(html, "</tbody></table>")
+  table.insert(html, "<pre style='white-space:pre-wrap'>"
+    .. htmlEscape(info.place .. " (" .. info.qid .. ") — " .. country
+      .. "\n" .. table.concat(text, "\n")) .. "</pre></div>")
+
+  return table.concat(html, "")
+end
+
+function wikidata.catena()
+  local pageName = editor.getCurrentPage()
+  local input = ""
+
+  if inDirectory(pageName) then
+    local fm = currentFrontmatter()
+    input = isEmpty(fm.wikipedia) and basename(pageName) or fm.wikipedia
+  end
+
+  input = editor.prompt("Luogo (nome, QID o URL Wikipedia)", input)
+  if not input or trim(input) == "" then
+    return
+  end
+
+  local qid = wikidata.qid(trim(input))
+  local entity = qid and wikidata.entity(qid)
+
+  if not entity then
+    editor.flashNotification("Nessun elemento Wikidata trovato: " .. trim(input), "error")
+    return
+  end
+
+  editor.showPanel("rhs", 1, wikidata.catenaHtml({
+    place = wikidata.label(entity) or qid,
+    qid = qid,
+    chain = wikidata.chain(entity),
+    country = wikidata.country(entity)
+  }), "")
+end
 ```
 
 ## Implementazione — Comandi
@@ -1314,6 +1464,13 @@ command.define {
   name = "Wikidata: Immagini del Luogo",
   run = function()
     return wikidata.inserisciImmagine()
+  end
+}
+
+command.define {
+  name = "Wikidata: Catena",
+  run = function()
+    return wikidata.catena()
   end
 }
 
