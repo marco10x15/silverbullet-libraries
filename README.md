@@ -17,7 +17,7 @@ Documentazione, configurazioni, space-lua script, widget, tutto quello che costi
 Pianificazione e gestione dei viaggi in SilverBullet: Viaggi, Giorni, Luoghi, ricerche e mappe.
 
 ### 🌐 Wikidata
-Ricerca e lettura dei dati di un luogo da Wikidata/Wikipedia: QID, coordinate, tipo amministrativo, divisione ISO 3166-2 (versione 0.00, test).
+Ricerca dati e immagini di un luogo da Wikidata/Wikipedia, creazione e verifica delle pagine Luogo (versione 0.01, test).
 
 ### 📔 Appunti Readeck
 Integrazione di readeck in silverbullet."

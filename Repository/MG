@@ -34,7 +34,7 @@ description: "Pianificazione e gestione dei viaggi in SilverBullet: Viaggi, Gior
 name: "🌐 Wikidata"
 uri: github:marco10x15/silverbullet-libraries/Wikidata.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Wikidata.md
-description: "Ricerca e lettura dei dati di un luogo da Wikidata/Wikipedia (versione 0.00, test)."
+description: "Ricerca dati e immagini di un luogo da Wikidata/Wikipedia, creazione e verifica delle pagine Luogo (versione 0.01, test)."
 ---
 name: "📔 Appunti Readeck"
 uri: github:marco10x15/silverbullet-libraries/Appunti_Readeck.md
