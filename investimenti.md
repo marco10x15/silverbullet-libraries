@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.05"
+version: "0.06"
 versionDate: 2026-10-14
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -39,13 +39,13 @@ Grafico lineare delle quotazioni (Chart.js in un widget isolato), con i pulsanti
 
 ### investimenti.torta(pagina) e investimenti.tortaRischio(pagina)
 
-Ciambelle del valore attuale (EUR): `torta` per strumento, `tortaRischio` per classe di rischio 1-7 letta dall'attributo `rischio` degli strumenti (gli strumenti senza `rischio` vanno in "n.d."). Usano `valorizzazioneDati`, quindi gli strumenti senza prezzo o chiusi non compaiono.
+Ciambelle del valore attuale (EUR): `torta` per strumento, `tortaRischio` per classe di rischio 1-7 letta dall'attributo `KID` degli strumenti (gli strumenti senza `KID` vanno in "n.d."). Usano `valorizzazioneDati`, quindi gli strumenti senza prezzo o chiusi non compaiono.
 
 - **`pagina`** (stringa, opzionale): come in `investimenti.elenco`.
 
 ### investimenti.rischio(pagina) e investimenti.barraRischio(n)
 
-`rischio` restituisce il testo con la barra di rischio in emoji (es. `🟩🟩🟨🟨🟧⬜⬜ 5/7`): per uno strumento la sua classe, per conti e portafogli la media dei `rischio` ponderata sul valore attuale. `barraRischio` disegna la barra per un numero 1-7 e si può usare in altre tabelle.
+`rischio` restituisce il testo con la barra di rischio in emoji (es. `🟩🟩🟨🟨🟧⬜⬜ 5/7`): per uno strumento la sua classe, per conti e portafogli la media dei `KID` ponderata sul valore attuale. `barraRischio` disegna la barra per un numero 1-7 e si può usare in altre tabelle.
 
 - **`pagina`** (stringa, opzionale): come in `investimenti.elenco`.
 - **`n`** (numero): classe di rischio da 1 a 7, arrotondata; se non è un numero restituisce `n.d.`.
@@ -167,7 +167,7 @@ isin: "LU0102238655"
 ticker: "0P00000I8A.F"
 tipo: "Fondo"
 valuta: "EUR"
-rischio: 4
+KID: 4
 ---
 
 ${investimenti.valorizzazione()}
@@ -177,7 +177,7 @@ ${investimenti.valorizzazione()}
 | 2025-04-01 | Acquisto | 3.983 | 25.11 | 100 | 0 | 0 |
 ```
 
-I tipi di movimento letti sono `Acquisto`, `Vendita` e `Dividendo`. `Valore` è l'importo in valuta dello strumento; per gli strumenti in valuta estera serve anche la colonna `Valore EUR`. `rischio` (1-7, indicatore del KID) è facoltativo e serve a `rischio` e `tortaRischio`. Il `ticker` è facoltativo: senza, la quotazione si tiene a mano. Il cambio EUR/USD è lo strumento con id `EURUSD` (`ticker: "EURUSD=X"`, `valuta: "USD"`), senza movimenti.
+I tipi di movimento letti sono `Acquisto`, `Vendita` e `Dividendo`. `Valore` è l'importo in valuta dello strumento; per gli strumenti in valuta estera serve anche la colonna `Valore EUR`. `KID` (1-7, indicatore sintetico di rischio del KID; maiuscolo) è facoltativo e serve a `rischio` e `tortaRischio`. Il `ticker` è facoltativo: senza, la quotazione si tiene a mano. Il cambio EUR/USD è lo strumento con id `EURUSD` (`ticker: "EURUSD=X"`, `valuta: "USD"`), senza movimenti.
 
 **`Quotazioni/<id>`**: una pagina per strumento con la tabella `| Data | Prezzo |`, la più recente in alto. Non serve frontmatter. Le pagine automatiche sono create da `quotazioni.crea`; per gli strumenti senza `ticker` si crea a mano la pagina con la tabella e si aggiunge una riga a ogni aggiornamento.
 
@@ -222,12 +222,12 @@ function investimenti.strumenti()
   for _, p in ipairs(query[[
     from p = index.subPages("Strumenti")
     select {name = p.name, nome = p.displayName, isin = p.isin, ticker = p.ticker,
-      valuta = p.valuta, tipo = p.tipo, rischio = p.rischio}
+      valuta = p.valuta, tipo = p.tipo, rischio = p.KID}
   ]]) do
     table.insert(out, {id = string.sub(p.name, 11),  -- "Strumenti/" = 10 caratteri
       nome = str(p.nome) or p.name, isin = str(p.isin), ticker = str(p.ticker),
       valuta = str(p.valuta) or "EUR", tipo = str(p.tipo),
-      rischio = type(p.rischio) == "number" and p.rischio or nil})
+      rischio = type(p.rischio) == "number" and p.rischio or nil})  -- p.rischio = attributo KID
   end
   table.sort(out, function(a, b) return a.id < b.id end)
   return out
@@ -845,7 +845,7 @@ function investimenti.torta(pagina)
   return torta("Valore per strumento (EUR)", e, v, c)
 end
 
---- Ciambella del valore attuale per classe di rischio (attributo rischio 1-7 degli strumenti).
+--- Ciambella del valore attuale per classe di rischio (attributo KID 1-7 degli strumenti).
 function investimenti.tortaRischio(pagina)
   local ids = investimenti.elenco(pagina)
   if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
