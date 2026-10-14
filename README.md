@@ -17,10 +17,10 @@ Documentazione, configurazioni, space-lua script, widget, tutto quello che costi
 Pianificazione e gestione dei viaggi in SilverBullet: Viaggi, Giorni, Luoghi, ricerche e mappe.
 
 ### 🌐 Wikidata
-Ricerca dati e immagini di un luogo da Wikidata/Wikipedia, creazione e verifica delle pagine Luogo (versione 0.06, test).
+Ricerca dati e immagini di un luogo da Wikidata/Wikipedia, creazione e verifica delle pagine Luogo (versione 0.07, test).
 
 ### 💸 Investimenti
-Monitoraggio investimenti: movimenti per strumento, quotazioni storiche da Yahoo Finance e valorizzazione con profitto/perdita per strumento e per conto (versione 0.06, test).
+Monitoraggio investimenti: movimenti per strumento, quotazioni storiche da Yahoo Finance e valorizzazione con profitto/perdita per strumento e per conto (versione 0.07, test).
 
 ### 📔 Appunti Readeck
 Integrazione di readeck in silverbullet."

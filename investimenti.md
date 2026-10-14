@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.06"
+version: "0.07"
 versionDate: 2026-10-14
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -251,7 +251,8 @@ function investimenti.elenco(pagina)
       if type(lista) == "string" then lista = {lista} end
       if type(lista) == "table" then
         for _, v in ipairs(lista) do
-          local t = type(v) == "string" and string.match(v, "^%[%[([^]|]+)")
+          -- "[[Strumenti/X|alias]]" -> "Strumenti/X"
+          local t = type(v) == "string" and string.match((string.gsub(v, "[%[%]]", "")), "^[^|]+")
           if t and string.startsWith(t, "Strumenti/") then table.insert(ids, string.sub(t, 11)) end
         end
       end
