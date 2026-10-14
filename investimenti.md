@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.04"
+version: "0.05"
 versionDate: 2026-10-14
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -717,17 +717,17 @@ function investimenti.acquisti(id)
 end
 
 -- Script del grafico lineare: dati in DATI = {serie, acquisti, titolo}.
-local JS_LINEA = [==[
-const RANGE = [["7G",7],["1M",30],["3M",91],["6M",182],["YTD",-1],["1A",365],["5A",1826],["Tutto",0]];
+local JS_LINEA = [[
+const RANGE = [{n:"7G",d:7},{n:"1M",d:30},{n:"3M",d:91},{n:"6M",d:182},{n:"YTD",d:-1},{n:"1A",d:365},{n:"5A",d:1826},{n:"Tutto",d:0}];
 const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
 const txt = dark ? "#ddd" : "#333", grid = "rgba(128,128,128,.25)";
 const ultimo = DATI.serie[DATI.serie.length - 1][0];
 let chart = null;
 function da(r) {
-  if (r[1] === 0) return "0000-00-00";
-  if (r[1] < 0) return ultimo.slice(0, 4) + "-01-01";
+  if (r.d === 0) return "0000-00-00";
+  if (r.d < 0) return ultimo.slice(0, 4) + "-01-01";
   const d = new Date(ultimo + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() - r[1]);
+  d.setUTCDate(d.getUTCDate() - r.d);
   return d.toISOString().slice(0, 10);
 }
 function disegna(r) {
@@ -755,13 +755,13 @@ function disegna(r) {
 const bar = document.getElementById("b");
 RANGE.forEach(function (r) {
   const b = document.createElement("button");
-  b.textContent = r[0];
+  b.textContent = r.n;
   b.style.cssText = "margin:0 4px 6px 0;padding:2px 10px;cursor:pointer";
   b.onclick = function () { disegna(r); };
   bar.appendChild(b);
 });
 disegna(RANGE[3]);
-]==]
+]]
 
 --- Grafico lineare delle quotazioni con pulsanti 7G/1M/3M/6M/YTD/1A/5A/Tutto.
 --- Su Strumenti/ aggiunge i punti di acquisto. pagina: Quotazioni/<id> o Strumenti/<id>.
@@ -795,7 +795,7 @@ function investimenti.grafico(pagina)
 end
 
 -- Script della ciambella: DATI = {etichette, valori, colori}.
-local JS_TORTA = [==[
+local JS_TORTA = [[
 const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
 const tot = DATI.valori.reduce(function (a, b) { return a + b; }, 0);
 new Chart(document.getElementById("c"), {type: "doughnut",
@@ -807,7 +807,7 @@ new Chart(document.getElementById("c"), {type: "doughnut",
       tooltip: {callbacks: {label: function (c) {
         return c.label + ": " + c.parsed.toFixed(2) + " € (" + (c.parsed / tot * 100).toFixed(1) + " %)";
       }}}}}});
-]==]
+]]
 
 local COLORI = {"#2f6fdb", "#d9822b", "#2a9d8f", "#9b5de5", "#e4572e", "#76b041", "#f2c14e", "#7d8597", "#c1666b", "#4ecdc4"}
 local COLORI_RISCHIO = {"#2a9d4a", "#76b041", "#c8c63a", "#f2c14e", "#e8923a", "#e4572e", "#b3202a"}
