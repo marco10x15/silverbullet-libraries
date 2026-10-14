@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.07"
+version: "0.09"
 versionDate: 2026-10-14
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -55,6 +55,28 @@ Ciambelle del valore attuale (EUR): `torta` per strumento, `tortaRischio` per cl
 Dati dei grafici: `serie` restituisce le quotazioni `{data, prezzo}` di `Quotazioni/<id>` in ordine di data; `acquisti` le righe `Acquisto` di `Strumenti/<id>` come `{data, prezzo unitario}`.
 
 - **`id`** (stringa): id dello strumento, cioè il nome della pagina senza prefisso.
+
+### investimenti.performance(ids)
+
+Variazione percentuale per strumento a 1 mese (30 giorni), da inizio anno (YTD, rispetto all'ultima quotazione dell'anno precedente) e a 1 anno (365 giorni), calcolata sulle quotazioni; restituisce una tabella id → `{m1, ytd, a1}`, con `nil` dove lo storico non basta (strumenti a quotazione manuale con un solo prezzo). Per i fondi in USD usa il cambio EURUSD alla data, quindi la variazione è in EUR. È la fonte delle colonne 1M, YTD e 1A di `investimenti.valore`.
+
+- **`ids`** (lista di stringhe, opzionale): id degli strumenti; se omessa, tutti quelli con quotazioni.
+
+### investimenti.barrePL(pagina)
+
+Barre orizzontali (Chart.js) del P/L per strumento, in verde se positivo e in rosso se negativo, ordinate dal maggiore al minore.
+
+- **`pagina`** (stringa, opzionale): come in `investimenti.elenco`.
+
+### investimenti.scheda(pagina), investimenti.elencoStrumenti() e investimenti.elencoConti()
+
+Viste costruite dal frontmatter. `scheda` (pagine `Strumenti/<id>`): descrizione, tipo, valuta, ISIN, tag, barra di rischio e link alle quotazioni. `elencoStrumenti` (pagina `Strumenti`): tabella di tutti gli strumenti con tipo, valuta, ultimo prezzo, data e rischio. `elencoConti` (pagina `Conti`): tabella di conti e portafogli con tipo (dal tag `Conto` o `Portafoglio`), numero di strumenti, acquistato, attuale, P/L e %, calcolati con una sola valorizzazione.
+
+- **`pagina`** (stringa, opzionale, solo `scheda`): `Strumenti/<id>`; se omessa, la pagina corrente.
+
+### Widget automatici
+
+Nessuna chiamata nelle pagine: con `config.set("investimenti.widgetAutomatici", true)` la libreria mostra in testa alle pagine, tramite `hooks:renderTopWidgets`, questi widget: pagina `Index` (nome modificabile con `investimenti.paginaIndice`): `valore`, `barrePL`, `torta`, `tortaRischio`; `Strumenti` (elenco): `elencoStrumenti`; `Conti` (elenco): `elencoConti`; `Conti/<nome>` e portafogli: rischio medio, `valorizzazione`, `torta`, `tortaRischio`; `Strumenti/<id>`: `scheda` e `grafico`; `Quotazioni/<id>`: `grafico`. Se una pagina ha già le chiamate `${...}` corrispondenti, i widget compaiono due volte: vanno tolte dalla pagina.
 
 ### investimenti.movimenti(pagina)
 
@@ -151,7 +173,7 @@ Sono locali ai blocchi di codice e non fanno parte dell'interfaccia.
 - **`nomi(strumenti)`**: costruisce la tabella id → `displayName` a partire dall'elenco degli strumenti.
 - **`js(x)`**: converte un numero o una stringa semplice in testo JavaScript per i dati dei grafici.
 - **`torta(titolo, etichette, valori, colori)`**: costruisce il widget a ciambella usato da `torta` e `tortaRischio`.
-- **`tabella(colonne, righe)`**: costruisce la tabella HTML di un widget, con intestazione, allineamento per colonna, celle con link allo strumento e riga di totale in grassetto.
+- **`tabella(colonne, righe)`**: costruisce la tabella HTML di un widget, con intestazione, allineamento per colonna, celle con link (allo strumento, o alla pagina indicata in `pagina`) e riga di totale in grassetto.
 
 ## Struttura delle pagine
 
@@ -222,12 +244,14 @@ function investimenti.strumenti()
   for _, p in ipairs(query[[
     from p = index.subPages("Strumenti")
     select {name = p.name, nome = p.displayName, isin = p.isin, ticker = p.ticker,
-      valuta = p.valuta, tipo = p.tipo, rischio = p.KID}
+      valuta = p.valuta, tipo = p.tipo, rischio = p.KID,
+      descrizione = p.description, tags = p.tags}
   ]]) do
     table.insert(out, {id = string.sub(p.name, 11),  -- "Strumenti/" = 10 caratteri
       nome = str(p.nome) or p.name, isin = str(p.isin), ticker = str(p.ticker),
       valuta = str(p.valuta) or "EUR", tipo = str(p.tipo),
-      rischio = type(p.rischio) == "number" and p.rischio or nil})  -- p.rischio = attributo KID
+      rischio = type(p.rischio) == "number" and p.rischio or nil,  -- p.rischio = attributo KID
+      descrizione = str(p.descrizione), tags = p.tags})
   end
   table.sort(out, function(a, b) return a.id < b.id end)
   return out
@@ -585,7 +609,7 @@ local function tabella(colonne, righe)
       if type(v) == "table" then
         cella = dom.a {
           style = "cursor:pointer;text-decoration:underline",
-          onclick = function() editor.open("Strumenti/" .. v.id) end,
+          onclick = function() editor.open(v.pagina or ("Strumenti/" .. v.id)) end,
           __rawText = v.nome}
       else
         cella = dom.span {__rawText = v or ""}
@@ -648,21 +672,116 @@ function investimenti.valorizzazione(pagina)
   }, righe)
 end
 
---- Valorizzazione compatta: investimento, acquistato, attuale, P/L, %. pagina: vedi investimenti.elenco.
+--- Valorizzazione compatta: investimento, acquistato, attuale, P/L, %, performance 1M/YTD/1A.
+--- pagina: vedi investimenti.elenco.
 function investimenti.valore(pagina)
   local ids = investimenti.elenco(pagina)
   if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
   local dati, tot, nd = investimenti.valorizzazioneDati(ids)
+  local perf = investimenti.performance(ids)
+  local function fp(x) return x and string.format("%+.2f %%", x) or "n.d." end
   local righe = {}
   for _, d in ipairs(dati) do
+    local f = perf[d.id] or {}
     table.insert(righe, {nome = {id = d.id, nome = d.nome}, acquistato = f2(d.acquistato),
-      attuale = f2(d.valore), pl = f2(d.pl), pct = d.pct and (f2(d.pct) .. " %") or "n.d."})
+      attuale = f2(d.valore), pl = f2(d.pl), pct = d.pct and (f2(d.pct) .. " %") or "n.d.",
+      m1 = fp(f.m1), ytd = fp(f.ytd), a1 = fp(f.a1)})
   end
   table.insert(righe, {totale = true,
     nome = "TOTALE" .. (nd > 0 and " (esclusi " .. nd .. " senza prezzo)" or ""),
     acquistato = f2(tot.a), attuale = f2(tot.v), pl = f2(tot.pl)})
   return tabella({
     {titolo = "Investimento", chiave = "nome", allinea = "left"},
+    {titolo = "Acquistato", chiave = "acquistato", allinea = "right"},
+    {titolo = "Attuale", chiave = "attuale", allinea = "right"},
+    {titolo = "P/L", chiave = "pl", allinea = "right"},
+    {titolo = "%", chiave = "pct", allinea = "center"},
+    {titolo = "1M", chiave = "m1", allinea = "right"},
+    {titolo = "YTD", chiave = "ytd", allinea = "right"},
+    {titolo = "1A", chiave = "a1", allinea = "right"},
+  }, righe)
+end
+
+-- tags (stringa o lista) -> lista di stringhe
+local function listaTags(t)
+  if type(t) == "string" then return {t} end
+  local out = {}
+  if type(t) == "table" then
+    for _, x in ipairs(t) do if type(x) == "string" then table.insert(out, x) end end
+  end
+  return out
+end
+
+--- Scheda di uno strumento dal frontmatter: descrizione, tipo/valuta, tag, rischio e link alle quotazioni.
+function investimenti.scheda(pagina)
+  pagina = pagina or editor.getCurrentPage()
+  if type(pagina) ~= "string" or not string.startsWith(pagina, "Strumenti/") then return nil end
+  local id = string.sub(pagina, 11)
+  for _, s in ipairs(investimenti.strumenti()) do
+    if s.id == id then
+      local righe = {}
+      if s.descrizione then table.insert(righe, "**" .. s.descrizione .. "**") end
+      table.insert(righe, (s.tipo or "n.d.") .. " · " .. s.valuta ..
+        (s.isin and (" · ISIN " .. s.isin) or ""))
+      local tags = listaTags(s.tags)
+      if #tags > 0 then table.insert(righe, "Tag: " .. table.concat(tags, ", ")) end
+      table.insert(righe, "Rischio: " .. investimenti.barraRischio(s.rischio) ..
+        " · Quotazioni: [[Quotazioni/" .. id .. "]]")
+      return widget.markdownBlock(table.concat(righe, "\n\n"))
+    end
+  end
+end
+
+--- Elenco di tutti gli strumenti con tipo, valuta, ultimo prezzo, data e rischio.
+function investimenti.elencoStrumenti()
+  local strumenti = investimenti.strumenti()
+  local px = {}
+  for _, p in ipairs(investimenti.ultimiPrezzi(strumenti)) do px[p.id] = p end
+  local righe = {}
+  for _, s in ipairs(strumenti) do
+    local p = px[s.id]
+    table.insert(righe, {nome = {id = s.id, nome = s.nome}, tipo = s.tipo or "",
+      valuta = s.valuta, prezzo = p and string.format("%.4f", p.prezzo) or "n.d.",
+      data = p and p.data or "n.d.", rischio = investimenti.barraRischio(s.rischio)})
+  end
+  return tabella({
+    {titolo = "Strumento", chiave = "nome", allinea = "left"},
+    {titolo = "Tipo", chiave = "tipo", allinea = "left"},
+    {titolo = "Valuta", chiave = "valuta", allinea = "center"},
+    {titolo = "Ultimo prezzo", chiave = "prezzo", allinea = "right"},
+    {titolo = "Data", chiave = "data", allinea = "center"},
+    {titolo = "Rischio", chiave = "rischio", allinea = "left"},
+  }, righe)
+end
+
+--- Elenco di conti e portafogli (sottopagine di Conti/): tipo dal tag, numero di strumenti,
+--- acquistato, attuale, P/L e %. La valorizzazione si calcola una sola volta per tutti.
+function investimenti.elencoConti()
+  local per = {}
+  for _, d in ipairs(investimenti.valorizzazioneDati(nil)) do per[d.id] = d end
+  local righe = {}
+  for _, p in ipairs(query[[
+    from p = index.subPages("Conti")
+    select {name = p.name, nome = p.displayName, tags = p.tags}
+  ]]) do
+    local ids = investimenti.elenco(p.name) or {}
+    local a, i, v = 0, 0, 0
+    for _, id in ipairs(ids) do
+      local d = per[id]
+      if d and d.valore then a, i, v = a + d.acquistato, i + d.incassato, v + d.valore end
+    end
+    local pl = v + i - a
+    local tipo = "Conto"
+    for _, t in ipairs(listaTags(p.tags)) do if t == "Portafoglio" then tipo = "Portafoglio" end end
+    table.insert(righe, {nome = {pagina = p.name, nome = type(p.nome) == "string" and p.nome or p.name},
+      tipo = tipo, n = tostring(#ids), acquistato = f2(a), attuale = f2(v), pl = f2(pl),
+      pct = a > 0 and (f2(pl / a * 100) .. " %") or "n.d."})
+  end
+  table.sort(righe, function(x, y) return x.nome.nome < y.nome.nome end)
+  return tabella({
+    {titolo = "Conto/Portafoglio", chiave = "nome", allinea = "left"},
+    {titolo = "Tipo", chiave = "tipo", allinea = "left"},
+    {titolo = "Strumenti", chiave = "n", allinea = "center"},
     {titolo = "Acquistato", chiave = "acquistato", allinea = "right"},
     {titolo = "Attuale", chiave = "attuale", allinea = "right"},
     {titolo = "P/L", chiave = "pl", allinea = "right"},
@@ -896,4 +1015,160 @@ function investimenti.rischio(pagina)
   if peso == 0 then return "n.d." end
   return investimenti.barraRischio(somma / peso)
 end
+```
+
+### Performance, barre di P/L e widget automatici
+
+`investimenti.performance` calcola la variazione percentuale a 1 mese (30 giorni), da inizio anno e a 1 anno (365 giorni) con una sola scansione delle quotazioni; per i fondi in USD usa il cambio EURUSD, quindi la variazione è in EUR. `investimenti.barrePL` disegna le barre del P/L per strumento (verde guadagno, rosso perdita). `investimenti.vista` e i listener `hooks:renderTopWidgets` mostrano automaticamente i widget in testa alle pagine, solo se `config.set("investimenti.widgetAutomatici", true)`.
+
+```space-lua
+investimenti = investimenti or {}
+
+local CHARTJS = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+
+-- Ultimo punto {data, prezzo} con data <= limite (serie ordinata), o nil.
+local function finoA(serie, limite)
+  local best
+  for _, p in ipairs(serie) do
+    if p[1] > limite then break end
+    best = p
+  end
+  return best
+end
+
+-- Data ISO meno n giorni.
+local function menoGiorni(d, n)
+  local y, m, g = string.match(d, "^(%d+)-(%d+)-(%d+)")
+  local t = os.time({year = tonumber(y), month = tonumber(m), day = tonumber(g), hour = 12})
+  return os.date("!%Y-%m-%d", t - n * 86400)
+end
+
+--- Variazione % a 1M, YTD e 1A per strumento: tabella id -> {m1, ytd, a1} (nil se manca lo storico).
+--- ids: lista di id; nil = tutti gli strumenti con quotazioni.
+function investimenti.performance(ids)
+  local ammessi
+  if ids then
+    ammessi = {EURUSD = true}
+    for _, id in ipairs(ids) do ammessi[id] = true end
+  end
+  local per = {}
+  for _, r in ipairs(query[[
+    from t = index.tables()
+    where string.startsWith(t.page, "Quotazioni/")
+    select {pagina = t.page, ref = t.ref, giorno = t.data, px = t.prezzo}
+  ]]) do
+    local id = string.sub(r.pagina, 12)  -- "Quotazioni/" = 11 caratteri
+    local pr = tonumber(r.px)
+    if type(r.giorno) == "string" and pr and (not ammessi or ammessi[id]) then
+      per[id] = per[id] or {}
+      table.insert(per[id], {r.giorno, pr})
+    end
+  end
+  for _, s in pairs(per) do table.sort(s, function(a, b) return a[1] < b[1] end) end
+
+  local usd = {}
+  for _, s in ipairs(investimenti.strumenti()) do usd[s.id] = s.valuta == "USD" end
+  local fx = per.EURUSD
+
+  -- prezzo in EUR di un punto della serie
+  local function eur(p, id)
+    if not usd[id] then return p[2] end
+    local f = fx and finoA(fx, p[1])
+    return f and p[2] / f[2]
+  end
+
+  local out = {}
+  for id, s in pairs(per) do
+    if id ~= "EURUSD" and #s >= 2 then
+      local ultimo = s[#s]
+      local v1 = eur(ultimo, id)
+      local function var(limite)
+        local ref = finoA(s, limite)
+        local v0 = ref and eur(ref, id)
+        if v1 and v0 and v0 ~= 0 then return (v1 / v0 - 1) * 100 end
+      end
+      out[id] = {
+        m1 = var(menoGiorni(ultimo[1], 30)),
+        ytd = var(tostring(tonumber(string.sub(ultimo[1], 1, 4)) - 1) .. "-12-31"),
+        a1 = var(menoGiorni(ultimo[1], 365)),
+      }
+    end
+  end
+  return out
+end
+
+-- Script delle barre di P/L: DATI = {etichette, valori}.
+local JS_BARRE = [[
+const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+const txt = dark ? "#ddd" : "#333", grid = "rgba(128,128,128,.25)";
+new Chart(document.getElementById("c"), {type: "bar",
+  data: {labels: DATI.etichette, datasets: [{data: DATI.valori,
+    backgroundColor: DATI.valori.map(function (v) { return v >= 0 ? "#2a9d4a" : "#d6453d"; })}]},
+  options: {indexAxis: "y", responsive: true, maintainAspectRatio: false, animation: false,
+    plugins: {legend: {display: false},
+      title: {display: true, text: "Profitto/perdita per strumento (EUR)", color: txt},
+      tooltip: {callbacks: {label: function (c) { return c.parsed.x.toFixed(2) + " €"; }}}},
+    scales: {x: {ticks: {color: txt}, grid: {color: grid}}, y: {ticks: {color: txt}, grid: {display: false}}}}});
+]]
+
+--- Barre orizzontali del P/L per strumento (verde guadagno, rosso perdita), dal maggiore al minore.
+--- pagina: vedi investimenti.elenco.
+function investimenti.barrePL(pagina)
+  local ids = investimenti.elenco(pagina)
+  if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
+  local righe = {}
+  for _, d in ipairs(investimenti.valorizzazioneDati(ids)) do
+    if d.pl then table.insert(righe, d) end
+  end
+  if #righe == 0 then return widget.markdownBlock("_Nessun P/L da mostrare._") end
+  table.sort(righe, function(a, b) return a.pl > b.pl end)
+  local e, v = {}, {}
+  for _, d in ipairs(righe) do
+    table.insert(e, '"' .. string.gsub(d.nome, '"', "'") .. '"')
+    table.insert(v, string.format("%.2f", d.pl))
+  end
+  local dati = "const DATI = {etichette: [" .. table.concat(e, ",") .. "], valori: [" ..
+    table.concat(v, ",") .. "]};\n"
+  return widget.sandbox {
+    html = '<div style="position:relative;height:' .. (60 + 28 * #righe) .. 'px"><canvas id="c"></canvas></div>',
+    script = 'loadJsByUrl("' .. CHARTJS .. '").then(function () {\n' .. dati .. JS_BARRE .. "\n});",
+    markdown = "P/L per strumento",
+  }
+end
+
+-- Widget automatici in testa alla pagina, attivati da config.set("investimenti.widgetAutomatici", true).
+-- Un listener per widget, ognuno limitato alle pagine indicate. Nome pagina indice: investimenti.paginaIndice.
+local function inTesta(vale, crea)
+  event.listen {
+    name = "hooks:renderTopWidgets",
+    run = function(e)
+      if not config.get("investimenti.widgetAutomatici") then return end
+      local pagina = editor.getCurrentPage()
+      if type(pagina) == "string" and vale(pagina) then return crea(pagina) end
+    end
+  }
+end
+
+local function indice(p) return p == (config.get("investimenti.paginaIndice") or "Index") end
+local function sotto(prefisso) return function(p) return string.startsWith(p, prefisso) end end
+
+-- Index: valore, barre P/L, torte
+inTesta(indice, function() return investimenti.valore() end)
+inTesta(indice, function() return investimenti.barrePL() end)
+inTesta(indice, function() return investimenti.torta() end)
+inTesta(indice, function() return investimenti.tortaRischio() end)
+-- Strumenti (elenco)
+inTesta(function(p) return p == "Strumenti" end, function() return investimenti.elencoStrumenti() end)
+-- Conti (elenco di conti e portafogli)
+inTesta(function(p) return p == "Conti" end, function() return investimenti.elencoConti() end)
+-- Conti/<nome> e portafogli: rischio medio, valorizzazione, ripartizioni
+inTesta(sotto("Conti/"), function(p) return widget.markdown("Rischio (media ponderata): " .. investimenti.rischio(p)) end)
+inTesta(sotto("Conti/"), function(p) return investimenti.valorizzazione(p) end)
+inTesta(sotto("Conti/"), function(p) return investimenti.torta(p) end)
+inTesta(sotto("Conti/"), function(p) return investimenti.tortaRischio(p) end)
+-- Strumenti/<id>: scheda dal frontmatter e grafico con acquisti
+inTesta(sotto("Strumenti/"), function(p) return investimenti.scheda(p) end)
+inTesta(sotto("Strumenti/"), function(p) return investimenti.grafico(p) end)
+-- Quotazioni/<id>: grafico
+inTesta(sotto("Quotazioni/"), function(p) return investimenti.grafico(p) end)
 ```
