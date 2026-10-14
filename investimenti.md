@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.08"
+version: "0.09"
 versionDate: 2026-10-14
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -68,9 +68,15 @@ Barre orizzontali (Chart.js) del P/L per strumento, in verde se positivo e in ro
 
 - **`pagina`** (stringa, opzionale): come in `investimenti.elenco`.
 
+### investimenti.scheda(pagina), investimenti.elencoStrumenti() e investimenti.elencoConti()
+
+Viste costruite dal frontmatter. `scheda` (pagine `Strumenti/<id>`): descrizione, tipo, valuta, ISIN, tag, barra di rischio e link alle quotazioni. `elencoStrumenti` (pagina `Strumenti`): tabella di tutti gli strumenti con tipo, valuta, ultimo prezzo, data e rischio. `elencoConti` (pagina `Conti`): tabella di conti e portafogli con tipo (dal tag `Conto` o `Portafoglio`), numero di strumenti, acquistato, attuale, P/L e %, calcolati con una sola valorizzazione.
+
+- **`pagina`** (stringa, opzionale, solo `scheda`): `Strumenti/<id>`; se omessa, la pagina corrente.
+
 ### Widget automatici
 
-Nessuna chiamata nelle pagine: con `config.set("investimenti.widgetAutomatici", true)` la libreria mostra in testa alle pagine, tramite `hooks:renderTopWidgets`, questi widget: pagina `Index` (nome modificabile con `investimenti.paginaIndice`): `valore`, `barrePL`, `torta`, `tortaRischio`; `Conti/`: `valore` e `torta`; `Strumenti/`: barra di rischio e `grafico`; `Quotazioni/`: `grafico`. Se una pagina ha già le chiamate `${...}` corrispondenti, i widget compaiono due volte: vanno tolte dalla pagina.
+Nessuna chiamata nelle pagine: con `config.set("investimenti.widgetAutomatici", true)` la libreria mostra in testa alle pagine, tramite `hooks:renderTopWidgets`, questi widget: pagina `Index` (nome modificabile con `investimenti.paginaIndice`): `valore`, `barrePL`, `torta`, `tortaRischio`; `Strumenti` (elenco): `elencoStrumenti`; `Conti` (elenco): `elencoConti`; `Conti/<nome>` e portafogli: rischio medio, `valorizzazione`, `torta`, `tortaRischio`; `Strumenti/<id>`: `scheda` e `grafico`; `Quotazioni/<id>`: `grafico`. Se una pagina ha già le chiamate `${...}` corrispondenti, i widget compaiono due volte: vanno tolte dalla pagina.
 
 ### investimenti.movimenti(pagina)
 
@@ -167,7 +173,7 @@ Sono locali ai blocchi di codice e non fanno parte dell'interfaccia.
 - **`nomi(strumenti)`**: costruisce la tabella id → `displayName` a partire dall'elenco degli strumenti.
 - **`js(x)`**: converte un numero o una stringa semplice in testo JavaScript per i dati dei grafici.
 - **`torta(titolo, etichette, valori, colori)`**: costruisce il widget a ciambella usato da `torta` e `tortaRischio`.
-- **`tabella(colonne, righe)`**: costruisce la tabella HTML di un widget, con intestazione, allineamento per colonna, celle con link allo strumento e riga di totale in grassetto.
+- **`tabella(colonne, righe)`**: costruisce la tabella HTML di un widget, con intestazione, allineamento per colonna, celle con link (allo strumento, o alla pagina indicata in `pagina`) e riga di totale in grassetto.
 
 ## Struttura delle pagine
 
@@ -238,12 +244,14 @@ function investimenti.strumenti()
   for _, p in ipairs(query[[
     from p = index.subPages("Strumenti")
     select {name = p.name, nome = p.displayName, isin = p.isin, ticker = p.ticker,
-      valuta = p.valuta, tipo = p.tipo, rischio = p.KID}
+      valuta = p.valuta, tipo = p.tipo, rischio = p.KID,
+      descrizione = p.description, tags = p.tags}
   ]]) do
     table.insert(out, {id = string.sub(p.name, 11),  -- "Strumenti/" = 10 caratteri
       nome = str(p.nome) or p.name, isin = str(p.isin), ticker = str(p.ticker),
       valuta = str(p.valuta) or "EUR", tipo = str(p.tipo),
-      rischio = type(p.rischio) == "number" and p.rischio or nil})  -- p.rischio = attributo KID
+      rischio = type(p.rischio) == "number" and p.rischio or nil,  -- p.rischio = attributo KID
+      descrizione = str(p.descrizione), tags = p.tags})
   end
   table.sort(out, function(a, b) return a.id < b.id end)
   return out
@@ -601,7 +609,7 @@ local function tabella(colonne, righe)
       if type(v) == "table" then
         cella = dom.a {
           style = "cursor:pointer;text-decoration:underline",
-          onclick = function() editor.open("Strumenti/" .. v.id) end,
+          onclick = function() editor.open(v.pagina or ("Strumenti/" .. v.id)) end,
           __rawText = v.nome}
       else
         cella = dom.span {__rawText = v or ""}
@@ -691,6 +699,93 @@ function investimenti.valore(pagina)
     {titolo = "1M", chiave = "m1", allinea = "right"},
     {titolo = "YTD", chiave = "ytd", allinea = "right"},
     {titolo = "1A", chiave = "a1", allinea = "right"},
+  }, righe)
+end
+
+-- tags (stringa o lista) -> lista di stringhe
+local function listaTags(t)
+  if type(t) == "string" then return {t} end
+  local out = {}
+  if type(t) == "table" then
+    for _, x in ipairs(t) do if type(x) == "string" then table.insert(out, x) end end
+  end
+  return out
+end
+
+--- Scheda di uno strumento dal frontmatter: descrizione, tipo/valuta, tag, rischio e link alle quotazioni.
+function investimenti.scheda(pagina)
+  pagina = pagina or editor.getCurrentPage()
+  if type(pagina) ~= "string" or not string.startsWith(pagina, "Strumenti/") then return nil end
+  local id = string.sub(pagina, 11)
+  for _, s in ipairs(investimenti.strumenti()) do
+    if s.id == id then
+      local righe = {}
+      if s.descrizione then table.insert(righe, "**" .. s.descrizione .. "**") end
+      table.insert(righe, (s.tipo or "n.d.") .. " · " .. s.valuta ..
+        (s.isin and (" · ISIN " .. s.isin) or ""))
+      local tags = listaTags(s.tags)
+      if #tags > 0 then table.insert(righe, "Tag: " .. table.concat(tags, ", ")) end
+      table.insert(righe, "Rischio: " .. investimenti.barraRischio(s.rischio) ..
+        " · Quotazioni: [[Quotazioni/" .. id .. "]]")
+      return widget.markdownBlock(table.concat(righe, "\n\n"))
+    end
+  end
+end
+
+--- Elenco di tutti gli strumenti con tipo, valuta, ultimo prezzo, data e rischio.
+function investimenti.elencoStrumenti()
+  local strumenti = investimenti.strumenti()
+  local px = {}
+  for _, p in ipairs(investimenti.ultimiPrezzi(strumenti)) do px[p.id] = p end
+  local righe = {}
+  for _, s in ipairs(strumenti) do
+    local p = px[s.id]
+    table.insert(righe, {nome = {id = s.id, nome = s.nome}, tipo = s.tipo or "",
+      valuta = s.valuta, prezzo = p and string.format("%.4f", p.prezzo) or "n.d.",
+      data = p and p.data or "n.d.", rischio = investimenti.barraRischio(s.rischio)})
+  end
+  return tabella({
+    {titolo = "Strumento", chiave = "nome", allinea = "left"},
+    {titolo = "Tipo", chiave = "tipo", allinea = "left"},
+    {titolo = "Valuta", chiave = "valuta", allinea = "center"},
+    {titolo = "Ultimo prezzo", chiave = "prezzo", allinea = "right"},
+    {titolo = "Data", chiave = "data", allinea = "center"},
+    {titolo = "Rischio", chiave = "rischio", allinea = "left"},
+  }, righe)
+end
+
+--- Elenco di conti e portafogli (sottopagine di Conti/): tipo dal tag, numero di strumenti,
+--- acquistato, attuale, P/L e %. La valorizzazione si calcola una sola volta per tutti.
+function investimenti.elencoConti()
+  local per = {}
+  for _, d in ipairs(investimenti.valorizzazioneDati(nil)) do per[d.id] = d end
+  local righe = {}
+  for _, p in ipairs(query[[
+    from p = index.subPages("Conti")
+    select {name = p.name, nome = p.displayName, tags = p.tags}
+  ]]) do
+    local ids = investimenti.elenco(p.name) or {}
+    local a, i, v = 0, 0, 0
+    for _, id in ipairs(ids) do
+      local d = per[id]
+      if d and d.valore then a, i, v = a + d.acquistato, i + d.incassato, v + d.valore end
+    end
+    local pl = v + i - a
+    local tipo = "Conto"
+    for _, t in ipairs(listaTags(p.tags)) do if t == "Portafoglio" then tipo = "Portafoglio" end end
+    table.insert(righe, {nome = {pagina = p.name, nome = type(p.nome) == "string" and p.nome or p.name},
+      tipo = tipo, n = tostring(#ids), acquistato = f2(a), attuale = f2(v), pl = f2(pl),
+      pct = a > 0 and (f2(pl / a * 100) .. " %") or "n.d."})
+  end
+  table.sort(righe, function(x, y) return x.nome.nome < y.nome.nome end)
+  return tabella({
+    {titolo = "Conto/Portafoglio", chiave = "nome", allinea = "left"},
+    {titolo = "Tipo", chiave = "tipo", allinea = "left"},
+    {titolo = "Strumenti", chiave = "n", allinea = "center"},
+    {titolo = "Acquistato", chiave = "acquistato", allinea = "right"},
+    {titolo = "Attuale", chiave = "attuale", allinea = "right"},
+    {titolo = "P/L", chiave = "pl", allinea = "right"},
+    {titolo = "%", chiave = "pct", allinea = "center"},
   }, righe)
 end
 ```
@@ -1062,12 +1157,18 @@ inTesta(indice, function() return investimenti.valore() end)
 inTesta(indice, function() return investimenti.barrePL() end)
 inTesta(indice, function() return investimenti.torta() end)
 inTesta(indice, function() return investimenti.tortaRischio() end)
--- Conti: valore e ripartizione
-inTesta(sotto("Conti/"), function(p) return investimenti.valore(p) end)
+-- Strumenti (elenco)
+inTesta(function(p) return p == "Strumenti" end, function() return investimenti.elencoStrumenti() end)
+-- Conti (elenco di conti e portafogli)
+inTesta(function(p) return p == "Conti" end, function() return investimenti.elencoConti() end)
+-- Conti/<nome> e portafogli: rischio medio, valorizzazione, ripartizioni
+inTesta(sotto("Conti/"), function(p) return widget.markdown("Rischio (media ponderata): " .. investimenti.rischio(p)) end)
+inTesta(sotto("Conti/"), function(p) return investimenti.valorizzazione(p) end)
 inTesta(sotto("Conti/"), function(p) return investimenti.torta(p) end)
--- Strumenti: rischio e grafico con acquisti
-inTesta(sotto("Strumenti/"), function(p) return widget.markdown("Rischio: " .. investimenti.rischio(p)) end)
+inTesta(sotto("Conti/"), function(p) return investimenti.tortaRischio(p) end)
+-- Strumenti/<id>: scheda dal frontmatter e grafico con acquisti
+inTesta(sotto("Strumenti/"), function(p) return investimenti.scheda(p) end)
 inTesta(sotto("Strumenti/"), function(p) return investimenti.grafico(p) end)
--- Quotazioni: grafico
+-- Quotazioni/<id>: grafico
 inTesta(sotto("Quotazioni/"), function(p) return investimenti.grafico(p) end)
 ```
