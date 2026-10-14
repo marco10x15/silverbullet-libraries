@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.07"
+version: "0.08"
 versionDate: 2026-10-14
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -55,6 +55,22 @@ Ciambelle del valore attuale (EUR): `torta` per strumento, `tortaRischio` per cl
 Dati dei grafici: `serie` restituisce le quotazioni `{data, prezzo}` di `Quotazioni/<id>` in ordine di data; `acquisti` le righe `Acquisto` di `Strumenti/<id>` come `{data, prezzo unitario}`.
 
 - **`id`** (stringa): id dello strumento, cioè il nome della pagina senza prefisso.
+
+### investimenti.performance(ids)
+
+Variazione percentuale per strumento a 1 mese (30 giorni), da inizio anno (YTD, rispetto all'ultima quotazione dell'anno precedente) e a 1 anno (365 giorni), calcolata sulle quotazioni; restituisce una tabella id → `{m1, ytd, a1}`, con `nil` dove lo storico non basta (strumenti a quotazione manuale con un solo prezzo). Per i fondi in USD usa il cambio EURUSD alla data, quindi la variazione è in EUR. È la fonte delle colonne 1M, YTD e 1A di `investimenti.valore`.
+
+- **`ids`** (lista di stringhe, opzionale): id degli strumenti; se omessa, tutti quelli con quotazioni.
+
+### investimenti.barrePL(pagina)
+
+Barre orizzontali (Chart.js) del P/L per strumento, in verde se positivo e in rosso se negativo, ordinate dal maggiore al minore.
+
+- **`pagina`** (stringa, opzionale): come in `investimenti.elenco`.
+
+### Widget automatici
+
+Nessuna chiamata nelle pagine: con `config.set("investimenti.widgetAutomatici", true)` la libreria mostra in testa alle pagine, tramite `hooks:renderTopWidgets`, questi widget: pagina `Index` (nome modificabile con `investimenti.paginaIndice`): `valore`, `barrePL`, `torta`, `tortaRischio`; `Conti/`: `valore` e `torta`; `Strumenti/`: barra di rischio e `grafico`; `Quotazioni/`: `grafico`. Se una pagina ha già le chiamate `${...}` corrispondenti, i widget compaiono due volte: vanno tolte dalla pagina.
 
 ### investimenti.movimenti(pagina)
 
@@ -648,15 +664,20 @@ function investimenti.valorizzazione(pagina)
   }, righe)
 end
 
---- Valorizzazione compatta: investimento, acquistato, attuale, P/L, %. pagina: vedi investimenti.elenco.
+--- Valorizzazione compatta: investimento, acquistato, attuale, P/L, %, performance 1M/YTD/1A.
+--- pagina: vedi investimenti.elenco.
 function investimenti.valore(pagina)
   local ids = investimenti.elenco(pagina)
   if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
   local dati, tot, nd = investimenti.valorizzazioneDati(ids)
+  local perf = investimenti.performance(ids)
+  local function fp(x) return x and string.format("%+.2f %%", x) or "n.d." end
   local righe = {}
   for _, d in ipairs(dati) do
+    local f = perf[d.id] or {}
     table.insert(righe, {nome = {id = d.id, nome = d.nome}, acquistato = f2(d.acquistato),
-      attuale = f2(d.valore), pl = f2(d.pl), pct = d.pct and (f2(d.pct) .. " %") or "n.d."})
+      attuale = f2(d.valore), pl = f2(d.pl), pct = d.pct and (f2(d.pct) .. " %") or "n.d.",
+      m1 = fp(f.m1), ytd = fp(f.ytd), a1 = fp(f.a1)})
   end
   table.insert(righe, {totale = true,
     nome = "TOTALE" .. (nd > 0 and " (esclusi " .. nd .. " senza prezzo)" or ""),
@@ -667,6 +688,9 @@ function investimenti.valore(pagina)
     {titolo = "Attuale", chiave = "attuale", allinea = "right"},
     {titolo = "P/L", chiave = "pl", allinea = "right"},
     {titolo = "%", chiave = "pct", allinea = "center"},
+    {titolo = "1M", chiave = "m1", allinea = "right"},
+    {titolo = "YTD", chiave = "ytd", allinea = "right"},
+    {titolo = "1A", chiave = "a1", allinea = "right"},
   }, righe)
 end
 ```
@@ -896,4 +920,154 @@ function investimenti.rischio(pagina)
   if peso == 0 then return "n.d." end
   return investimenti.barraRischio(somma / peso)
 end
+```
+
+### Performance, barre di P/L e widget automatici
+
+`investimenti.performance` calcola la variazione percentuale a 1 mese (30 giorni), da inizio anno e a 1 anno (365 giorni) con una sola scansione delle quotazioni; per i fondi in USD usa il cambio EURUSD, quindi la variazione è in EUR. `investimenti.barrePL` disegna le barre del P/L per strumento (verde guadagno, rosso perdita). `investimenti.vista` e i listener `hooks:renderTopWidgets` mostrano automaticamente i widget in testa alle pagine, solo se `config.set("investimenti.widgetAutomatici", true)`.
+
+```space-lua
+investimenti = investimenti or {}
+
+local CHARTJS = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+
+-- Ultimo punto {data, prezzo} con data <= limite (serie ordinata), o nil.
+local function finoA(serie, limite)
+  local best
+  for _, p in ipairs(serie) do
+    if p[1] > limite then break end
+    best = p
+  end
+  return best
+end
+
+-- Data ISO meno n giorni.
+local function menoGiorni(d, n)
+  local y, m, g = string.match(d, "^(%d+)-(%d+)-(%d+)")
+  local t = os.time({year = tonumber(y), month = tonumber(m), day = tonumber(g), hour = 12})
+  return os.date("!%Y-%m-%d", t - n * 86400)
+end
+
+--- Variazione % a 1M, YTD e 1A per strumento: tabella id -> {m1, ytd, a1} (nil se manca lo storico).
+--- ids: lista di id; nil = tutti gli strumenti con quotazioni.
+function investimenti.performance(ids)
+  local ammessi
+  if ids then
+    ammessi = {EURUSD = true}
+    for _, id in ipairs(ids) do ammessi[id] = true end
+  end
+  local per = {}
+  for _, r in ipairs(query[[
+    from t = index.tables()
+    where string.startsWith(t.page, "Quotazioni/")
+    select {pagina = t.page, ref = t.ref, giorno = t.data, px = t.prezzo}
+  ]]) do
+    local id = string.sub(r.pagina, 12)  -- "Quotazioni/" = 11 caratteri
+    local pr = tonumber(r.px)
+    if type(r.giorno) == "string" and pr and (not ammessi or ammessi[id]) then
+      per[id] = per[id] or {}
+      table.insert(per[id], {r.giorno, pr})
+    end
+  end
+  for _, s in pairs(per) do table.sort(s, function(a, b) return a[1] < b[1] end) end
+
+  local usd = {}
+  for _, s in ipairs(investimenti.strumenti()) do usd[s.id] = s.valuta == "USD" end
+  local fx = per.EURUSD
+
+  -- prezzo in EUR di un punto della serie
+  local function eur(p, id)
+    if not usd[id] then return p[2] end
+    local f = fx and finoA(fx, p[1])
+    return f and p[2] / f[2]
+  end
+
+  local out = {}
+  for id, s in pairs(per) do
+    if id ~= "EURUSD" and #s >= 2 then
+      local ultimo = s[#s]
+      local v1 = eur(ultimo, id)
+      local function var(limite)
+        local ref = finoA(s, limite)
+        local v0 = ref and eur(ref, id)
+        if v1 and v0 and v0 ~= 0 then return (v1 / v0 - 1) * 100 end
+      end
+      out[id] = {
+        m1 = var(menoGiorni(ultimo[1], 30)),
+        ytd = var(tostring(tonumber(string.sub(ultimo[1], 1, 4)) - 1) .. "-12-31"),
+        a1 = var(menoGiorni(ultimo[1], 365)),
+      }
+    end
+  end
+  return out
+end
+
+-- Script delle barre di P/L: DATI = {etichette, valori}.
+local JS_BARRE = [[
+const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+const txt = dark ? "#ddd" : "#333", grid = "rgba(128,128,128,.25)";
+new Chart(document.getElementById("c"), {type: "bar",
+  data: {labels: DATI.etichette, datasets: [{data: DATI.valori,
+    backgroundColor: DATI.valori.map(function (v) { return v >= 0 ? "#2a9d4a" : "#d6453d"; })}]},
+  options: {indexAxis: "y", responsive: true, maintainAspectRatio: false, animation: false,
+    plugins: {legend: {display: false},
+      title: {display: true, text: "Profitto/perdita per strumento (EUR)", color: txt},
+      tooltip: {callbacks: {label: function (c) { return c.parsed.x.toFixed(2) + " €"; }}}},
+    scales: {x: {ticks: {color: txt}, grid: {color: grid}}, y: {ticks: {color: txt}, grid: {display: false}}}}});
+]]
+
+--- Barre orizzontali del P/L per strumento (verde guadagno, rosso perdita), dal maggiore al minore.
+--- pagina: vedi investimenti.elenco.
+function investimenti.barrePL(pagina)
+  local ids = investimenti.elenco(pagina)
+  if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
+  local righe = {}
+  for _, d in ipairs(investimenti.valorizzazioneDati(ids)) do
+    if d.pl then table.insert(righe, d) end
+  end
+  if #righe == 0 then return widget.markdownBlock("_Nessun P/L da mostrare._") end
+  table.sort(righe, function(a, b) return a.pl > b.pl end)
+  local e, v = {}, {}
+  for _, d in ipairs(righe) do
+    table.insert(e, '"' .. string.gsub(d.nome, '"', "'") .. '"')
+    table.insert(v, string.format("%.2f", d.pl))
+  end
+  local dati = "const DATI = {etichette: [" .. table.concat(e, ",") .. "], valori: [" ..
+    table.concat(v, ",") .. "]};\n"
+  return widget.sandbox {
+    html = '<div style="position:relative;height:' .. (60 + 28 * #righe) .. 'px"><canvas id="c"></canvas></div>',
+    script = 'loadJsByUrl("' .. CHARTJS .. '").then(function () {\n' .. dati .. JS_BARRE .. "\n});",
+    markdown = "P/L per strumento",
+  }
+end
+
+-- Widget automatici in testa alla pagina, attivati da config.set("investimenti.widgetAutomatici", true).
+-- Un listener per widget, ognuno limitato alle pagine indicate. Nome pagina indice: investimenti.paginaIndice.
+local function inTesta(vale, crea)
+  event.listen {
+    name = "hooks:renderTopWidgets",
+    run = function(e)
+      if not config.get("investimenti.widgetAutomatici") then return end
+      local pagina = editor.getCurrentPage()
+      if type(pagina) == "string" and vale(pagina) then return crea(pagina) end
+    end
+  }
+end
+
+local function indice(p) return p == (config.get("investimenti.paginaIndice") or "Index") end
+local function sotto(prefisso) return function(p) return string.startsWith(p, prefisso) end end
+
+-- Index: valore, barre P/L, torte
+inTesta(indice, function() return investimenti.valore() end)
+inTesta(indice, function() return investimenti.barrePL() end)
+inTesta(indice, function() return investimenti.torta() end)
+inTesta(indice, function() return investimenti.tortaRischio() end)
+-- Conti: valore e ripartizione
+inTesta(sotto("Conti/"), function(p) return investimenti.valore(p) end)
+inTesta(sotto("Conti/"), function(p) return investimenti.torta(p) end)
+-- Strumenti: rischio e grafico con acquisti
+inTesta(sotto("Strumenti/"), function(p) return widget.markdown("Rischio: " .. investimenti.rischio(p)) end)
+inTesta(sotto("Strumenti/"), function(p) return investimenti.grafico(p) end)
+-- Quotazioni: grafico
+inTesta(sotto("Quotazioni/"), function(p) return investimenti.grafico(p) end)
 ```
