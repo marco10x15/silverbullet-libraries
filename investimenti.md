@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.02"
+version: "0.03"
 versionDate: 2026-10-14
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -24,6 +24,12 @@ Mostra la valorizzazione in EUR come tabella con le colonne `strumento` (link al
 Quali strumenti includere dipende dalla pagina in cui è usata: in `Conti/<nome>` (conto o portafoglio) quelli elencati nell'attributo `strumento` del frontmatter; in `Strumenti/<id>` solo lo strumento della pagina; altrove tutti gli strumenti.
 
 **pagina** (stringa, opzionale): nome della pagina da cui ricavare l'elenco degli strumenti, per esempio `"Conti/NEF - Famiglia"`. Se omesso, è la pagina aperta nell'editor. Serve per mostrare la valorizzazione di un conto in una pagina diversa, per esempio un cruscotto.
+
+### investimenti.valore(pagina)
+
+Versione compatta di `valorizzazione`: tabella con le sole colonne Investimento (link con `displayName`), Acquistato, Attuale (valore di mercato in EUR), P/L e %, più la riga TOTALE. Stesso calcolo di `valorizzazione`.
+
+- **`pagina`** (stringa, opzionale): come in `investimenti.elenco`; se omessa, la pagina corrente.
 
 ### investimenti.movimenti(pagina)
 
@@ -608,6 +614,28 @@ function investimenti.valorizzazione(pagina)
     {titolo = "incassato", chiave = "incassato", allinea = "right"},
     {titolo = "valore", chiave = "valore", allinea = "right"},
     {titolo = "pl", chiave = "pl", allinea = "right"},
+    {titolo = "%", chiave = "pct", allinea = "center"},
+  }, righe)
+end
+
+--- Valorizzazione compatta: investimento, acquistato, attuale, P/L, %. pagina: vedi investimenti.elenco.
+function investimenti.valore(pagina)
+  local ids = investimenti.elenco(pagina)
+  if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
+  local dati, tot, nd = investimenti.valorizzazioneDati(ids)
+  local righe = {}
+  for _, d in ipairs(dati) do
+    table.insert(righe, {nome = {id = d.id, nome = d.nome}, acquistato = f2(d.acquistato),
+      attuale = f2(d.valore), pl = f2(d.pl), pct = d.pct and (f2(d.pct) .. " %") or "n.d."})
+  end
+  table.insert(righe, {totale = true,
+    nome = "TOTALE" .. (nd > 0 and " (esclusi " .. nd .. " senza prezzo)" or ""),
+    acquistato = f2(tot.a), attuale = f2(tot.v), pl = f2(tot.pl)})
+  return tabella({
+    {titolo = "Investimento", chiave = "nome", allinea = "left"},
+    {titolo = "Acquistato", chiave = "acquistato", allinea = "right"},
+    {titolo = "Attuale", chiave = "attuale", allinea = "right"},
+    {titolo = "P/L", chiave = "pl", allinea = "right"},
     {titolo = "%", chiave = "pct", allinea = "center"},
   }, righe)
 end
