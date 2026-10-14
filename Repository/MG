@@ -41,6 +41,11 @@ uri: github:marco10x15/silverbullet-libraries/Appunti_Readeck.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Appunti_Readeck.md
 description: "Integrazione di readeck in silverbullet."
 ---
+name: "💸 Investimenti"
+uri: github:marco10x15/silverbullet-libraries/investimenti.md
+website: https://github.com/marco10x15/silverbullet-libraries/blob/main/investimenti.md
+description: "Monitoraggio investimenti: movimenti, quotazioni da Yahoo Finance e valorizzazione con P/L per strumento e per conto (versione 0.01, test)."
+---
 name: "⚙️ Le mie configurazioni"
 uri: github:marco10x15/silverbullet-libraries/Mie_Configurazioni.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/Mie_Configurazioni.md
