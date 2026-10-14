@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.03"
+version: "0.04"
 versionDate: 2026-10-14
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -30,6 +30,31 @@ Quali strumenti includere dipende dalla pagina in cui è usata: in `Conti/<nome>
 Versione compatta di `valorizzazione`: tabella con le sole colonne Investimento (link con `displayName`), Acquistato, Attuale (valore di mercato in EUR), P/L e %, più la riga TOTALE. Stesso calcolo di `valorizzazione`.
 
 - **`pagina`** (stringa, opzionale): come in `investimenti.elenco`; se omessa, la pagina corrente.
+
+### investimenti.grafico(pagina)
+
+Grafico lineare delle quotazioni (Chart.js in un widget isolato), con i pulsanti di periodo 7G, 1M, 3M, 6M, YTD, 1A, 5A e Tutto (predefinito 6M). Inserito in una pagina `Quotazioni/<id>` mostra la serie; in una pagina `Strumenti/<id>` aggiunge i punti di acquisto (triangoli, al prezzo unitario pagato). Chart.js viene caricato da cdnjs.
+
+- **`pagina`** (stringa, opzionale): `Quotazioni/<id>` o `Strumenti/<id>`; se omessa, la pagina corrente.
+
+### investimenti.torta(pagina) e investimenti.tortaRischio(pagina)
+
+Ciambelle del valore attuale (EUR): `torta` per strumento, `tortaRischio` per classe di rischio 1-7 letta dall'attributo `rischio` degli strumenti (gli strumenti senza `rischio` vanno in "n.d."). Usano `valorizzazioneDati`, quindi gli strumenti senza prezzo o chiusi non compaiono.
+
+- **`pagina`** (stringa, opzionale): come in `investimenti.elenco`.
+
+### investimenti.rischio(pagina) e investimenti.barraRischio(n)
+
+`rischio` restituisce il testo con la barra di rischio in emoji (es. `🟩🟩🟨🟨🟧⬜⬜ 5/7`): per uno strumento la sua classe, per conti e portafogli la media dei `rischio` ponderata sul valore attuale. `barraRischio` disegna la barra per un numero 1-7 e si può usare in altre tabelle.
+
+- **`pagina`** (stringa, opzionale): come in `investimenti.elenco`.
+- **`n`** (numero): classe di rischio da 1 a 7, arrotondata; se non è un numero restituisce `n.d.`.
+
+### investimenti.serie(id) e investimenti.acquisti(id)
+
+Dati dei grafici: `serie` restituisce le quotazioni `{data, prezzo}` di `Quotazioni/<id>` in ordine di data; `acquisti` le righe `Acquisto` di `Strumenti/<id>` come `{data, prezzo unitario}`.
+
+- **`id`** (stringa): id dello strumento, cioè il nome della pagina senza prefisso.
 
 ### investimenti.movimenti(pagina)
 
@@ -124,6 +149,8 @@ Sono locali ai blocchi di codice e non fanno parte dell'interfaccia.
 - **`fq(x)`**: formatta una quantità con fino a 8 decimali, senza zeri finali.
 - **`data(d)`**: formatta una data ISO come `DD.MM.YYYY` con `date.format` (libreria `DateFormat`); se la libreria manca restituisce la data invariata, se manca la data restituisce `n.d.`.
 - **`nomi(strumenti)`**: costruisce la tabella id → `displayName` a partire dall'elenco degli strumenti.
+- **`js(x)`**: converte un numero o una stringa semplice in testo JavaScript per i dati dei grafici.
+- **`torta(titolo, etichette, valori, colori)`**: costruisce il widget a ciambella usato da `torta` e `tortaRischio`.
 - **`tabella(colonne, righe)`**: costruisce la tabella HTML di un widget, con intestazione, allineamento per colonna, celle con link allo strumento e riga di totale in grassetto.
 
 ## Struttura delle pagine
@@ -140,6 +167,7 @@ isin: "LU0102238655"
 ticker: "0P00000I8A.F"
 tipo: "Fondo"
 valuta: "EUR"
+rischio: 4
 ---
 
 ${investimenti.valorizzazione()}
@@ -149,7 +177,7 @@ ${investimenti.valorizzazione()}
 | 2025-04-01 | Acquisto | 3.983 | 25.11 | 100 | 0 | 0 |
 ```
 
-I tipi di movimento letti sono `Acquisto`, `Vendita` e `Dividendo`. `Valore` è l'importo in valuta dello strumento; per gli strumenti in valuta estera serve anche la colonna `Valore EUR`. Il `ticker` è facoltativo: senza, la quotazione si tiene a mano. Il cambio EUR/USD è lo strumento con id `EURUSD` (`ticker: "EURUSD=X"`, `valuta: "USD"`), senza movimenti.
+I tipi di movimento letti sono `Acquisto`, `Vendita` e `Dividendo`. `Valore` è l'importo in valuta dello strumento; per gli strumenti in valuta estera serve anche la colonna `Valore EUR`. `rischio` (1-7, indicatore del KID) è facoltativo e serve a `rischio` e `tortaRischio`. Il `ticker` è facoltativo: senza, la quotazione si tiene a mano. Il cambio EUR/USD è lo strumento con id `EURUSD` (`ticker: "EURUSD=X"`, `valuta: "USD"`), senza movimenti.
 
 **`Quotazioni/<id>`**: una pagina per strumento con la tabella `| Data | Prezzo |`, la più recente in alto. Non serve frontmatter. Le pagine automatiche sono create da `quotazioni.crea`; per gli strumenti senza `ticker` si crea a mano la pagina con la tabella e si aggiunge una riga a ogni aggiornamento.
 
@@ -194,11 +222,12 @@ function investimenti.strumenti()
   for _, p in ipairs(query[[
     from p = index.subPages("Strumenti")
     select {name = p.name, nome = p.displayName, isin = p.isin, ticker = p.ticker,
-      valuta = p.valuta, tipo = p.tipo}
+      valuta = p.valuta, tipo = p.tipo, rischio = p.rischio}
   ]]) do
     table.insert(out, {id = string.sub(p.name, 11),  -- "Strumenti/" = 10 caratteri
       nome = str(p.nome) or p.name, isin = str(p.isin), ticker = str(p.ticker),
-      valuta = str(p.valuta) or "EUR", tipo = str(p.tipo)})
+      valuta = str(p.valuta) or "EUR", tipo = str(p.tipo),
+      rischio = type(p.rischio) == "number" and p.rischio or nil})
   end
   table.sort(out, function(a, b) return a.id < b.id end)
   return out
@@ -308,7 +337,7 @@ function quotazioni.crea()
   for _, s in ipairs(investimenti.strumenti()) do
     if s.ticker and not space.pageExists("Quotazioni/" .. s.id) then
       space.writePage("Quotazioni/" .. s.id,
-        "# " .. s.nome .. "\n\n| Data | Prezzo |\n|---|---|\n")
+        "# " .. s.nome .. "\n\n${investimenti.grafico()}\n\n| Data | Prezzo |\n|---|---|\n")
       table.insert(create, s.id)
     end
   end
@@ -638,5 +667,232 @@ function investimenti.valore(pagina)
     {titolo = "P/L", chiave = "pl", allinea = "right"},
     {titolo = "%", chiave = "pct", allinea = "center"},
   }, righe)
+end
+```
+
+### Grafici e rischio
+
+`investimenti.serie` e `investimenti.acquisti` leggono quotazioni e acquisti di uno strumento con una query per pagina (l'id è una variabile locale usata nella query). `investimenti.grafico` costruisce il widget Chart.js (via `widget.sandbox` e `loadJsByUrl`) con i pulsanti di periodo; `torta` e `tortaRischio` disegnano le ciambelle; `barraRischio` e `rischio` mostrano la classe 1-7 con emoji.
+
+```space-lua
+investimenti = investimenti or {}
+
+local CHARTJS = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+
+-- JSON minimale: numeri e stringhe semplici (date, nomi senza virgolette)
+local function js(x)
+  if type(x) == "number" then return tostring(x) end
+  if type(x) == "string" then return '"' .. string.gsub(x, '"', "'") .. '"' end
+  return "null"
+end
+
+--- Quotazioni di uno strumento: lista di {data, prezzo}, dalla più vecchia.
+function investimenti.serie(id)
+  local out = {}
+  for _, r in ipairs(query[[
+    from t = index.tables()
+    where t.page == "Quotazioni/" .. id
+    select {ref = t.ref, giorno = t.data, px = t.prezzo}
+  ]]) do
+    local pr = tonumber(r.px)
+    if type(r.giorno) == "string" and pr then table.insert(out, {r.giorno, pr}) end
+  end
+  table.sort(out, function(a, b) return a[1] < b[1] end)
+  return out
+end
+
+--- Acquisti di uno strumento: lista di {data, prezzo unitario in valuta strumento}.
+function investimenti.acquisti(id)
+  local out = {}
+  for _, r in ipairs(query[[
+    from t = index.tables()
+    where t.page == "Strumenti/" .. id and t.tipo == "Acquisto"
+    select {ref = t.ref, giorno = t.data, px = t.prezzo}
+  ]]) do
+    local pr = tonumber(r.px)
+    if type(r.giorno) == "string" and pr then table.insert(out, {r.giorno, pr}) end
+  end
+  table.sort(out, function(a, b) return a[1] < b[1] end)
+  return out
+end
+
+-- Script del grafico lineare: dati in DATI = {serie, acquisti, titolo}.
+local JS_LINEA = [==[
+const RANGE = [["7G",7],["1M",30],["3M",91],["6M",182],["YTD",-1],["1A",365],["5A",1826],["Tutto",0]];
+const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+const txt = dark ? "#ddd" : "#333", grid = "rgba(128,128,128,.25)";
+const ultimo = DATI.serie[DATI.serie.length - 1][0];
+let chart = null;
+function da(r) {
+  if (r[1] === 0) return "0000-00-00";
+  if (r[1] < 0) return ultimo.slice(0, 4) + "-01-01";
+  const d = new Date(ultimo + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - r[1]);
+  return d.toISOString().slice(0, 10);
+}
+function disegna(r) {
+  const da0 = da(r);
+  const s = DATI.serie.filter(function (p) { return p[0] >= da0; });
+  const lab = s.map(function (p) { return p[0]; });
+  const buy = lab.map(function () { return null; });
+  DATI.acquisti.forEach(function (a) {
+    const i = lab.findIndex(function (d) { return d >= a[0]; });
+    if (i >= 0 && a[0] >= da0 && a[0] >= lab[0]) buy[i] = a[1];
+  });
+  const ds = [{label: DATI.titolo, data: s.map(function (p) { return p[1]; }),
+    borderColor: "#2f6fdb", borderWidth: 1.5, pointRadius: 0, tension: 0}];
+  if (DATI.acquisti.length) ds.push({label: "Acquisti", data: buy, showLine: false,
+    pointStyle: "triangle", pointRadius: 7, backgroundColor: "#d9822b", borderColor: "#d9822b"});
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById("c"), {type: "line",
+    data: {labels: lab, datasets: ds},
+    options: {responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: {mode: "nearest", axis: "x", intersect: false},
+      plugins: {legend: {display: DATI.acquisti.length > 0, labels: {color: txt}}},
+      scales: {x: {ticks: {color: txt, maxTicksLimit: 8}, grid: {color: grid}},
+               y: {ticks: {color: txt}, grid: {color: grid}}}}});
+}
+const bar = document.getElementById("b");
+RANGE.forEach(function (r) {
+  const b = document.createElement("button");
+  b.textContent = r[0];
+  b.style.cssText = "margin:0 4px 6px 0;padding:2px 10px;cursor:pointer";
+  b.onclick = function () { disegna(r); };
+  bar.appendChild(b);
+});
+disegna(RANGE[3]);
+]==]
+
+--- Grafico lineare delle quotazioni con pulsanti 7G/1M/3M/6M/YTD/1A/5A/Tutto.
+--- Su Strumenti/ aggiunge i punti di acquisto. pagina: Quotazioni/<id> o Strumenti/<id>.
+function investimenti.grafico(pagina)
+  pagina = pagina or editor.getCurrentPage()
+  if type(pagina) ~= "string" then return nil end
+  local id, conAcquisti
+  if string.startsWith(pagina, "Quotazioni/") then id = string.sub(pagina, 12)
+  elseif string.startsWith(pagina, "Strumenti/") then id, conAcquisti = string.sub(pagina, 11), true
+  else return widget.markdownBlock("_Il grafico vale per pagine Quotazioni/ e Strumenti/._") end
+
+  local serie = investimenti.serie(id)
+  if #serie < 2 then return widget.markdownBlock("_Quotazioni insufficienti per il grafico._") end
+  local acq = conAcquisti and investimenti.acquisti(id) or {}
+
+  local function coppie(lista)
+    local p = {}
+    for _, c in ipairs(lista) do table.insert(p, "[" .. js(c[1]) .. "," .. c[2] .. "]") end
+    return "[" .. table.concat(p, ",") .. "]"
+  end
+  local nome = id
+  for _, s in ipairs(investimenti.strumenti()) do if s.id == id then nome = s.nome end end
+  local dati = "const DATI = {titolo: " .. js(nome) .. ", serie: " .. coppie(serie) ..
+    ", acquisti: " .. coppie(acq) .. "};\n"
+  return widget.sandbox {
+    html = '<div id="b"></div><div style="position:relative;height:300px"><canvas id="c"></canvas></div>',
+    script = 'loadJsByUrl("' .. CHARTJS .. '").then(function () {\n' .. dati ..
+      JS_LINEA .. "\n});",
+    markdown = "Grafico " .. nome,
+  }
+end
+
+-- Script della ciambella: DATI = {etichette, valori, colori}.
+local JS_TORTA = [==[
+const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+const tot = DATI.valori.reduce(function (a, b) { return a + b; }, 0);
+new Chart(document.getElementById("c"), {type: "doughnut",
+  data: {labels: DATI.etichette, datasets: [{data: DATI.valori, backgroundColor: DATI.colori,
+    borderColor: dark ? "#1e1e1e" : "#fff"}]},
+  options: {responsive: true, maintainAspectRatio: false, animation: false,
+    plugins: {legend: {position: "right", labels: {color: dark ? "#ddd" : "#333"}},
+      title: {display: true, text: DATI.titolo, color: dark ? "#ddd" : "#333"},
+      tooltip: {callbacks: {label: function (c) {
+        return c.label + ": " + c.parsed.toFixed(2) + " € (" + (c.parsed / tot * 100).toFixed(1) + " %)";
+      }}}}}});
+]==]
+
+local COLORI = {"#2f6fdb", "#d9822b", "#2a9d8f", "#9b5de5", "#e4572e", "#76b041", "#f2c14e", "#7d8597", "#c1666b", "#4ecdc4"}
+local COLORI_RISCHIO = {"#2a9d4a", "#76b041", "#c8c63a", "#f2c14e", "#e8923a", "#e4572e", "#b3202a"}
+
+local function torta(titolo, etichette, valori, colori)
+  local e, v, c = {}, {}, {}
+  for i = 1, #etichette do
+    table.insert(e, js(etichette[i]))
+    table.insert(v, string.format("%.2f", valori[i]))
+    table.insert(c, js(colori[i]))
+  end
+  local dati = "const DATI = {titolo: " .. js(titolo) .. ", etichette: [" .. table.concat(e, ",") ..
+    "], valori: [" .. table.concat(v, ",") .. "], colori: [" .. table.concat(c, ",") .. "]};\n"
+  return widget.sandbox {
+    html = '<div style="position:relative;height:260px"><canvas id="c"></canvas></div>',
+    script = 'loadJsByUrl("' .. CHARTJS .. '").then(function () {\n' .. dati .. JS_TORTA .. "\n});",
+    markdown = titolo,
+  }
+end
+
+--- Ciambella della ripartizione del valore attuale per strumento. pagina: vedi investimenti.elenco.
+function investimenti.torta(pagina)
+  local ids = investimenti.elenco(pagina)
+  if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
+  local dati = investimenti.valorizzazioneDati(ids)
+  local e, v, c = {}, {}, {}
+  for _, d in ipairs(dati) do
+    if d.valore and d.valore > 0 then
+      table.insert(e, d.nome)
+      table.insert(v, d.valore)
+      table.insert(c, COLORI[(#e - 1) % #COLORI + 1])
+    end
+  end
+  if #v == 0 then return widget.markdownBlock("_Nessun valore da mostrare._") end
+  return torta("Valore per strumento (EUR)", e, v, c)
+end
+
+--- Ciambella del valore attuale per classe di rischio (attributo rischio 1-7 degli strumenti).
+function investimenti.tortaRischio(pagina)
+  local ids = investimenti.elenco(pagina)
+  if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
+  local rischio = {}
+  for _, s in ipairs(investimenti.strumenti()) do rischio[s.id] = s.rischio end
+  local per = {}   -- classe (0 = non indicata) -> valore
+  for _, d in ipairs(investimenti.valorizzazioneDati(ids)) do
+    if d.valore and d.valore > 0 then
+      local k = rischio[d.id] or 0
+      per[k] = (per[k] or 0) + d.valore
+    end
+  end
+  local e, v, c = {}, {}, {}
+  for k = 0, 7 do
+    if per[k] then
+      table.insert(e, k == 0 and "n.d." or ("Rischio " .. k))
+      table.insert(v, per[k])
+      table.insert(c, k == 0 and "#7d8597" or COLORI_RISCHIO[k])
+    end
+  end
+  if #v == 0 then return widget.markdownBlock("_Nessun valore da mostrare._") end
+  return torta("Valore per classe di rischio (KID, 1-7)", e, v, c)
+end
+
+--- Barra di rischio in emoji: n quadrati colorati su 7 (verde, giallo, arancio, rosso) e n/7.
+function investimenti.barraRischio(n)
+  if type(n) ~= "number" then return "n.d." end
+  n = math.max(0, math.min(7, math.floor(n + 0.5)))
+  local col = {"🟩", "🟩", "🟨", "🟨", "🟧", "🟧", "🟥"}
+  local out = {}
+  for i = 1, 7 do table.insert(out, i <= n and col[i] or "⬜") end
+  return table.concat(out) .. " " .. n .. "/7"
+end
+
+--- Rischio come testo: barra emoji dello strumento, o media ponderata sul valore per conti/portafogli.
+function investimenti.rischio(pagina)
+  local ids = investimenti.elenco(pagina)
+  if not ids or #ids == 0 then return "n.d." end
+  local rischio = {}
+  for _, s in ipairs(investimenti.strumenti()) do rischio[s.id] = s.rischio end
+  if #ids == 1 then return investimenti.barraRischio(rischio[ids[1]]) end
+  local somma, peso = 0, 0
+  for _, d in ipairs(investimenti.valorizzazioneDati(ids)) do
+    local r = rischio[d.id]
+    if r and d.valore and d.valore > 0 then somma, peso = somma + r * d.valore, peso + d.valore end
+  end
+  if peso == 0 then return "n.d." end
+  return investimenti.barraRischio(somma / peso)
 end
 ```
