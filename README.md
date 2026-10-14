@@ -20,7 +20,7 @@ Pianificazione e gestione dei viaggi in SilverBullet: Viaggi, Giorni, Luoghi, ri
 Ricerca dati e immagini di un luogo da Wikidata/Wikipedia, creazione e verifica delle pagine Luogo (versione 0.03, test).
 
 ### 💸 Investimenti
-Monitoraggio investimenti: movimenti per strumento, quotazioni storiche da Yahoo Finance e valorizzazione con profitto/perdita per strumento e per conto (versione 0.02, test).
+Monitoraggio investimenti: movimenti per strumento, quotazioni storiche da Yahoo Finance e valorizzazione con profitto/perdita per strumento e per conto (versione 0.03, test).
 
 ### 📔 Appunti Readeck
 Integrazione di readeck in silverbullet."
