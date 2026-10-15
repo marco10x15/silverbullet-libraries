@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.10"
+version: "0.11"
 versionDate: 2026-10-14
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -9,7 +9,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 
 # 💸 Investimenti
 
-**Versione:** 0.10 — 15.10.2026
+**Versione:** 0.02 — 14.10.2026 (test)
 
 Libreria per monitorare gli investimenti con pagine Markdown: movimenti per strumento, quotazioni storiche scaricate da Yahoo Finance e valorizzazione con profitto/perdita (P/L), per singolo strumento, per conto o per portafoglio. Le pagine Markdown restano la fonte primaria; la libreria scrive solo nelle pagine `Quotazioni/<id>`, con `quotazioni.crea` e `quotazioni.aggiorna`.
 
@@ -79,7 +79,7 @@ Viste costruite dal frontmatter. `scheda` (pagine `Strumenti/<id>`): descrizione
 Nessuna chiamata nelle pagine: `investimenti.vista(pagina)` elenca i widget di ogni pagina (funzioni, non ancora calcolate) e la libreria li mostra in testa con uno di due modi, scelti con `config.set("investimenti.widgetAutomatici", ...)`.
 
 - **`true`**: listener `hooks:renderTopWidgets`, uno per posizione. Funziona con le versioni attuali di SilverBullet v2.
-- **`"view"`**: `view.define` (Navigator, documentato come *beta*): una sola vista `investimenti.pagina` ancorata in alto (`dock = "page-top"`, `frame = "minimal"`), con contenuto ricalcolato a ogni navigazione (`refreshOn = {"navigate"}`) e nascosta se vuota. Richiede una versione che include `view.define`; senza, la registrazione viene saltata. Non ho potuto verificare che il contenuto possa includere widget isolati (grafici) dentro un `dom.div`.
+- **`"view"`**: `view.define` (Navigator, documentato come *beta*): quattro viste `investimenti.pagina1`…`4`, una per posizione, ancorate in alto (`dock = "page-top"`, `frame = "minimal"`), con contenuto ricalcolato a ogni navigazione (`refreshOn = {"navigate"}`) e nascoste se vuote. Il contenuto di una vista è un solo widget: i widget non si possono annidare in un `dom.div` (errore `Node.appendChild: Argument 1 is not an object`). Richiede una versione che include `view.define`; senza, la registrazione viene saltata.
 
 Pagine gestite: `Index` (nome modificabile con `investimenti.paginaIndice`): `valore`, `barrePL`, `torta`, `tortaRischio`; `Strumenti`: `elencoStrumenti`; `Conti`: `elencoConti`; `Conti/<nome>` e portafogli: rischio medio, `valorizzazione`, `torta`, `tortaRischio`; `Strumenti/<id>`: `scheda`, `valorizzazione`, `grafico`; `Quotazioni/<id>`: `grafico`. Se una pagina ha già le chiamate `${...}` corrispondenti, i widget compaiono due volte: vanno tolte dalla pagina. Con un solo strumento la tabella non ha la riga TOTALE.
 
@@ -1172,24 +1172,25 @@ for i = 1, 4 do
 end
 
 -- Modo 2: view.define (config.set("investimenti.widgetAutomatici", "view")), solo se l'API esiste.
--- Una vista ancorata in alto alla pagina, senza cornice, che si aggiorna a ogni navigazione e si
--- nasconde da sola quando il contenuto è vuoto.
+-- Come nel modo 1, una vista per posizione (page-top, senza cornice, aggiornata a ogni navigazione,
+-- nascosta da sola se il contenuto è vuoto): content restituisce un solo widget, mentre un dom.div
+-- con widget come figli dà "Node.appendChild: Argument 1 is not an object".
 if type(view) == "table" and type(view.define) == "function" then
-  view.define {
-    name = "investimenti.pagina",
-    title = "Investimenti",
-    dock = "page-top",
-    frame = "minimal",
-    widget = widget.new {
-      refreshOn = {"navigate"},
-      content = function()
-        if config.get("investimenti.widgetAutomatici") ~= "view" then return nil end
-        local figli = {}
-        for _, f in ipairs(investimenti.vista()) do table.insert(figli, f()) end
-        if #figli == 0 then return nil end
-        return dom.div(figli)
-      end
+  for i = 1, 4 do
+    view.define {
+      name = "investimenti.pagina" .. i,
+      title = "Investimenti",
+      dock = "page-top",
+      frame = "minimal",
+      widget = widget.new {
+        refreshOn = {"navigate"},
+        content = function()
+          if config.get("investimenti.widgetAutomatici") ~= "view" then return nil end
+          local f = investimenti.vista()[i]
+          if f then return f() end
+        end
+      }
     }
-  }
+  end
 end
 ```
