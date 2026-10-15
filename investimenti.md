@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.11a"
+version: "0.11"
 versionDate: 2026-10-14
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -9,7 +9,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 
 # 💸 Investimenti
 
-**Versione:** 0.11a — 15.10.2026
+**Versione:** 0.02 — 14.10.2026 (test)
 
 Libreria per monitorare gli investimenti con pagine Markdown: movimenti per strumento, quotazioni storiche scaricate da Yahoo Finance e valorizzazione con profitto/perdita (P/L), per singolo strumento, per conto o per portafoglio. Le pagine Markdown restano la fonte primaria; la libreria scrive solo nelle pagine `Quotazioni/<id>`, con `quotazioni.crea` e `quotazioni.aggiorna`.
 
@@ -19,7 +19,7 @@ Richiede la libreria `DateFormat` per formattare la data dei prezzi; senza, la d
 
 ### investimenti.valorizzazione(pagina)
 
-Mostra la valorizzazione in EUR come tabella con le colonne `strumento` (link allo strumento, con il suo `displayName`), `quote`, `prezzo_eur`, `data_prezzo`, `acquistato`, `incassato`, `valore`, `pl` e `%`, più una riga TOTALE in grassetto. P/L = valore + incassato − acquistato, al lordo di imposte e commissioni di conto. Le colonne numeriche sono allineate a destra con due decimali (`quote` con fino a 8 decimali, senza zeri finali), `%` è centrata con il simbolo `%`. I prezzi in USD sono convertiti dividendo per l'ultimo prezzo dello strumento `EURUSD` (cambio USD per 1 EUR). Una posizione chiusa vale 0; uno strumento senza prezzo mostra `n.d.` ed è escluso dal totale, che lo segnala. Il prezzo è mostrato con due decimali: un prezzo come 0,9990 appare come 1,00, mentre il valore è calcolato con il prezzo completo.
+Mostra la valorizzazione in EUR come tabella con le colonne `strumento` (link allo strumento, con il suo `displayName`), `quote`, `prezzo_eur`, `data_prezzo`, `acquistato`, `incassato`, `valore`, `pl` e `%`, più una riga TOTALE in grassetto quando gli strumenti sono più di uno. Sotto i 600 px ogni riga diventa una scheda. P/L = valore + incassato − acquistato, al lordo di imposte e commissioni di conto. Le colonne numeriche sono allineate a destra con due decimali (`quote` con fino a 8 decimali, senza zeri finali), `%` è centrata con il simbolo `%`. I prezzi in USD sono convertiti dividendo per l'ultimo prezzo dello strumento `EURUSD` (cambio USD per 1 EUR). Una posizione chiusa vale 0; uno strumento senza prezzo mostra `n.d.` ed è escluso dal totale, che lo segnala. Il prezzo è mostrato con due decimali: un prezzo come 0,9990 appare come 1,00, mentre il valore è calcolato con il prezzo completo.
 
 Quali strumenti includere dipende dalla pagina in cui è usata: in `Conti/<nome>` (conto o portafoglio) quelli elencati nell'attributo `strumento` del frontmatter; in `Strumenti/<id>` solo lo strumento della pagina; altrove tutti gli strumenti.
 
@@ -735,23 +735,6 @@ function investimenti.valorizzazione(pagina)
       prezzo_eur = f2(d.prezzo), data_prezzo = d.prezzo and data(d.data) or "n.d.",
       acquistato = f2(d.acquistato), incassato = f2(d.incassato), valore = f2(d.valore),
       pl = f2(d.pl), pct = d.pct and (f2(d.pct) .. " %") or "n.d."})
-  end
-  if #dati == 1 then   -- strumento singolo: elenco verticale campo/valore
-    local d = dati[1]
-    return tabella({
-      {titolo = "Campo", chiave = "campo", allinea = "left"},
-      {titolo = "Valore", chiave = "valore", allinea = "right"},
-    }, {
-      {campo = "Strumento", valore = {id = d.id, nome = d.nome}},
-      {campo = "Quote", valore = fq(d.quote)},
-      {campo = "Prezzo (EUR)", valore = f2(d.prezzo)},
-      {campo = "Data prezzo", valore = d.prezzo and data(d.data) or "n.d."},
-      {campo = "Acquistato", valore = f2(d.acquistato)},
-      {campo = "Incassato", valore = f2(d.incassato)},
-      {campo = "Valore", valore = f2(d.valore)},
-      {campo = "P/L", valore = f2(d.pl)},
-      {campo = "%", valore = d.pct and (f2(d.pct) .. " %") or "n.d."},
-    }, true)
   end
   if #dati > 1 then table.insert(righe, {totale = true,
     strumento = "TOTALE" .. (nd > 0 and " (esclusi " .. nd .. " senza prezzo)" or ""),
