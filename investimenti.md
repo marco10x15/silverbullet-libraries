@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.11"
+version: "0.11a"
 versionDate: 2026-10-14
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -9,7 +9,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 
 # 💸 Investimenti
 
-**Versione:** 0.02 — 14.10.2026 (test)
+**Versione:** 0.11a — 15.10.2026
 
 Libreria per monitorare gli investimenti con pagine Markdown: movimenti per strumento, quotazioni storiche scaricate da Yahoo Finance e valorizzazione con profitto/perdita (P/L), per singolo strumento, per conto o per portafoglio. Le pagine Markdown restano la fonte primaria; la libreria scrive solo nelle pagine `Quotazioni/<id>`, con `quotazioni.crea` e `quotazioni.aggiorna`.
 
@@ -40,6 +40,12 @@ Grafico lineare delle quotazioni (Chart.js in un widget isolato), con i pulsanti
 ### investimenti.torta(pagina) e investimenti.tortaRischio(pagina)
 
 Ciambelle del valore attuale (EUR): `torta` per strumento, `tortaRischio` per classe di rischio 1-7 letta dall'attributo `KID` degli strumenti (gli strumenti senza `KID` vanno in "n.d."). Usano `valorizzazioneDati`, quindi gli strumenti senza prezzo o chiusi non compaiono.
+
+- **`pagina`** (stringa, opzionale): come in `investimenti.elenco`.
+
+### investimenti.allocazione(pagina)
+
+Le due ciambelle (valore per strumento e valore per classe di rischio KID) in un solo widget con griglia CSS `auto-fit`: affiancate su schermo largo, impilate su schermo stretto. Sostituisce la coppia `torta` + `tortaRischio` nelle viste automatiche; le due funzioni restano disponibili singolarmente.
 
 - **`pagina`** (stringa, opzionale): come in `investimenti.elenco`.
 
@@ -78,7 +84,7 @@ Viste costruite dal frontmatter. `scheda` (pagine `Strumenti/<id>`): descrizione
 
 Nessuna chiamata nelle pagine: `investimenti.vista(pagina)` elenca i widget di ogni pagina (funzioni, non ancora calcolate) e la libreria li mostra in testa con listener `hooks:renderTopWidgets`, uno per posizione, se `config.set("investimenti.widgetAutomatici", true)`. `view.define` non è usato: il contenuto di una vista non può essere un widget isolato (`navigator: content cannot return a sandboxed widget`) né un `dom.div` con widget come figli.
 
-Pagine gestite: `Index` (nome modificabile con `investimenti.paginaIndice`): `valore`, `barrePL`, `torta`, `tortaRischio`; `Strumenti`: `elencoStrumenti`; `Conti`: `elencoConti`; `Conti/<nome>` e portafogli: rischio medio, `valorizzazione`, `torta`, `tortaRischio`; `Strumenti/<id>`: `scheda`, `valorizzazione`, `grafico`; `Quotazioni/<id>`: `grafico`. Se una pagina ha già le chiamate `${...}` corrispondenti, i widget compaiono due volte: vanno tolte dalla pagina. Con un solo strumento la tabella non ha la riga TOTALE.
+Pagine gestite: `Index` (nome modificabile con `investimenti.paginaIndice`): `valore`, `barrePL`, `allocazione`; `Strumenti`: `elencoStrumenti`; `Conti`: `elencoConti`; `Conti/<nome>` e portafogli: rischio medio, `valorizzazione`, `allocazione`; `Strumenti/<id>`: `scheda`, `valorizzazione`, `grafico`; `Quotazioni/<id>`: `grafico`. Se una pagina ha già le chiamate `${...}` corrispondenti, i widget compaiono due volte: vanno tolte dalla pagina. Con un solo strumento `valorizzazione` è un elenco verticale campo/valore, senza intestazione e senza riga TOTALE.
 
 ### investimenti.movimenti(pagina)
 
@@ -175,7 +181,8 @@ Sono locali ai blocchi di codice e non fanno parte dell'interfaccia.
 - **`nomi(strumenti)`**: costruisce la tabella id → `displayName` a partire dall'elenco degli strumenti.
 - **`js(x)`**: converte un numero o una stringa semplice in testo JavaScript per i dati dei grafici.
 - **`torta(titolo, etichette, valori, colori)`**: costruisce il widget a ciambella usato da `torta` e `tortaRischio`.
-- **`tabella(colonne, righe)`**: costruisce la tabella HTML di un widget, con intestazione, allineamento per colonna, celle con link (allo strumento, o alla pagina indicata in `pagina`) e riga di totale in grassetto.
+- **`tabella(colonne, righe, verticale)`**: costruisce la tabella come widget isolato, con allineamento per colonna, celle con link (allo strumento, o alla pagina indicata in `pagina`) e riga di totale in grassetto. Sotto i 600 px di larghezza ogni riga diventa una scheda (etichetta e valore per ogni campo); con `verticale = true` è un elenco campo/valore senza intestazione. Il contenuto Markdown del widget alimenta il pulsante Copia.
+- **`jt(x)`**: converte un numero o una stringa in testo JavaScript, con escape di barre inverse, virgolette e a capo.
 
 ## Struttura delle pagine
 
@@ -589,42 +596,113 @@ local function nomi(strumenti)
   return out
 end
 
--- Tabella HTML: colonne {titolo, chiave, allinea}; righe {chiave = testo | {id, nome}, totale = bool}.
-local function tabella(colonne, righe)
-  local base = "padding:2px 10px;text-align:"
-  -- figli posizionali (modo documentato di dom.<tag>): si riempie la tabella degli attributi
-  local th = {}
-  for _, c in ipairs(colonne) do
-    table.insert(th, dom.th {
-      style = base .. c.allinea .. ";border-bottom:1px solid currentColor",
-      __rawText = c.titolo})
-  end
+-- Testo JavaScript per numeri e stringhe (escape di \\, virgolette e a capo).
+local function jt(x)
+  if type(x) == "number" then return tostring(x) end
+  if type(x) ~= "string" then return '""' end
+  local t = string.gsub(x, "\\", "\\\\")
+  t = string.gsub(t, '"', '\\"')
+  t = string.gsub(t, "\n", " ")
+  return '"' .. t .. '"'
+end
 
-  local tbody = {}
+-- Stile della tabella nel widget isolato: sotto 600 px ogni riga diventa una scheda
+-- (etichetta e valore per ogni campo); .v = elenco verticale, senza modalità scheda.
+local CSS_TABELLA = [[
+body{margin:0;font:14px system-ui,sans-serif}
+@media (prefers-color-scheme: dark){body{color:#ddd}}
+table{border-collapse:collapse;width:100%}
+th,td{padding:2px 10px}
+th{border-bottom:1px solid currentColor}
+tr.t td{font-weight:bold;border-top:1px solid currentColor}
+a{cursor:pointer;text-decoration:underline}
+.l{text-align:left}.r{text-align:right}.c{text-align:center}
+table.v td:first-child{font-weight:bold}
+@media (max-width:600px){
+ table.m thead{display:none}
+ table.m tr{display:block;padding:6px 0;border-bottom:1px solid rgba(128,128,128,.4)}
+ table.m td{display:flex;justify-content:space-between;gap:12px;text-align:right}
+ table.m td::before{content:attr(data-l);font-weight:bold;text-align:left}
+ table.m td:first-child{font-weight:bold}
+ table.m td:first-child::before{content:none}
+}
+]]
+
+-- Script della tabella: DATI = {vert, cols: [{t, a}], rows: [{tot, c: [testo | {n, p}]}]}.
+local JS_TABELLA = [[
+const t = document.createElement("table");
+t.className = DATI.vert ? "v" : "m";
+if (!DATI.vert) {
+  const tr = document.createElement("tr");
+  DATI.cols.forEach(function (c) {
+    const th = document.createElement("th");
+    th.className = c.a;
+    th.textContent = c.t;
+    tr.appendChild(th);
+  });
+  const th = document.createElement("thead");
+  th.appendChild(tr);
+  t.appendChild(th);
+}
+const tb = document.createElement("tbody");
+DATI.rows.forEach(function (r) {
+  const tr = document.createElement("tr");
+  if (r.tot) tr.className = "t";
+  r.c.forEach(function (v, i) {
+    const td = document.createElement("td");
+    td.className = DATI.cols[i].a;
+    td.setAttribute("data-l", DATI.cols[i].t);
+    if (typeof v === "object") {
+      const a = document.createElement("a");
+      a.textContent = v.n;
+      a.onclick = function () { syscall("editor.navigate", v.p); };
+      td.appendChild(a);
+    } else {
+      td.textContent = v;
+    }
+    tr.appendChild(td);
+  });
+  tb.appendChild(tr);
+});
+t.appendChild(tb);
+document.getElementById("t").appendChild(t);
+]]
+
+-- Tabella in un widget isolato. colonne: {titolo, chiave, allinea (left|right|center)};
+-- righe: {chiave = testo | {id, nome} | {pagina, nome}, totale = bool}; verticale = elenco
+-- campo/valore senza intestazione né modalità scheda. Il contenuto Markdown serve al pulsante Copia.
+local function tabella(colonne, righe, verticale)
+  local sigla = {left = "l", right = "r", center = "c"}
+  local cols, rows, md = {}, {}, {}
+  for _, c in ipairs(colonne) do
+    table.insert(cols, '{"t":' .. jt(c.titolo) .. ',"a":"' .. (sigla[c.allinea] or "l") .. '"}')
+  end
+  local testa, riga = {}, {}
+  for _, c in ipairs(colonne) do table.insert(testa, c.titolo); table.insert(riga, "---") end
+  table.insert(md, "| " .. table.concat(testa, " | ") .. " |")
+  table.insert(md, "|" .. table.concat(riga, "|") .. "|")
   for _, r in ipairs(righe) do
-    local tds = {}
+    local celle, testo = {}, {}
     for _, c in ipairs(colonne) do
       local v = r[c.chiave]
-      local stile = base .. c.allinea ..
-        (r.totale and ";font-weight:bold;border-top:1px solid currentColor" or "")
-      local cella
       if type(v) == "table" then
-        cella = dom.a {
-          style = "cursor:pointer;text-decoration:underline",
-          onclick = function() editor.open(v.pagina or ("Strumenti/" .. v.id)) end,
-          __rawText = v.nome}
+        table.insert(celle, '{"n":' .. jt(v.nome) .. ',"p":' .. jt(v.pagina or ("Strumenti/" .. v.id)) .. '}')
+        table.insert(testo, v.nome)
       else
-        cella = dom.span {__rawText = v or ""}
+        table.insert(celle, jt(v or ""))
+        table.insert(testo, v or "")
       end
-      table.insert(tds, dom.td {style = stile, cella})
     end
-    table.insert(tbody, dom.tr(tds))
+    table.insert(rows, '{"tot":' .. (r.totale and "true" or "false") .. ',"c":[' .. table.concat(celle, ",") .. "]}")
+    table.insert(md, "| " .. table.concat(testo, " | ") .. " |")
   end
-
-  return widget.htmlBlock(dom.table {
-    style = "border-collapse:collapse",
-    dom.thead {dom.tr(th)},
-    dom.tbody(tbody)})
+  local dati = "const DATI = {vert: " .. (verticale and "true" or "false") .. ', cols: [' ..
+    table.concat(cols, ",") .. "], rows: [" .. table.concat(rows, ",") .. "]};\n"
+  return widget.sandbox {
+    html = "<style>" .. CSS_TABELLA .. '</style><div id="t"></div>',
+    script = dati .. JS_TABELLA,
+    markdown = table.concat(md, "\n"),
+  }
 end
 
 --- Movimenti aggregati per strumento, come tabella. pagina: vedi investimenti.elenco.
@@ -657,6 +735,23 @@ function investimenti.valorizzazione(pagina)
       prezzo_eur = f2(d.prezzo), data_prezzo = d.prezzo and data(d.data) or "n.d.",
       acquistato = f2(d.acquistato), incassato = f2(d.incassato), valore = f2(d.valore),
       pl = f2(d.pl), pct = d.pct and (f2(d.pct) .. " %") or "n.d."})
+  end
+  if #dati == 1 then   -- strumento singolo: elenco verticale campo/valore
+    local d = dati[1]
+    return tabella({
+      {titolo = "Campo", chiave = "campo", allinea = "left"},
+      {titolo = "Valore", chiave = "valore", allinea = "right"},
+    }, {
+      {campo = "Strumento", valore = {id = d.id, nome = d.nome}},
+      {campo = "Quote", valore = fq(d.quote)},
+      {campo = "Prezzo (EUR)", valore = f2(d.prezzo)},
+      {campo = "Data prezzo", valore = d.prezzo and data(d.data) or "n.d."},
+      {campo = "Acquistato", valore = f2(d.acquistato)},
+      {campo = "Incassato", valore = f2(d.incassato)},
+      {campo = "Valore", valore = f2(d.valore)},
+      {campo = "P/L", valore = f2(d.pl)},
+      {campo = "%", valore = d.pct and (f2(d.pct) .. " %") or "n.d."},
+    }, true)
   end
   if #dati > 1 then table.insert(righe, {totale = true,
     strumento = "TOTALE" .. (nd > 0 and " (esclusi " .. nd .. " senza prezzo)" or ""),
@@ -911,61 +1006,69 @@ function investimenti.grafico(pagina)
   }
 end
 
--- Script della ciambella: DATI = {etichette, valori, colori}.
+-- Script delle ciambelle: GRAFICI = lista di {id, titolo, etichette, valori, colori}.
 local JS_TORTA = [[
 const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-const tot = DATI.valori.reduce(function (a, b) { return a + b; }, 0);
-new Chart(document.getElementById("c"), {type: "doughnut",
-  data: {labels: DATI.etichette, datasets: [{data: DATI.valori, backgroundColor: DATI.colori,
-    borderColor: dark ? "#1e1e1e" : "#fff"}]},
-  options: {responsive: true, maintainAspectRatio: false, animation: false,
-    plugins: {legend: {position: "right", labels: {color: dark ? "#ddd" : "#333"}},
-      title: {display: true, text: DATI.titolo, color: dark ? "#ddd" : "#333"},
-      tooltip: {callbacks: {label: function (c) {
-        return c.label + ": " + c.parsed.toFixed(2) + " € (" + (c.parsed / tot * 100).toFixed(1) + " %)";
-      }}}}}});
+const col = dark ? "#ddd" : "#333";
+GRAFICI.forEach(function (g) {
+  const tot = g.valori.reduce(function (a, b) { return a + b; }, 0);
+  new Chart(document.getElementById(g.id), {type: "doughnut",
+    data: {labels: g.etichette, datasets: [{data: g.valori, backgroundColor: g.colori,
+      borderColor: dark ? "#1e1e1e" : "#fff"}]},
+    options: {responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {legend: {position: "bottom", labels: {color: col}},
+        title: {display: true, text: g.titolo, color: col},
+        tooltip: {callbacks: {label: function (c) {
+          return c.label + ": " + c.parsed.toFixed(2) + " € (" + (c.parsed / tot * 100).toFixed(1) + " %)";
+        }}}}}});
+});
 ]]
 
 local COLORI = {"#2f6fdb", "#d9822b", "#2a9d8f", "#9b5de5", "#e4572e", "#76b041", "#f2c14e", "#7d8597", "#c1666b", "#4ecdc4"}
 local COLORI_RISCHIO = {"#2a9d4a", "#76b041", "#c8c63a", "#f2c14e", "#e8923a", "#e4572e", "#b3202a"}
 
-local function torta(titolo, etichette, valori, colori)
-  local e, v, c = {}, {}, {}
-  for i = 1, #etichette do
-    table.insert(e, js(etichette[i]))
-    table.insert(v, string.format("%.2f", valori[i]))
-    table.insert(c, js(colori[i]))
+-- Un solo widget con una o più ciambelle: griglia CSS auto-fit, quindi affiancate su schermo
+-- largo e impilate su schermo stretto. specs: lista di {titolo, etichette, valori, colori}.
+local function torte(specs)
+  local celle, grafici = {}, {}
+  for i, sp in ipairs(specs) do
+    local e, v, c = {}, {}, {}
+    for k = 1, #sp.etichette do
+      table.insert(e, js(sp.etichette[k]))
+      table.insert(v, string.format("%.2f", sp.valori[k]))
+      table.insert(c, js(sp.colori[k]))
+    end
+    table.insert(grafici, "{id: \"g" .. i .. "\", titolo: " .. js(sp.titolo) .. ", etichette: [" ..
+      table.concat(e, ",") .. "], valori: [" .. table.concat(v, ",") .. "], colori: [" ..
+      table.concat(c, ",") .. "]}")
+    table.insert(celle, '<div style="position:relative;height:280px"><canvas id="g' .. i .. '"></canvas></div>')
   end
-  local dati = "const DATI = {titolo: " .. js(titolo) .. ", etichette: [" .. table.concat(e, ",") ..
-    "], valori: [" .. table.concat(v, ",") .. "], colori: [" .. table.concat(c, ",") .. "]};\n"
+  local titoli = {}
+  for _, sp in ipairs(specs) do table.insert(titoli, sp.titolo) end
   return widget.sandbox {
-    html = '<div style="position:relative;height:260px"><canvas id="c"></canvas></div>',
-    script = 'loadJsByUrl("' .. CHARTJS .. '").then(function () {\n' .. dati .. JS_TORTA .. "\n});",
-    markdown = titolo,
+    html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">' ..
+      table.concat(celle) .. "</div>",
+    script = 'loadJsByUrl("' .. CHARTJS .. '").then(function () {\nconst GRAFICI = [' ..
+      table.concat(grafici, ",") .. "];\n" .. JS_TORTA .. "\n});",
+    markdown = table.concat(titoli, " / "),
   }
 end
 
---- Ciambella della ripartizione del valore attuale per strumento. pagina: vedi investimenti.elenco.
-function investimenti.torta(pagina)
-  local ids = investimenti.elenco(pagina)
-  if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
-  local dati = investimenti.valorizzazioneDati(ids)
+-- Dati della ciambella per strumento, o nil se non c'è nulla da mostrare.
+local function specValore(ids)
   local e, v, c = {}, {}, {}
-  for _, d in ipairs(dati) do
+  for _, d in ipairs(investimenti.valorizzazioneDati(ids)) do
     if d.valore and d.valore > 0 then
       table.insert(e, d.nome)
       table.insert(v, d.valore)
       table.insert(c, COLORI[(#e - 1) % #COLORI + 1])
     end
   end
-  if #v == 0 then return widget.markdownBlock("_Nessun valore da mostrare._") end
-  return torta("Valore per strumento (EUR)", e, v, c)
+  if #v > 0 then return {titolo = "Valore per strumento (EUR)", etichette = e, valori = v, colori = c} end
 end
 
---- Ciambella del valore attuale per classe di rischio (attributo KID 1-7 degli strumenti).
-function investimenti.tortaRischio(pagina)
-  local ids = investimenti.elenco(pagina)
-  if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
+-- Dati della ciambella per classe di rischio (attributo KID), o nil.
+local function specRischio(ids)
   local rischio = {}
   for _, s in ipairs(investimenti.strumenti()) do rischio[s.id] = s.rischio end
   local per = {}   -- classe (0 = non indicata) -> valore
@@ -983,8 +1086,38 @@ function investimenti.tortaRischio(pagina)
       table.insert(c, k == 0 and "#7d8597" or COLORI_RISCHIO[k])
     end
   end
-  if #v == 0 then return widget.markdownBlock("_Nessun valore da mostrare._") end
-  return torta("Valore per classe di rischio (KID, 1-7)", e, v, c)
+  if #v > 0 then return {titolo = "Valore per classe di rischio (KID, 1-7)", etichette = e, valori = v, colori = c} end
+end
+
+--- Ciambella della ripartizione del valore attuale per strumento. pagina: vedi investimenti.elenco.
+function investimenti.torta(pagina)
+  local ids = investimenti.elenco(pagina)
+  if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
+  local sp = specValore(ids)
+  if not sp then return widget.markdownBlock("_Nessun valore da mostrare._") end
+  return torte({sp})
+end
+
+--- Ciambella del valore attuale per classe di rischio (attributo KID 1-7 degli strumenti).
+function investimenti.tortaRischio(pagina)
+  local ids = investimenti.elenco(pagina)
+  if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
+  local sp = specRischio(ids)
+  if not sp then return widget.markdownBlock("_Nessun valore da mostrare._") end
+  return torte({sp})
+end
+
+--- Le due ciambelle (valore per strumento, valore per rischio) in un solo widget:
+--- affiancate su schermo largo, impilate su schermo stretto. pagina: vedi investimenti.elenco.
+function investimenti.allocazione(pagina)
+  local ids = investimenti.elenco(pagina)
+  if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
+  local specs = {}
+  for _, sp in ipairs({specValore(ids) or false, specRischio(ids) or false}) do
+    if sp then table.insert(specs, sp) end
+  end
+  if #specs == 0 then return widget.markdownBlock("_Nessun valore da mostrare._") end
+  return torte(specs)
 end
 
 --- Barra di rischio in emoji: n quadrati colorati su 7 (verde, giallo, arancio, rosso) e n/7.
@@ -1141,13 +1274,13 @@ function investimenti.vista(pagina)
   if type(pagina) ~= "string" then return {} end
   local function v(f, p) return function() return f(p) end end
   if pagina == (config.get("investimenti.paginaIndice") or "Index") then
-    return {v(investimenti.valore), v(investimenti.barrePL), v(investimenti.torta), v(investimenti.tortaRischio)}
+    return {v(investimenti.valore), v(investimenti.barrePL), v(investimenti.allocazione)}
   elseif pagina == "Strumenti" then return {v(investimenti.elencoStrumenti)}
   elseif pagina == "Conti" then return {v(investimenti.elencoConti)}
   elseif string.startsWith(pagina, "Conti/") then
     return {
       function() return widget.markdown("Rischio (media ponderata): " .. investimenti.rischio(pagina)) end,
-      v(investimenti.valorizzazione, pagina), v(investimenti.torta, pagina), v(investimenti.tortaRischio, pagina)}
+      v(investimenti.valorizzazione, pagina), v(investimenti.allocazione, pagina)}
   elseif string.startsWith(pagina, "Strumenti/") then
     return {v(investimenti.scheda, pagina), v(investimenti.valorizzazione, pagina), v(investimenti.grafico, pagina)}
   elseif string.startsWith(pagina, "Quotazioni/") then return {v(investimenti.grafico, pagina)}
