@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.09"
+version: "0.10"
 versionDate: 2026-10-14
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -76,7 +76,12 @@ Viste costruite dal frontmatter. `scheda` (pagine `Strumenti/<id>`): descrizione
 
 ### Widget automatici
 
-Nessuna chiamata nelle pagine: con `config.set("investimenti.widgetAutomatici", true)` la libreria mostra in testa alle pagine, tramite `hooks:renderTopWidgets`, questi widget: pagina `Index` (nome modificabile con `investimenti.paginaIndice`): `valore`, `barrePL`, `torta`, `tortaRischio`; `Strumenti` (elenco): `elencoStrumenti`; `Conti` (elenco): `elencoConti`; `Conti/<nome>` e portafogli: rischio medio, `valorizzazione`, `torta`, `tortaRischio`; `Strumenti/<id>`: `scheda` e `grafico`; `Quotazioni/<id>`: `grafico`. Se una pagina ha già le chiamate `${...}` corrispondenti, i widget compaiono due volte: vanno tolte dalla pagina.
+Nessuna chiamata nelle pagine: `investimenti.vista(pagina)` elenca i widget di ogni pagina (funzioni, non ancora calcolate) e la libreria li mostra in testa con uno di due modi, scelti con `config.set("investimenti.widgetAutomatici", ...)`.
+
+- **`true`**: listener `hooks:renderTopWidgets`, uno per posizione. Funziona con le versioni attuali di SilverBullet v2.
+- **`"view"`**: `view.define` (Navigator, documentato come *beta*): una sola vista `investimenti.pagina` ancorata in alto (`dock = "page-top"`, `frame = "minimal"`), con contenuto ricalcolato a ogni navigazione (`refreshOn = {"navigate"}`) e nascosta se vuota. Richiede una versione che include `view.define`; senza, la registrazione viene saltata. Non ho potuto verificare che il contenuto possa includere widget isolati (grafici) dentro un `dom.div`.
+
+Pagine gestite: `Index` (nome modificabile con `investimenti.paginaIndice`): `valore`, `barrePL`, `torta`, `tortaRischio`; `Strumenti`: `elencoStrumenti`; `Conti`: `elencoConti`; `Conti/<nome>` e portafogli: rischio medio, `valorizzazione`, `torta`, `tortaRischio`; `Strumenti/<id>`: `scheda`, `valorizzazione`, `grafico`; `Quotazioni/<id>`: `grafico`. Se una pagina ha già le chiamate `${...}` corrispondenti, i widget compaiono due volte: vanno tolte dalla pagina. Con un solo strumento la tabella non ha la riga TOTALE.
 
 ### investimenti.movimenti(pagina)
 
@@ -656,9 +661,9 @@ function investimenti.valorizzazione(pagina)
       acquistato = f2(d.acquistato), incassato = f2(d.incassato), valore = f2(d.valore),
       pl = f2(d.pl), pct = d.pct and (f2(d.pct) .. " %") or "n.d."})
   end
-  table.insert(righe, {totale = true,
+  if #dati > 1 then table.insert(righe, {totale = true,
     strumento = "TOTALE" .. (nd > 0 and " (esclusi " .. nd .. " senza prezzo)" or ""),
-    acquistato = f2(tot.a), incassato = f2(tot.i), valore = f2(tot.v), pl = f2(tot.pl)})
+    acquistato = f2(tot.a), incassato = f2(tot.i), valore = f2(tot.v), pl = f2(tot.pl)}) end
   return tabella({
     {titolo = "strumento", chiave = "strumento", allinea = "left"},
     {titolo = "quote", chiave = "quote", allinea = "right"},
@@ -687,9 +692,9 @@ function investimenti.valore(pagina)
       attuale = f2(d.valore), pl = f2(d.pl), pct = d.pct and (f2(d.pct) .. " %") or "n.d.",
       m1 = fp(f.m1), ytd = fp(f.ytd), a1 = fp(f.a1)})
   end
-  table.insert(righe, {totale = true,
+  if #dati > 1 then table.insert(righe, {totale = true,
     nome = "TOTALE" .. (nd > 0 and " (esclusi " .. nd .. " senza prezzo)" or ""),
-    acquistato = f2(tot.a), attuale = f2(tot.v), pl = f2(tot.pl)})
+    acquistato = f2(tot.a), attuale = f2(tot.v), pl = f2(tot.pl)}) end
   return tabella({
     {titolo = "Investimento", chiave = "nome", allinea = "left"},
     {titolo = "Acquistato", chiave = "acquistato", allinea = "right"},
@@ -712,22 +717,17 @@ local function listaTags(t)
   return out
 end
 
---- Scheda di uno strumento dal frontmatter: descrizione, tipo/valuta, tag, rischio e link alle quotazioni.
+--- Scheda di uno strumento dal frontmatter, su una riga: tipo, valuta, rischio e link alle
+--- quotazioni; seguita dall'etichetta "Valorizzazione:" (a capo forzato, senza riga vuota).
 function investimenti.scheda(pagina)
   pagina = pagina or editor.getCurrentPage()
   if type(pagina) ~= "string" or not string.startsWith(pagina, "Strumenti/") then return nil end
   local id = string.sub(pagina, 11)
   for _, s in ipairs(investimenti.strumenti()) do
     if s.id == id then
-      local righe = {}
-      if s.descrizione then table.insert(righe, "**" .. s.descrizione .. "**") end
-      table.insert(righe, (s.tipo or "n.d.") .. " · " .. s.valuta ..
-        (s.isin and (" · ISIN " .. s.isin) or ""))
-      local tags = listaTags(s.tags)
-      if #tags > 0 then table.insert(righe, "Tag: " .. table.concat(tags, ", ")) end
-      table.insert(righe, "Rischio: " .. investimenti.barraRischio(s.rischio) ..
-        " · Quotazioni: [[Quotazioni/" .. id .. "]]")
-      return widget.markdownBlock(table.concat(righe, "\n\n"))
+      return widget.markdownBlock((s.tipo or "n.d.") .. " · " .. s.valuta ..
+        " · Rischio: " .. investimenti.barraRischio(s.rischio) ..
+        " · Quotazioni: [[Quotazioni/" .. id .. "|" .. id .. "]]  \nValorizzazione:")
     end
   end
 end
@@ -1136,39 +1136,60 @@ function investimenti.barrePL(pagina)
   }
 end
 
--- Widget automatici in testa alla pagina, attivati da config.set("investimenti.widgetAutomatici", true).
--- Un listener per widget, ognuno limitato alle pagine indicate. Nome pagina indice: investimenti.paginaIndice.
-local function inTesta(vale, crea)
+--- Widget da mostrare in testa a una pagina: lista di funzioni (nessun calcolo finché non
+--- vengono chiamate), nell'ordine di visualizzazione. Lista vuota per le pagine non gestite.
+--- Nome della pagina indice: investimenti.paginaIndice (predefinito "Index").
+function investimenti.vista(pagina)
+  pagina = pagina or editor.getCurrentPage()
+  if type(pagina) ~= "string" then return {} end
+  local function v(f, p) return function() return f(p) end end
+  if pagina == (config.get("investimenti.paginaIndice") or "Index") then
+    return {v(investimenti.valore), v(investimenti.barrePL), v(investimenti.torta), v(investimenti.tortaRischio)}
+  elseif pagina == "Strumenti" then return {v(investimenti.elencoStrumenti)}
+  elseif pagina == "Conti" then return {v(investimenti.elencoConti)}
+  elseif string.startsWith(pagina, "Conti/") then
+    return {
+      function() return widget.markdown("Rischio (media ponderata): " .. investimenti.rischio(pagina)) end,
+      v(investimenti.valorizzazione, pagina), v(investimenti.torta, pagina), v(investimenti.tortaRischio, pagina)}
+  elseif string.startsWith(pagina, "Strumenti/") then
+    return {v(investimenti.scheda, pagina), v(investimenti.valorizzazione, pagina), v(investimenti.grafico, pagina)}
+  elseif string.startsWith(pagina, "Quotazioni/") then return {v(investimenti.grafico, pagina)}
+  end
+  return {}
+end
+
+-- Modo 1: hooks:renderTopWidgets (config.set("investimenti.widgetAutomatici", true)).
+-- Un listener per posizione: il listener i mostra l'i-esimo widget di investimenti.vista.
+for i = 1, 4 do
   event.listen {
     name = "hooks:renderTopWidgets",
     run = function(e)
-      if not config.get("investimenti.widgetAutomatici") then return end
-      local pagina = editor.getCurrentPage()
-      if type(pagina) == "string" and vale(pagina) then return crea(pagina) end
+      if config.get("investimenti.widgetAutomatici") ~= true then return end
+      local f = investimenti.vista()[i]
+      if f then return f() end
     end
   }
 end
 
-local function indice(p) return p == (config.get("investimenti.paginaIndice") or "Index") end
-local function sotto(prefisso) return function(p) return string.startsWith(p, prefisso) end end
-
--- Index: valore, barre P/L, torte
-inTesta(indice, function() return investimenti.valore() end)
-inTesta(indice, function() return investimenti.barrePL() end)
-inTesta(indice, function() return investimenti.torta() end)
-inTesta(indice, function() return investimenti.tortaRischio() end)
--- Strumenti (elenco)
-inTesta(function(p) return p == "Strumenti" end, function() return investimenti.elencoStrumenti() end)
--- Conti (elenco di conti e portafogli)
-inTesta(function(p) return p == "Conti" end, function() return investimenti.elencoConti() end)
--- Conti/<nome> e portafogli: rischio medio, valorizzazione, ripartizioni
-inTesta(sotto("Conti/"), function(p) return widget.markdown("Rischio (media ponderata): " .. investimenti.rischio(p)) end)
-inTesta(sotto("Conti/"), function(p) return investimenti.valorizzazione(p) end)
-inTesta(sotto("Conti/"), function(p) return investimenti.torta(p) end)
-inTesta(sotto("Conti/"), function(p) return investimenti.tortaRischio(p) end)
--- Strumenti/<id>: scheda dal frontmatter e grafico con acquisti
-inTesta(sotto("Strumenti/"), function(p) return investimenti.scheda(p) end)
-inTesta(sotto("Strumenti/"), function(p) return investimenti.grafico(p) end)
--- Quotazioni/<id>: grafico
-inTesta(sotto("Quotazioni/"), function(p) return investimenti.grafico(p) end)
+-- Modo 2: view.define (config.set("investimenti.widgetAutomatici", "view")), solo se l'API esiste.
+-- Una vista ancorata in alto alla pagina, senza cornice, che si aggiorna a ogni navigazione e si
+-- nasconde da sola quando il contenuto è vuoto.
+if type(view) == "table" and type(view.define) == "function" then
+  view.define {
+    name = "investimenti.pagina",
+    title = "Investimenti",
+    dock = "page-top",
+    frame = "minimal",
+    widget = widget.new {
+      refreshOn = {"navigate"},
+      content = function()
+        if config.get("investimenti.widgetAutomatici") ~= "view" then return nil end
+        local figli = {}
+        for _, f in ipairs(investimenti.vista()) do table.insert(figli, f()) end
+        if #figli == 0 then return nil end
+        return dom.div(figli)
+      end
+    }
+  }
+end
 ```
