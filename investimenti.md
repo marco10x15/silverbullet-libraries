@@ -76,10 +76,7 @@ Viste costruite dal frontmatter. `scheda` (pagine `Strumenti/<id>`): descrizione
 
 ### Widget automatici
 
-Nessuna chiamata nelle pagine: `investimenti.vista(pagina)` elenca i widget di ogni pagina (funzioni, non ancora calcolate) e la libreria li mostra in testa con uno di due modi, scelti con `config.set("investimenti.widgetAutomatici", ...)`.
-
-- **`true`**: listener `hooks:renderTopWidgets`, uno per posizione. Funziona con le versioni attuali di SilverBullet v2.
-- **`"view"`**: `view.define` (Navigator, documentato come *beta*): quattro viste `investimenti.pagina1`…`4`, una per posizione, ancorate in alto (`dock = "page-top"`, `frame = "minimal"`), con contenuto ricalcolato a ogni navigazione (`refreshOn = {"navigate"}`) e nascoste se vuote. Il contenuto di una vista è un solo widget: i widget non si possono annidare in un `dom.div` (errore `Node.appendChild: Argument 1 is not an object`). Richiede una versione che include `view.define`; senza, la registrazione viene saltata.
+Nessuna chiamata nelle pagine: `investimenti.vista(pagina)` elenca i widget di ogni pagina (funzioni, non ancora calcolate) e la libreria li mostra in testa con listener `hooks:renderTopWidgets`, uno per posizione, se `config.set("investimenti.widgetAutomatici", true)`. `view.define` non è usato: il contenuto di una vista non può essere un widget isolato (`navigator: content cannot return a sandboxed widget`) né un `dom.div` con widget come figli.
 
 Pagine gestite: `Index` (nome modificabile con `investimenti.paginaIndice`): `valore`, `barrePL`, `torta`, `tortaRischio`; `Strumenti`: `elencoStrumenti`; `Conti`: `elencoConti`; `Conti/<nome>` e portafogli: rischio medio, `valorizzazione`, `torta`, `tortaRischio`; `Strumenti/<id>`: `scheda`, `valorizzazione`, `grafico`; `Quotazioni/<id>`: `grafico`. Se una pagina ha già le chiamate `${...}` corrispondenti, i widget compaiono due volte: vanno tolte dalla pagina. Con un solo strumento la tabella non ha la riga TOTALE.
 
@@ -1158,7 +1155,7 @@ function investimenti.vista(pagina)
   return {}
 end
 
--- Modo 1: hooks:renderTopWidgets (config.set("investimenti.widgetAutomatici", true)).
+-- hooks:renderTopWidgets (config.set("investimenti.widgetAutomatici", true)).
 -- Un listener per posizione: il listener i mostra l'i-esimo widget di investimenti.vista.
 for i = 1, 4 do
   event.listen {
@@ -1169,28 +1166,5 @@ for i = 1, 4 do
       if f then return f() end
     end
   }
-end
-
--- Modo 2: view.define (config.set("investimenti.widgetAutomatici", "view")), solo se l'API esiste.
--- Come nel modo 1, una vista per posizione (page-top, senza cornice, aggiornata a ogni navigazione,
--- nascosta da sola se il contenuto è vuoto): content restituisce un solo widget, mentre un dom.div
--- con widget come figli dà "Node.appendChild: Argument 1 is not an object".
-if type(view) == "table" and type(view.define) == "function" then
-  for i = 1, 4 do
-    view.define {
-      name = "investimenti.pagina" .. i,
-      title = "Investimenti",
-      dock = "page-top",
-      frame = "minimal",
-      widget = widget.new {
-        refreshOn = {"navigate"},
-        content = function()
-          if config.get("investimenti.widgetAutomatici") ~= "view" then return nil end
-          local f = investimenti.vista()[i]
-          if f then return f() end
-        end
-      }
-    }
-  end
 end
 ```
