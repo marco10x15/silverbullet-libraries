@@ -1,15 +1,13 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.14"
+version: "0.15"
 versionDate: 2026-10-16
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 ---
 
 # 💸 Investimenti
-
-**Versione:** 0.14 — 16.10.2026 Produzione
 
 Libreria per monitorare gli investimenti con pagine Markdown: movimenti per strumento, quotazioni storiche scaricate da Yahoo Finance e valorizzazione con profitto/perdita (P/L), per singolo strumento, per conto o per portafoglio. Le pagine Markdown restano la fonte primaria; la libreria scrive solo nelle pagine `Quotazioni/...`, con `quotazioni.crea` e `quotazioni.aggiorna`.
 
@@ -19,7 +17,7 @@ Richiede la libreria `DateFormat` per formattare la data dei prezzi; senza, la d
 
 ### investimenti.valorizzazione(pagina)
 
-Mostra la valorizzazione in EUR come tabella con le colonne `strumento` (link allo strumento, con il suo `displayName`), `quote`, `prezzo_eur`, `data_prezzo`, `acquistato`, `incassato`, `valore`, `pl` e `%`, più una riga TOTALE in grassetto quando gli strumenti sono più di uno. Sotto i 600 px ogni riga diventa una scheda. P/L = valore + incassato − acquistato, al lordo di imposte e commissioni di conto. Le colonne numeriche sono allineate a destra con due decimali (`quote` con fino a 8 decimali, senza zeri finali), `%` è centrata con il simbolo `%`. I prezzi in USD sono convertiti dividendo per l'ultimo prezzo dello strumento `EURUSD` (cambio USD per 1 EUR). Una posizione chiusa vale 0; uno strumento senza prezzo mostra `n.d.` ed è escluso dal totale, che lo segnala. Il prezzo è mostrato con due decimali: un prezzo come 0,9990 appare come 1,00, mentre il valore è calcolato con il prezzo completo.
+Mostra la valorizzazione in EUR come tabella con le colonne `strumento` (link allo strumento, con il suo `displayName`), `quote`, `prezzo_eur`, `data_prezzo`, `acquistato`, `incassato`, `valore`, `pl`, `%` e `segnale` (vedi sotto), più una riga TOTALE in grassetto quando gli strumenti sono più di uno. Sotto i 600 px ogni riga diventa una scheda. P/L = valore + incassato − acquistato, al lordo di imposte e commissioni di conto. Le colonne numeriche sono allineate a destra con due decimali (`quote` con fino a 8 decimali, senza zeri finali), `%` è centrata con il simbolo `%`. I prezzi in USD sono convertiti dividendo per l'ultimo prezzo dello strumento `EURUSD` (cambio USD per 1 EUR). Una posizione chiusa vale 0; uno strumento senza prezzo mostra `n.d.` ed è escluso dal totale, che lo segnala. Il prezzo è mostrato con due decimali: un prezzo come 0,9990 appare come 1,00, mentre il valore è calcolato con il prezzo completo.
 
 Quali strumenti includere dipende dalla pagina in cui è usata: in `Conti/<nome>` (conto o portafoglio) quelli elencati nell'attributo `strumento` del frontmatter; in `Strumenti/<id>` solo lo strumento della pagina; altrove tutti gli strumenti.
 
@@ -27,7 +25,7 @@ Quali strumenti includere dipende dalla pagina in cui è usata: in `Conti/<nome>
 
 ### investimenti.valore(pagina)
 
-Versione compatta di `valorizzazione`: tabella con le sole colonne Investimento (link con `displayName`), Acquistato, Attuale (valore di mercato in EUR), P/L e %, più la riga TOTALE. Stesso calcolo di `valorizzazione`.
+Versione compatta di `valorizzazione`: tabella con le sole colonne Investimento (link con `displayName`), Acquistato, Attuale (valore di mercato in EUR), P/L, %, 1M, YTD, 1A e Segnale, più la riga TOTALE. Stesso calcolo di `valorizzazione`.
 
 - **`pagina`** (stringa, opzionale): come in `investimenti.elenco`; se omessa, la pagina corrente.
 
@@ -104,13 +102,23 @@ Mostra come tabella i movimenti aggregati per strumento: `id` (link allo strumen
 
 ### investimenti.valorizzazioneDati(ids)
 
-Restituisce i dati numerici della valorizzazione, non formattati, per riusarli (grafici, schede). Restituisce tre valori: l'elenco delle righe (`id`, `nome`, `quote`, `prezzo`, `data`, `acquistato`, `incassato`, `valore`, `pl`, `pct`, con `nil` dove un dato manca), il totale (`a` acquistato, `i` incassato, `v` valore, `pl`) e il numero di strumenti senza prezzo.
+Restituisce i dati numerici della valorizzazione, non formattati, per riusarli (grafici, schede). Restituisce tre valori: l'elenco delle righe (`id`, `nome`, `quote`, `prezzo`, `data`, `acquistato`, `incassato`, `valore`, `pl`, `pct`, `segnale`, con `nil` dove un dato manca), il totale (`a` acquistato, `i` incassato, `v` valore, `pl`) e il numero di strumenti senza prezzo.
 
 **ids** (elenco di stringhe, opzionale): id degli strumenti da includere, cioè i nomi delle pagine `Strumenti/` senza prefisso. Se omesso, tutti.
 
+### Colonna Segnale
+
+Compare in `valorizzazione` e `valore`, solo per le posizioni aperte con almeno un acquisto e un prezzo. Una sola etichetta per riga, nell'ordine di priorità:
+
+- **🔴 Stop loss**: il prezzo è almeno `stopLoss` % sotto il prezzo medio di carico (in EUR, media pesata sulle quote degli acquisti, vendite ignorate).
+- **🟠 Trailing**: il prezzo è almeno `trailing` % sotto il massimo raggiunto dal primo acquisto.
+- **🟢 Take profit**: il prezzo è almeno `takeProfit` % sopra il prezzo medio di carico.
+
+Le percentuali sono quelle del grafico (predefiniti 10, 25, 8; frontmatter dello strumento o `config`, risolte da `investimenti.soglie(strumento)`). Per escludere uno strumento, per esempio un'obbligazione tenuta a scadenza, si scrive `segnali: false` nel suo frontmatter. È un'indicazione di lettura, non un consiglio di investimento.
+
 ### investimenti.movimentiDati(ids)
 
-Legge le tabelle delle pagine `Strumenti/<id>` e somma per ogni strumento le quote nette, l'importo acquistato e l'importo incassato, in EUR. Restituisce una riga per strumento, ordinata per id, con `id`, `quote`, `acquistato` e `incassato` come numeri.
+Legge le tabelle delle pagine `Strumenti/<id>` e somma per ogni strumento le quote nette, l'importo acquistato e l'importo incassato, in EUR. Restituisce una riga per strumento, ordinata per id, con `id`, `quote`, `acquistato` e `incassato` come numeri, più `qAcq` (quote acquistate, per il prezzo medio di carico) e `primo` (data del primo acquisto, se presente).
 
 **ids** (elenco di stringhe, opzionale): id degli strumenti da includere. Se omesso, tutti.
 
@@ -126,7 +134,7 @@ Legge le tabelle `Quotazioni/...` una sola volta e le raggruppa per strumento (c
 
 **ids** (elenco di stringhe, opzionale): id degli strumenti da includere. Se omesso, tutti.
 
-### investimenti.ultimiPrezzi(strumenti)
+### investimenti.ultimiPrezzi(strumenti, per)
 
 Per ogni strumento con quotazioni (collegate via `isin`) restituisce la riga con la data più recente: `id`, `data`, `prezzo` e `valuta` (presa dallo strumento, default `EUR`). Scarta le righe senza data o prezzo, quindi non dipende dall'ordine delle righe nella tabella.
 
@@ -137,6 +145,8 @@ Per ogni strumento con quotazioni (collegate via `isin`) restituisce la riga con
 Restituisce l'elenco degli id degli strumenti di una pagina. In `Conti/<nome>` legge l'attributo `strumento` del frontmatter (un elenco di link `[[Strumenti/<id>]]`) ed estrae gli id; in `Strumenti/<id>` restituisce l'id della pagina; per qualsiasi altra pagina restituisce `nil`, cioè tutti gli strumenti. Un conto senza l'attributo restituisce un elenco vuoto.
 
 **pagina** (stringa, opzionale): nome della pagina. Se omesso, è la pagina aperta nell'editor.
+
+**per** (tabella, opzionale): il risultato di `investimenti.quotazioniPerStrumento`, se già disponibile.
 
 ### investimenti.strumenti()
 
@@ -308,7 +318,7 @@ function investimenti.strumenti()
     select {name = p.name, nome = p.displayName, isin = p.isin, ticker = p.ticker,
       valuta = p.valuta, tipo = p.tipo, rischio = p.KID,
       descrizione = p.description, tags = p.tags,
-      stopLoss = p.stopLoss, takeProfit = p.takeProfit, trailing = p.trailing}
+      stopLoss = p.stopLoss, takeProfit = p.takeProfit, trailing = p.trailing, segnali = p.segnali}
   ]]) do
     table.insert(out, {id = string.sub(p.name, 11),  -- "Strumenti/" = 10 caratteri
       nome = str(p.nome) or p.name, isin = str(p.isin), ticker = str(p.ticker),
@@ -316,10 +326,18 @@ function investimenti.strumenti()
       rischio = type(p.rischio) == "number" and p.rischio or nil,  -- p.rischio = attributo KID
       descrizione = str(p.descrizione), tags = p.tags,
       stopLoss = tonumber(p.stopLoss), takeProfit = tonumber(p.takeProfit),
-      trailing = tonumber(p.trailing)})
+      trailing = tonumber(p.trailing), segnali = p.segnali ~= false})
   end
   table.sort(out, function(a, b) return a.id < b.id end)
   return out
+end
+
+--- Soglie percentuali di uno strumento: stop loss, take profit, trailing stop.
+--- Frontmatter dello strumento, poi config (investimenti.stopLoss/takeProfit/trailing), poi 10/25/8.
+function investimenti.soglie(s)
+  return s.stopLoss or config.get("investimenti.stopLoss") or 10,
+    s.takeProfit or config.get("investimenti.takeProfit") or 25,
+    s.trailing or config.get("investimenti.trailing") or 8
 end
 
 --- Pagine Quotazioni/...: restituisce due tabelle, isin -> pagina e pagina -> isin.
@@ -542,18 +560,21 @@ function investimenti.movimentiDati(ids)
   for _, r in ipairs(query[[
     from t = index.tables()
     where string.startsWith(t.page, "Strumenti/")
-    select {page = t.page, ref = t.ref, tipo = t.tipo, quote = t.quantit_, valore = t.valore_eur or t.valore}
+    select {page = t.page, ref = t.ref, giorno = t.data, tipo = t.tipo, quote = t.quantit_,
+      valore = t.valore_eur or t.valore}
   ]]) do
     local id = string.sub(r.page, 11)  -- "Strumenti/" = 10 caratteri
     if not ammessi or ammessi[id] then
       local m = per[id]
       if not m then
-        m = {id = id, quote = 0, acquistato = 0, incassato = 0}
+        m = {id = id, quote = 0, acquistato = 0, incassato = 0, qAcq = 0}
         per[id] = m
         table.insert(elenco, id)
       end
       if r.tipo == "Acquisto" then
         m.quote, m.acquistato = m.quote + num(r.quote), m.acquistato + num(r.valore)
+        m.qAcq = m.qAcq + num(r.quote)
+        if type(r.giorno) == "string" and (not m.primo or r.giorno < m.primo) then m.primo = r.giorno end
       elseif r.tipo == "Vendita" then
         m.quote, m.incassato = m.quote - num(r.quote), m.incassato + num(r.valore)
       elseif r.tipo == "Dividendo" then
@@ -600,10 +621,11 @@ function investimenti.quotazioniPerStrumento(strumenti, ids)
 end
 
 --- Ultimo prezzo di ogni strumento con quotazioni: lista {id, data, prezzo, valuta}.
---- strumenti: risultato di investimenti.strumenti(), se già disponibile.
-function investimenti.ultimiPrezzi(strumenti)
+--- strumenti: risultato di investimenti.strumenti(); per: risultato di quotazioniPerStrumento,
+--- se già disponibili (evita riletture).
+function investimenti.ultimiPrezzi(strumenti, per)
   strumenti = strumenti or investimenti.strumenti()
-  local per = investimenti.quotazioniPerStrumento(strumenti)
+  per = per or investimenti.quotazioniPerStrumento(strumenti)
   local out = {}
   for _, s in ipairs(strumenti) do
     local ultimo
@@ -623,17 +645,21 @@ end
 ```space-lua
 investimenti = investimenti or {}
 
---- Righe {id, nome, quote, prezzo, data, acquistato, incassato, valore, pl, pct}, totale {a, i, v, pl}
+--- Righe {id, nome, quote, prezzo, data, acquistato, incassato, valore, pl, pct, segnale}, totale {a, i, v, pl}
 --- e numero di strumenti senza prezzo. Prezzi in USD convertiti con lo strumento EURUSD.
 function investimenti.valorizzazioneDati(ids)
   local strumenti = investimenti.strumenti()
   local nome = investimenti.nomi(strumenti)
 
+  local per = investimenti.quotazioniPerStrumento(strumenti)
   local px, fx = {}, nil
-  for _, p in ipairs(investimenti.ultimiPrezzi(strumenti)) do
+  for _, p in ipairs(investimenti.ultimiPrezzi(strumenti, per)) do
     px[p.id] = p
     if p.id == "EURUSD" then fx = p.prezzo end
   end
+
+  local strumento = {}
+  for _, s in ipairs(strumenti) do strumento[s.id] = s end
 
   local righe, tot, nd = {}, {a = 0, i = 0, v = 0, pl = 0}, 0
   for _, m in ipairs(investimenti.movimentiDati(ids)) do
@@ -652,9 +678,24 @@ function investimenti.valorizzazioneDati(ids)
     else
       nd = nd + 1
     end
+    -- segnale: stop loss e take profit rispetto al prezzo medio di carico (in EUR); trailing
+    -- rispetto al massimo dal primo acquisto. Solo per posizioni aperte con acquisti.
+    local segnale
+    local s = strumento[m.id]
+    if prezzo and s and s.segnali and m.quote > 1e-9 and m.qAcq > 0 and m.acquistato > 0 then
+      local sl, tp, tr = investimenti.soglie(s)
+      local variazione = (prezzo / (m.acquistato / m.qAcq) - 1) * 100
+      local massimo
+      for _, r in ipairs(per[m.id] or {}) do
+        if r[1] >= (m.primo or "") and (not massimo or r[2] > massimo) then massimo = r[2] end
+      end
+      if variazione <= -sl then segnale = "🔴 Stop loss"
+      elseif massimo and p.prezzo <= massimo * (1 - tr / 100) then segnale = "🟠 Trailing"
+      elseif variazione >= tp then segnale = "🟢 Take profit" end
+    end
     table.insert(righe, {id = m.id, nome = nome[m.id] or m.id, quote = m.quote, prezzo = prezzo,
       data = p and p.data, acquistato = m.acquistato, incassato = m.incassato,
-      valore = valore, pl = pl, pct = pct})
+      valore = valore, pl = pl, pct = pct, segnale = segnale})
   end
   return righe, tot, nd
 end
@@ -827,7 +868,7 @@ function investimenti.valorizzazione(pagina)
     table.insert(righe, {strumento = {id = d.id, nome = d.nome}, quote = fq(d.quote),
       prezzo_eur = f2(d.prezzo), data_prezzo = d.prezzo and data(d.data) or "n.d.",
       acquistato = f2(d.acquistato), incassato = f2(d.incassato), valore = f2(d.valore),
-      pl = f2(d.pl), pct = d.pct and (f2(d.pct) .. " %") or "n.d."})
+      pl = f2(d.pl), pct = d.pct and (f2(d.pct) .. " %") or "n.d.", segnale = d.segnale or ""})
   end
   if #dati > 1 then table.insert(righe, {totale = true,
     strumento = "TOTALE" .. (nd > 0 and " (esclusi " .. nd .. " senza prezzo)" or ""),
@@ -842,6 +883,7 @@ function investimenti.valorizzazione(pagina)
     {titolo = "valore", chiave = "valore", allinea = "right"},
     {titolo = "pl", chiave = "pl", allinea = "right"},
     {titolo = "%", chiave = "pct", allinea = "center"},
+    {titolo = "segnale", chiave = "segnale", allinea = "left"},
   }, righe)
 end
 
@@ -858,7 +900,7 @@ function investimenti.valore(pagina)
     local f = perf[d.id] or {}
     table.insert(righe, {nome = {id = d.id, nome = d.nome}, acquistato = f2(d.acquistato),
       attuale = f2(d.valore), pl = f2(d.pl), pct = d.pct and (f2(d.pct) .. " %") or "n.d.",
-      m1 = fp(f.m1), ytd = fp(f.ytd), a1 = fp(f.a1)})
+      m1 = fp(f.m1), ytd = fp(f.ytd), a1 = fp(f.a1), segnale = d.segnale or ""})
   end
   if #dati > 1 then table.insert(righe, {totale = true,
     nome = "TOTALE" .. (nd > 0 and " (esclusi " .. nd .. " senza prezzo)" or ""),
@@ -872,6 +914,7 @@ function investimenti.valore(pagina)
     {titolo = "1M", chiave = "m1", allinea = "right"},
     {titolo = "YTD", chiave = "ytd", allinea = "right"},
     {titolo = "1A", chiave = "a1", allinea = "right"},
+    {titolo = "Segnale", chiave = "segnale", allinea = "left"},
   }, righe)
 end
 
@@ -1189,13 +1232,9 @@ function investimenti.grafico(pagina)
 
   -- prezzo medio di carico (pesato sulle quote) e livelli di stop loss / take profit
   local pmc, stop, tp
-  local sl, tpp, tr = 10, 25, 8   -- percentuali predefinite (config o frontmatter dello strumento)
+  local sl, tpp, tr = 10, 25, 8
   for _, s in ipairs(investimenti.strumenti()) do
-    if s.id == id then
-      sl = s.stopLoss or config.get("investimenti.stopLoss") or sl
-      tpp = s.takeProfit or config.get("investimenti.takeProfit") or tpp
-      tr = s.trailing or config.get("investimenti.trailing") or tr
-    end
+    if s.id == id then sl, tpp, tr = investimenti.soglie(s) end
   end
   local q, v = 0, 0
   for _, a in ipairs(acq) do q, v = q + a[3], v + a[3] * a[2] end
