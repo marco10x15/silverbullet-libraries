@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.16"
+version: "0.17"
 versionDate: 2026-10-16
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -9,7 +9,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 
 # 💸 Investimenti
 
-**Versione 0.16 — 16.10.2026** · Libreria per SilverBullet v2.11+.
+**Versione 0.17 — 16.10.2026** · Libreria per SilverBullet v2.11+.
 
 Gestione degli strumenti finanziari in Markdown: movimenti, quotazioni storiche, valorizzazioni in EUR, andamento e indicatori. Le pagine Markdown sono la fonte primaria; le sole scritture automatiche riguardano `Quotazioni/...` mediante `quotazioni.crea()` e `quotazioni.aggiorna()`.
 
@@ -479,6 +479,14 @@ command.define {
 }
 ```
 
+### v0.17 — Conti, posizioni e portafogli
+
+La pagina dello **strumento** conserva i movimenti, ma uno stesso ISIN può avere più pagine strumento e più intestatari. La chiave contabile è **conto + id strumento**, non l'ISIN. Per le pagine dell'archivio di esempio il conto è inferito dai riferimenti nei frontmatter `Conti/...`: le pagine con tag `Portafoglio` sono aggregatori e non duplicano i movimenti. In mancanza di un conto fisico, una pagina `Portafoglio` può essere il contenitore esclusivo (es. Samuele).
+
+Nelle tabelle dei movimenti è facoltativa la colonna `Conto`, con nome esatto della pagina, es. `Conti/NEF - Famiglia` o il solo nome `NEF - Famiglia`. È necessaria per distinguere acquisti del medesimo strumento presso conti fisici diversi. Se esistono più conti fisici candidati e manca `Conto`, la riga non è assegnata a nessun conto specifico: resta visibile nell'aggregato globale ed è segnalata da `investimenti.verificaConti()`. Non vengono ripartite quote in modo arbitrario.
+
+`investimenti.posizioni(pagina)` produce righe `{conto, id, quote, acquistato, incassato, qAcq, primo}`; `investimenti.verificaConti()` segnala i riferimenti e le assegnazioni ambigue. La somma per portafoglio utilizza gli id di strumenti associati, senza sommare i totali dei conti figli. Restano invariati i frontmatter e le tabelle esistenti.
+
 ### Movimenti e ultimi prezzi
 
 ```space-lua
@@ -486,43 +494,187 @@ investimenti = investimenti or {}
 
 local function num(x) return tonumber(x or 0) or 0 end
 
---- Quote, acquistato e incassato (EUR) per ogni strumento; ids opzionale per filtrare.
-function investimenti.movimentiDati(ids)
-  local ammessi
-  if ids then
-    ammessi = {}
-    for _, id in ipairs(ids) do ammessi[id] = true end
+--- Elenco dei conti diretti dello strumento, distinguendo i portafogli logici.
+--- Usa la proprietà `strumento` delle pagine Conti già presenti nella v0.16.
+function investimenti.contiStrumento()
+  local fisici, portfolio, noti = {}, {}, {}
+  for _, p in ipairs(query[[
+    from p = index.subPages("Conti")
+    select {name = p.name, tags = p.tags}
+  ]]) do
+    noti[p.name] = true
+    local aggregato = false
+    if type(p.tags) == "string" then aggregato = string.find(p.tags, "Portafoglio", 1, true) ~= nil end
+    if type(p.tags) == "table" then
+      for _, t in ipairs(p.tags) do if t == "Portafoglio" then aggregato = true end end
+    end
+    for _, id in ipairs(investimenti.elenco(p.name) or {}) do
+      local dest = aggregato and portfolio or fisici
+      dest[id] = dest[id] or {}
+      table.insert(dest[id], p.name)
+    end
   end
+  return fisici, portfolio, noti
+end
 
-  local per, elenco = {}, {}
+--- Risolve solo il conto fisico univoco; portafoglio unico come ripiego.
+--- Se l'assegnazione esplicita manca dall'archivio, viene mantenuta e diagnosticata.
+function investimenti.risolviConto(id, esplicito, fisici, portfolio)
+  if type(esplicito) == "string" and esplicito ~= "" then
+    if string.startsWith(esplicito, "Conti/") then return esplicito end
+    return "Conti/" .. esplicito
+  end
+  local possibili = fisici[id] or {}
+  if #possibili == 1 then return possibili[1] end
+  if #possibili > 1 then return nil end
+  local p = portfolio[id] or {}
+  if #p == 1 then return p[1] end
+  return nil
+end
+
+--- Ledger grezzo con assegnazione per conto. Le righe non assegnate restano nell'aggregato globale.
+function investimenti.ledger(ids)
+  local ok, fisici, portfolio = nil, nil, nil
+  fisici, portfolio = investimenti.contiStrumento()
+  if ids then ok = {}; for _, id in ipairs(ids) do ok[id] = true end end
+  local out = {}
   for _, r in ipairs(query[[
     from t = index.tables()
     where string.startsWith(t.page, "Strumenti/")
-    select {page = t.page, ref = t.ref, giorno = t.data, tipo = t.tipo, quote = t.quantit_,
-      valore = t.valore_eur or t.valore}
+    select {page = t.page, ref = t.ref, giorno = t.data, tipo = t.tipo,
+      quote = t.quantit_, valore = t.valore_eur or t.valore, conto = t.conto}
   ]]) do
-    local id = string.sub(r.page, 11)  -- "Strumenti/" = 10 caratteri
-    if not ammessi or ammessi[id] then
-      local m = per[id]
+    local id = string.sub(r.page, 11)
+    if not ok or ok[id] then
+      table.insert(out, {id = id, conto = investimenti.risolviConto(id, r.conto, fisici, portfolio),
+        contoEsplicito = r.conto, data = r.giorno, tipo = r.tipo, quote = r.quote,
+        valore = r.valore, ref = r.ref})
+    end
+  end
+  return out
+end
+
+--- Quote, acquistato e incassato (EUR) per ogni strumento; ids opzionale per filtrare.
+function investimenti.movimentiDati(ids, pagina)
+  local per, elenco, ammessi = {}, {}, nil
+  if ids then ammessi = {}; for _, id in ipairs(ids) do ammessi[id] = true end end
+  local conto = type(pagina) == "string" and string.startsWith(pagina, "Conti/") and pagina or nil
+  -- Il portafoglio include le sole posizioni dei propri strumenti, anche in conti fisici diversi.
+  local portafoglio = false
+  if conto then
+    for _, p in ipairs(query[[
+      from p = index.subPages("Conti")
+      select {name = p.name, tags = p.tags}
+    ]]) do
+      if p.name == conto then
+        if type(p.tags) == "string" then portafoglio = string.find(p.tags, "Portafoglio", 1, true) ~= nil end
+        if type(p.tags) == "table" then
+          for _, t in ipairs(p.tags) do if t == "Portafoglio" then portafoglio = true end end
+        end
+      end
+    end
+  end
+  for _, r in ipairs(investimenti.ledger(ids)) do
+    if (not ammessi or ammessi[r.id]) and
+      (not conto or (portafoglio and r.conto ~= nil) or r.conto == conto) then
+      local m = per[r.id]
       if not m then
-        m = {id = id, quote = 0, acquistato = 0, incassato = 0, qAcq = 0}
-        per[id] = m
-        table.insert(elenco, id)
+        m = {id = r.id, quote = 0, acquistato = 0, incassato = 0, qAcq = 0}
+        per[r.id] = m
+        table.insert(elenco, r.id)
       end
-      if r.tipo == "Acquisto" then
-        m.quote, m.acquistato = m.quote + num(r.quote), m.acquistato + num(r.valore)
-        m.qAcq = m.qAcq + num(r.quote)
-        if type(r.giorno) == "string" and (not m.primo or r.giorno < m.primo) then m.primo = r.giorno end
-      elseif r.tipo == "Vendita" then
-        m.quote, m.incassato = m.quote - num(r.quote), m.incassato + num(r.valore)
-      elseif r.tipo == "Dividendo" then
-        m.incassato = m.incassato + num(r.valore)
-      end
+      local q, v = tonumber(r.quote), tonumber(r.valore)
+      if r.tipo == "Acquisto" and q and v then
+        m.quote, m.acquistato, m.qAcq = m.quote + q, m.acquistato + v, m.qAcq + q
+        if type(r.data) == "string" and (not m.primo or r.data < m.primo) then m.primo = r.data end
+      elseif r.tipo == "Vendita" and q and v then
+        m.quote, m.incassato = m.quote - q, m.incassato + v
+      elseif r.tipo == "Dividendo" and v then m.incassato = m.incassato + v end
     end
   end
   table.sort(elenco)
   local out = {}
   for _, id in ipairs(elenco) do table.insert(out, per[id]) end
+  return out
+end
+
+--- Posizioni contabili distinte per conto. Con pagina valorizza il solo ambito richiesto.
+function investimenti.posizioni(pagina)
+  local ids = investimenti.elenco(pagina)
+  local per, chiavi = {}, {}
+  local portafoglio = false
+  if type(pagina) == "string" and string.startsWith(pagina, "Conti/") then
+    for _, p in ipairs(query[[
+      from p = index.subPages("Conti")
+      select {name = p.name, tags = p.tags}
+    ]]) do
+      if p.name == pagina then
+        if type(p.tags) == "string" and string.find(p.tags, "Portafoglio", 1, true) then portafoglio = true end
+        if type(p.tags) == "table" then
+          for _, t in ipairs(p.tags) do if t == "Portafoglio" then portafoglio = true end end
+        end
+      end
+    end
+  end
+  for _, r in ipairs(investimenti.ledger(ids)) do
+    local include = not pagina or not string.startsWith(pagina, "Conti/")
+    if not include then
+      for _, id in ipairs(ids or {}) do
+        if id == r.id and r.conto then
+          include = pagina == r.conto
+          if not include and portafoglio then include = true end
+          break
+        end
+      end
+    end
+    if include then
+      local conto = r.conto or "NON_ASSEGNATO"
+      local key = conto .. "|" .. r.id
+      if not per[key] then
+        per[key] = {conto = conto, id = r.id, quote = 0, acquistato = 0,
+          incassato = 0, qAcq = 0}
+        table.insert(chiavi, key)
+      end
+      local m, q, v = per[key], tonumber(r.quote), tonumber(r.valore)
+      if r.tipo == "Acquisto" and q and v then
+        m.quote, m.acquistato, m.qAcq = m.quote + q, m.acquistato + v, m.qAcq + q
+        if type(r.data) == "string" and (not m.primo or r.data < m.primo) then m.primo = r.data end
+      elseif r.tipo == "Vendita" and q and v then m.quote = m.quote - q; m.incassato = m.incassato + v
+      elseif r.tipo == "Dividendo" and v then m.incassato = m.incassato + v end
+    end
+  end
+  table.sort(chiavi)
+  local out = {}
+  for _, key in ipairs(chiavi) do table.insert(out, per[key]) end
+  return out
+end
+
+--- Controlli non distruttivi sulle assegnazioni e sui valori dei movimenti.
+function investimenti.verificaConti()
+  local out, fisici, portfolio, noti = {}, investimenti.contiStrumento()
+  local function errore(p, tipo, dettaglio)
+    table.insert(out, {pagina = p, problema = tipo, dettaglio = dettaglio})
+  end
+  local strumenti = {}
+  for _, s in ipairs(investimenti.strumenti()) do strumenti[s.id] = true end
+  for id, pp in pairs(fisici) do
+    if not strumenti[id] then errore(id, "STRUMENTO_INESISTENTE", table.concat(pp, ", ")) end
+  end
+  for id, pp in pairs(portfolio) do
+    if not strumenti[id] then errore(id, "STRUMENTO_INESISTENTE", table.concat(pp, ", ")) end
+  end
+  for _, r in ipairs(investimenti.ledger()) do
+    if r.contoEsplicito and r.conto and not noti[r.conto] then
+      errore("Strumenti/" .. r.id, "CONTO_INESISTENTE", r.conto)
+    end
+    if not r.conto then
+      errore("Strumenti/" .. r.id, "CONTO_NON_ASSEGNATO", tostring(r.data))
+    end
+    if (r.tipo == "Acquisto" or r.tipo == "Vendita") and
+      (not tonumber(r.quote) or not tonumber(r.valore)) then
+      errore("Strumenti/" .. r.id, "MOVIMENTO_NON_VALIDO", tostring(r.data))
+    end
+  end
   return out
 end
 
@@ -536,9 +688,12 @@ function investimenti.quotazioniPerStrumento(strumenti, ids)
     for _, id in ipairs(ids) do ammessi[id] = true end
   end
   local perIsin, perPagina = investimenti.pagineQuotazioni()
-  local idDi = {}  -- isin -> id strumento
+  local idDi = {}  -- isin -> lista id strumenti: PIR Marco e Franca condividono un NAV.
   for _, s in ipairs(strumenti or investimenti.strumenti()) do
-    if s.isin and (not ammessi or ammessi[s.id]) then idDi[s.isin] = s.id end
+    if s.isin and (not ammessi or ammessi[s.id]) then
+      idDi[s.isin] = idDi[s.isin] or {}
+      table.insert(idDi[s.isin], s.id)
+    end
   end
 
   local per = {}
@@ -547,12 +702,13 @@ function investimenti.quotazioniPerStrumento(strumenti, ids)
     where string.startsWith(t.page, "Quotazioni/")
     select {pagina = t.page, ref = t.ref, giorno = t.data, px = t.prezzo}
   ]]) do
-    local id = idDi[perPagina[r.pagina]]
+    local collegati = idDi[perPagina[r.pagina]] or {}
     local pr = tonumber(r.px)
-    -- salta righe prive di data/prezzo e pagine non collegate a uno strumento
-    if id and type(r.giorno) == "string" and pr then
-      per[id] = per[id] or {}
-      table.insert(per[id], {r.giorno, pr})
+    if type(r.giorno) == "string" and pr then
+      for _, id in ipairs(collegati) do
+        per[id] = per[id] or {}
+        table.insert(per[id], {r.giorno, pr})
+      end
     end
   end
   return per
@@ -583,7 +739,7 @@ investimenti = investimenti or {}
 
 --- Righe {id, nome, quote, prezzo, data, acquistato, incassato, valore, pl, pct, segnale}, totale {a, i, v, pl}
 --- e numero di strumenti senza prezzo. Prezzi in USD convertiti con lo strumento EURUSD.
-function investimenti.valorizzazioneDati(ids)
+function investimenti.valorizzazioneDati(ids, pagina)
   local strumenti = investimenti.strumenti()
   local nome = investimenti.nomi(strumenti)
 
@@ -598,7 +754,7 @@ function investimenti.valorizzazioneDati(ids)
   for _, s in ipairs(strumenti) do strumento[s.id] = s end
 
   local righe, tot, nd = {}, {a = 0, i = 0, v = 0, pl = 0}, 0
-  for _, m in ipairs(investimenti.movimentiDati(ids)) do
+  for _, m in ipairs(investimenti.movimentiDati(ids, pagina)) do
     local p = px[m.id]
     local prezzo = p and p.prezzo
     if prezzo and p.valuta == "USD" then prezzo = fx and prezzo / fx end
@@ -779,7 +935,7 @@ function investimenti.movimenti(pagina)
   if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
   local nome = investimenti.nomi(investimenti.strumenti())
   local righe = {}
-  for _, m in ipairs(investimenti.movimentiDati(ids)) do
+  for _, m in ipairs(investimenti.movimentiDati(ids, pagina)) do
     table.insert(righe, {id = {id = m.id, nome = nome[m.id] or m.id}, quote = fq(m.quote),
       acquistato = f2(m.acquistato), incassato = f2(m.incassato)})
   end
@@ -796,7 +952,7 @@ end
 function investimenti.valorizzazione(pagina)
   local ids = investimenti.elenco(pagina)
   if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
-  local dati, tot, nd = investimenti.valorizzazioneDati(ids)
+  local dati, tot, nd = investimenti.valorizzazioneDati(ids, pagina)
   local righe = {}
   for _, d in ipairs(dati) do
     table.insert(righe, {strumento = {id = d.id, nome = d.nome}, quote = fq(d.quote),
@@ -826,7 +982,7 @@ end
 function investimenti.valore(pagina)
   local ids = investimenti.elenco(pagina)
   if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
-  local dati, tot, nd = investimenti.valorizzazioneDati(ids)
+  local dati, tot, nd = investimenti.valorizzazioneDati(ids, pagina)
   local perf = investimenti.performance(ids)
   local function fp(x) return x and string.format("%+.2f %%", x) or "n.d." end
   local righe = {}
@@ -915,19 +1071,14 @@ end
 --- Elenco di conti e portafogli (sottopagine di Conti/): tipo dal tag, numero di strumenti,
 --- acquistato, attuale, P/L e %. La valorizzazione si calcola una sola volta per tutti.
 function investimenti.elencoConti()
-  local per = {}
-  for _, d in ipairs(investimenti.valorizzazioneDati(nil)) do per[d.id] = d end
   local righe = {}
   for _, p in ipairs(query[[
     from p = index.subPages("Conti")
     select {name = p.name, nome = p.displayName, tags = p.tags}
   ]]) do
     local ids = investimenti.elenco(p.name) or {}
-    local a, i, v = 0, 0, 0
-    for _, id in ipairs(ids) do
-      local d = per[id]
-      if d and d.valore then a, i, v = a + d.acquistato, i + d.incassato, v + d.valore end
-    end
+    local _, tot = investimenti.valorizzazioneDati(ids, p.name)
+    local a, i, v = tot.a, tot.i, tot.v
     local pl = v + i - a
     local tipo = "Conto"
     for _, t in ipairs(listaTags(p.tags)) do if t == "Portafoglio" then tipo = "Portafoglio" end end
@@ -1241,9 +1392,9 @@ local function torte(specs)
 end
 
 -- Dati della ciambella per strumento, o nil se non c'è nulla da mostrare.
-local function specValore(ids)
+local function specValore(ids, pagina)
   local e, v, c = {}, {}, {}
-  for _, d in ipairs(investimenti.valorizzazioneDati(ids)) do
+  for _, d in ipairs(investimenti.valorizzazioneDati(ids, pagina)) do
     if d.valore and d.valore > 0 then
       table.insert(e, d.nome)
       table.insert(v, d.valore)
@@ -1254,11 +1405,11 @@ local function specValore(ids)
 end
 
 -- Dati della ciambella per classe di rischio (attributo KID), o nil.
-local function specRischio(ids)
+local function specRischio(ids, pagina)
   local rischio = {}
   for _, s in ipairs(investimenti.strumenti()) do rischio[s.id] = s.rischio end
   local per = {}   -- classe (0 = non indicata) -> valore
-  for _, d in ipairs(investimenti.valorizzazioneDati(ids)) do
+  for _, d in ipairs(investimenti.valorizzazioneDati(ids, pagina)) do
     if d.valore and d.valore > 0 then
       local k = rischio[d.id] or 0
       per[k] = (per[k] or 0) + d.valore
@@ -1279,7 +1430,7 @@ end
 function investimenti.torta(pagina)
   local ids = investimenti.elenco(pagina)
   if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
-  local sp = specValore(ids)
+  local sp = specValore(ids, pagina)
   if not sp then return widget.markdownBlock("_Nessun valore da mostrare._") end
   return torte({sp})
 end
@@ -1288,7 +1439,7 @@ end
 function investimenti.tortaRischio(pagina)
   local ids = investimenti.elenco(pagina)
   if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
-  local sp = specRischio(ids)
+  local sp = specRischio(ids, pagina)
   if not sp then return widget.markdownBlock("_Nessun valore da mostrare._") end
   return torte({sp})
 end
@@ -1299,7 +1450,7 @@ function investimenti.allocazione(pagina)
   local ids = investimenti.elenco(pagina)
   if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
   local specs = {}
-  for _, sp in ipairs({specValore(ids) or false, specRischio(ids) or false}) do
+  for _, sp in ipairs({specValore(ids, pagina) or false, specRischio(ids, pagina) or false}) do
     if sp then table.insert(specs, sp) end
   end
   if #specs == 0 then return widget.markdownBlock("_Nessun valore da mostrare._") end
@@ -1324,7 +1475,7 @@ function investimenti.rischio(pagina)
   for _, s in ipairs(investimenti.strumenti()) do rischio[s.id] = s.rischio end
   if #ids == 1 then return investimenti.barraRischio(rischio[ids[1]]) end
   local somma, peso = 0, 0
-  for _, d in ipairs(investimenti.valorizzazioneDati(ids)) do
+  for _, d in ipairs(investimenti.valorizzazioneDati(ids, pagina)) do
     local r = rischio[d.id]
     if r and d.valore and d.valore > 0 then somma, peso = somma + r * d.valore, peso + d.valore end
   end
@@ -1418,7 +1569,7 @@ function investimenti.barrePL(pagina)
   local ids = investimenti.elenco(pagina)
   if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
   local righe = {}
-  for _, d in ipairs(investimenti.valorizzazioneDati(ids)) do
+  for _, d in ipairs(investimenti.valorizzazioneDati(ids, pagina)) do
     if d.pl then table.insert(righe, d) end
   end
   if #righe == 0 then return widget.markdownBlock("_Nessun P/L da mostrare._") end
@@ -1471,4 +1622,18 @@ for i = 1, 4 do
     end
   }
 end
+```
+
+### Comando diagnostico v0.17
+
+```space-lua
+command.define {
+  name = "Investimenti: Verifica conti e movimenti",
+  run = function()
+    local problemi = investimenti.verificaConti()
+    editor.flashNotification(#problemi .. " anomalie contabili",
+      #problemi > 0 and "warning" or "info")
+    return problemi
+  end
+}
 ```
