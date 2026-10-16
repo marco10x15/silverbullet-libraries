@@ -1,17 +1,17 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.11c"
-versionDate: 2026-10-15
+version: "0.12"
+versionDate: 2026-10-16
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 ---
 
 # 💸 Investimenti
 
-**Versione:** 0.11c — 16.10.2026 (produzione)
+**Versione:** 0.12 — 16.10.2026 (Produzione)
 
-Libreria per monitorare gli investimenti con pagine Markdown: movimenti per strumento, quotazioni storiche scaricate da Yahoo Finance e valorizzazione con profitto/perdita (P/L), per singolo strumento, per conto o per portafoglio. Le pagine Markdown restano la fonte primaria; la libreria scrive solo nelle pagine `Quotazioni/<id>`, con `quotazioni.crea` e `quotazioni.aggiorna`.
+Libreria per monitorare gli investimenti con pagine Markdown: movimenti per strumento, quotazioni storiche scaricate da Yahoo Finance e valorizzazione con profitto/perdita (P/L), per singolo strumento, per conto o per portafoglio. Le pagine Markdown restano la fonte primaria; la libreria scrive solo nelle pagine `Quotazioni/...`, con `quotazioni.crea` e `quotazioni.aggiorna`.
 
 Richiede la libreria `DateFormat` per formattare la data dei prezzi; senza, la data resta nel formato ISO.
 
@@ -33,9 +33,9 @@ Versione compatta di `valorizzazione`: tabella con le sole colonne Investimento 
 
 ### investimenti.grafico(pagina)
 
-Grafico lineare delle quotazioni (Chart.js in un widget isolato), con i pulsanti di periodo 7G, 1M, 3M, 6M, YTD, 1A, 5A e Tutto (predefinito 6M). Inserito in una pagina `Quotazioni/<id>` mostra la serie; in una pagina `Strumenti/<id>` aggiunge i punti di acquisto (triangoli, al prezzo unitario pagato). Chart.js viene caricato da cdnjs.
+Grafico lineare delle quotazioni (Chart.js in un widget isolato), con i pulsanti di periodo 7G, 1M, 3M, 6M, YTD, 1A, 5A e Tutto (predefinito 6M). Inserito in una pagina `Quotazioni/...` mostra la serie; in una pagina `Strumenti/<id>` aggiunge i punti di acquisto (triangoli, al prezzo unitario pagato). Chart.js viene caricato da cdnjs.
 
-- **`pagina`** (stringa, opzionale): `Quotazioni/<id>` o `Strumenti/<id>`; se omessa, la pagina corrente.
+- **`pagina`** (stringa, opzionale): `Quotazioni/...` o `Strumenti/<id>`; se omessa, la pagina corrente.
 
 ### investimenti.torta(pagina) e investimenti.tortaRischio(pagina)
 
@@ -58,7 +58,7 @@ Le due ciambelle (valore per strumento e valore per classe di rischio KID) in un
 
 ### investimenti.serie(id) e investimenti.acquisti(id)
 
-Dati dei grafici: `serie` restituisce le quotazioni `{data, prezzo}` di `Quotazioni/<id>` in ordine di data; `acquisti` le righe `Acquisto` di `Strumenti/<id>` come `{data, prezzo unitario}`.
+Dati dei grafici: `serie(pagina)` restituisce le quotazioni `{data, prezzo}` di una pagina `Quotazioni/...` in ordine di data; `acquisti` le righe `Acquisto` di `Strumenti/<id>` come `{data, prezzo unitario}`.
 
 - **`id`** (stringa): id dello strumento, cioè il nome della pagina senza prefisso.
 
@@ -104,9 +104,21 @@ Legge le tabelle delle pagine `Strumenti/<id>` e somma per ogni strumento le quo
 
 **ids** (elenco di stringhe, opzionale): id degli strumenti da includere. Se omesso, tutti.
 
+### investimenti.pagineQuotazioni()
+
+Restituisce due tabelle: `isin → pagina` e `pagina → isin`, lette dall'attributo `isin` del frontmatter delle pagine sotto `Quotazioni/`. È l'unico punto in cui si risolve il collegamento tra uno strumento e le sue quotazioni. Non ha argomenti.
+
+### investimenti.quotazioniPerStrumento(strumenti, ids)
+
+Legge le tabelle `Quotazioni/...` una sola volta e le raggruppa per strumento (collegamento via `isin`): restituisce una tabella `id → lista di {data, prezzo}`, non ordinata. Scarta le righe senza data o prezzo e le pagine senza strumento corrispondente. Alimenta `ultimiPrezzi` e `performance`.
+
+**strumenti** (elenco, opzionale): il risultato di `investimenti.strumenti()`, se già disponibile.
+
+**ids** (elenco di stringhe, opzionale): id degli strumenti da includere. Se omesso, tutti.
+
 ### investimenti.ultimiPrezzi(strumenti)
 
-Cerca nelle tabelle delle pagine `Quotazioni/<id>` la riga con la data più recente e restituisce, per ogni pagina, `id`, `data`, `prezzo` e `valuta` (presa dallo strumento, default `EUR`). Scarta le righe senza data o prezzo, quindi non dipende dall'ordine delle righe nella tabella.
+Per ogni strumento con quotazioni (collegate via `isin`) restituisce la riga con la data più recente: `id`, `data`, `prezzo` e `valuta` (presa dallo strumento, default `EUR`). Scarta le righe senza data o prezzo, quindi non dipende dall'ordine delle righe nella tabella.
 
 **strumenti** (elenco, opzionale): il risultato di `investimenti.strumenti()`, se già disponibile, per non rileggerlo. Se omesso, viene letto.
 
@@ -152,21 +164,23 @@ Riassume una serie Yahoo in una sola riga con `valuta`, numero di `punti`, `prim
 
 ### quotazioni.crea()
 
-Crea la pagina `Quotazioni/<id>` per ogni strumento che ha un `ticker` e non ha ancora la pagina, con il solo titolo e la tabella `Data | Prezzo`, senza frontmatter. Restituisce l'elenco degli id creati, da passare a `quotazioni.aggiorna` per scaricarne lo storico.
+Crea la pagina `Quotazioni/<id>` per ogni strumento che ha `ticker` e `isin` e non ha ancora una pagina con quell'`isin`. La pagina contiene il frontmatter `isin`, il titolo, il grafico e la tabella `Data | Prezzo`. Restituisce l'elenco degli id creati e una tabella `id → pagina`, da passare a `quotazioni.aggiorna` (l'indice potrebbe non conoscere ancora le pagine nuove). Gli strumenti senza `isin` vengono saltati.
 
 Non ha argomenti.
 
-### quotazioni.aggiorna(range, ids)
+### quotazioni.aggiorna(range, ids, pagine)
 
 Scarica le quotazioni degli strumenti con `ticker`, le unisce per data alle righe già presenti (le ultime righe provvisorie vengono corrette) e riscrive la tabella con le date più recenti in alto. Il testo sopra la tabella resta invariato, quello sotto viene riscritto. Mostra una notifica con il numero di pagine e di errori; è un errore anche una serie con meno di 2 punti. Restituisce l'esito per ogni pagina.
 
 **range** (stringa, opzionale): periodo Yahoo da scaricare. Il default è `1mo`; per lo storico completo di una pagina nuova si usa `5y`.
 
-**ids** (elenco di stringhe, opzionale): id degli strumenti da aggiornare, come restituiti da `quotazioni.crea`. Se omesso, sono aggiornati tutti gli strumenti con `ticker`.
+**ids** (elenco di stringhe, opzionale): id degli strumenti da aggiornare, come restituiti da `quotazioni.crea`. Se omesso, sono aggiornati tutti gli strumenti con `ticker` che hanno una pagina `Quotazioni` con lo stesso `isin`.
+
+**pagine** (tabella, opzionale): `id → pagina` per le pagine appena create da `quotazioni.crea`.
 
 ## Comandi
 
-- **Quotazioni: Crea pagine e scarica storico**: crea le pagine `Quotazioni/<id>` mancanti e ne scarica 5 anni di storico (`quotazioni.aggiorna("5y", quotazioni.crea())`). Da usare quando si aggiunge uno strumento con `ticker`.
+- **Quotazioni: Crea pagine e scarica storico**: crea le pagine `Quotazioni/<id>` mancanti e ne scarica 5 anni di storico (`quotazioni.crea` seguita da `quotazioni.aggiorna("5y", ...)`). Da usare quando si aggiunge uno strumento con `ticker` e `isin`.
 - **Quotazioni: Aggiorna**: aggiorna l'ultimo mese di tutte le quotazioni automatiche (`quotazioni.aggiorna("1mo")`). È il comando periodico.
 
 ## Funzioni di servizio
@@ -208,9 +222,17 @@ ${investimenti.valorizzazione()}
 | 2025-04-01 | Acquisto | 3.983 | 25.11 | 100 | 0 | 0 |
 ```
 
-I tipi di movimento letti sono `Acquisto`, `Vendita` e `Dividendo`. `Valore` è l'importo in valuta dello strumento; per gli strumenti in valuta estera serve anche la colonna `Valore EUR`. `KID` (1-7, indicatore sintetico di rischio del KID; maiuscolo) è facoltativo e serve a `rischio` e `tortaRischio`. Il `ticker` è facoltativo: senza, la quotazione si tiene a mano. Il cambio EUR/USD è lo strumento con id `EURUSD` (`ticker: "EURUSD=X"`, `valuta: "USD"`), senza movimenti.
+I tipi di movimento letti sono `Acquisto`, `Vendita` e `Dividendo`. `Valore` è l'importo in valuta dello strumento; per gli strumenti in valuta estera serve anche la colonna `Valore EUR`. `KID` (1-7, indicatore sintetico di rischio del KID; maiuscolo) è facoltativo e serve a `rischio` e `tortaRischio`. L'`isin` collega lo strumento alla sua pagina `Quotazioni/...`: serve in ogni strumento che ha quotazioni (anche un codice interno, purché uguale nelle due pagine). Il `ticker` è facoltativo: senza, la quotazione si tiene a mano. Il cambio EUR/USD è lo strumento con id `EURUSD` (`isin: "EURUSD"`, `ticker: "EURUSD=X"`, `valuta: "USD"`), senza movimenti.
 
-**`Quotazioni/<id>`**: una pagina per strumento con la tabella `| Data | Prezzo |`, la più recente in alto. Non serve frontmatter. Le pagine automatiche sono create da `quotazioni.crea`; per gli strumenti senza `ticker` si crea a mano la pagina con la tabella e si aggiunge una riga a ogni aggiornamento.
+**`Quotazioni/<nome>`**: una pagina per strumento con la tabella `| Data | Prezzo |`, la più recente in alto. Il nome è libero; il collegamento allo strumento è l'attributo `isin` nel frontmatter, uguale a quello di `Strumenti/<id>`:
+
+```
+---
+isin: "PIR-I50"
+---
+```
+
+Le pagine automatiche sono create da `quotazioni.crea`; per gli strumenti senza `ticker` si crea a mano la pagina con la tabella e si aggiunge una riga a ogni aggiornamento.
 
 **`Conti/<nome>`**: una pagina per conto o per portafoglio. L'attributo `strumento` elenca gli strumenti che contiene; il tag `Conto` indica un conto che contiene gli investimenti, `Portafoglio` un raggruppamento di strumenti che possono stare in conti diversi. La valorizzazione si ottiene con `${investimenti.valorizzazione()}`.
 
@@ -264,6 +286,20 @@ function investimenti.strumenti()
   end
   table.sort(out, function(a, b) return a.id < b.id end)
   return out
+end
+
+--- Pagine Quotazioni/...: restituisce due tabelle, isin -> pagina e pagina -> isin.
+--- Il collegamento tra Strumenti/<id> e la sua pagina quotazioni è l'attributo isin.
+function investimenti.pagineQuotazioni()
+  local perIsin, perPagina = {}, {}
+  for _, p in ipairs(query[[
+    from p = index.subPages("Quotazioni")
+    select {name = p.name, isin = p.isin}
+  ]]) do
+    local i = str(p.isin)
+    if i then perIsin[i], perPagina[p.name] = p.name, i end
+  end
+  return perIsin, perPagina
 end
 
 --- Id degli strumenti di una pagina: Conti/ -> attributo strumento; Strumenti/ -> la pagina;
@@ -365,35 +401,44 @@ end
 ```space-lua
 quotazioni = quotazioni or {}
 
---- Crea le pagine Quotazioni/<id> mancanti (solo strumenti con ticker). Restituisce gli id creati.
+--- Crea la pagina Quotazioni/<id> (con l'isin nel frontmatter) per ogni strumento con ticker e isin
+--- che non ha ancora una pagina con quell'isin. Restituisce gli id creati e una tabella id -> pagina
+--- (da passare ad aggiorna, perché l'indice potrebbe non conoscere ancora le pagine nuove).
 function quotazioni.crea()
-  local create = {}
+  local perIsin = investimenti.pagineQuotazioni()
+  local create, pagine = {}, {}
   for _, s in ipairs(investimenti.strumenti()) do
-    if s.ticker and not space.pageExists("Quotazioni/" .. s.id) then
-      space.writePage("Quotazioni/" .. s.id,
-        "# " .. s.nome .. "\n\n${investimenti.grafico()}\n\n| Data | Prezzo |\n|---|---|\n")
+    local nome = "Quotazioni/" .. s.id
+    if s.ticker and s.isin and not perIsin[s.isin] and not space.pageExists(nome) then
+      space.writePage(nome, '---\nisin: "' .. s.isin .. '"\n---\n# ' .. s.nome ..
+        "\n\n${investimenti.grafico()}\n\n| Data | Prezzo |\n|---|---|\n")
       table.insert(create, s.id)
+      pagine[s.id] = nome
     end
   end
-  return create
+  return create, pagine
 end
 
---- Scarica e unisce le quotazioni (per data) nelle pagine Quotazioni/<id>.
---- range: periodo Yahoo (default "1mo"); ids: elenco di id (default: strumenti con ticker).
-function quotazioni.aggiorna(range, ids)
+--- Scarica e unisce le quotazioni (per data) nelle pagine Quotazioni con lo stesso isin dello strumento.
+--- range: periodo Yahoo (default "1mo"); ids: elenco di id strumento (default: strumenti con ticker);
+--- pagine: tabella id -> pagina per le pagine appena create (vedi crea).
+function quotazioni.aggiorna(range, ids, pagine)
   range = range or "1mo"
+  local perIsin = investimenti.pagineQuotazioni()
   local ticker, tutti = {}, {}
   for _, s in ipairs(investimenti.strumenti()) do
     if s.ticker then
       ticker[s.id] = s.ticker
       table.insert(tutti, s.id)
+      pagine = pagine or {}
+      pagine[s.id] = pagine[s.id] or (s.isin and perIsin[s.isin])
     end
   end
   ids = ids or tutti
   local esiti, err = {}, 0
   for _, id in ipairs(ids) do
-    local nome = "Quotazioni/" .. id
-    if ticker[id] and space.pageExists(nome) then
+    local nome = pagine and pagine[id]
+    if ticker[id] and nome and space.pageExists(nome) then
       local testo = space.readPage(nome)
       local i = string.find(testo, "| Data | Prezzo |", 1, true)
       local q = i and quotazioni.yahoo(ticker[id], range) or {errore = "tabella non trovata"}
@@ -427,7 +472,8 @@ I due comandi sono in blocchi separati, uno per blocco.
 command.define {
   name = "Quotazioni: Crea pagine e scarica storico",
   run = function()
-    quotazioni.aggiorna("5y", quotazioni.crea())
+    local ids, pagine = quotazioni.crea()
+    quotazioni.aggiorna("5y", ids, pagine)
   end
 }
 ```
@@ -487,32 +533,51 @@ function investimenti.movimentiDati(ids)
   return out
 end
 
---- Ultimo prezzo di ogni pagina Quotazioni/<id>: lista {id, data, prezzo, valuta}.
+--- Quotazioni raggruppate per strumento: tabella id -> lista {data, prezzo} (non ordinata).
+--- Lo strumento è collegato alla pagina Quotazioni dall'attributo isin. ids opzionale (filtro);
 --- strumenti: risultato di investimenti.strumenti(), se già disponibile.
-function investimenti.ultimiPrezzi(strumenti)
-  local valuta = {}
-  for _, s in ipairs(strumenti or investimenti.strumenti()) do valuta[s.id] = s.valuta end
+function investimenti.quotazioniPerStrumento(strumenti, ids)
+  local ammessi
+  if ids then
+    ammessi = {}
+    for _, id in ipairs(ids) do ammessi[id] = true end
+  end
+  local perIsin, perPagina = investimenti.pagineQuotazioni()
+  local idDi = {}  -- isin -> id strumento
+  for _, s in ipairs(strumenti or investimenti.strumenti()) do
+    if s.isin and (not ammessi or ammessi[s.id]) then idDi[s.isin] = s.id end
+  end
 
-  local last = {}
+  local per = {}
   for _, r in ipairs(query[[
     from t = index.tables()
     where string.startsWith(t.page, "Quotazioni/")
     select {pagina = t.page, ref = t.ref, giorno = t.data, px = t.prezzo}
   ]]) do
-    local d, pr = r.giorno, tonumber(r.px)
-    -- salta righe prive di data/prezzo
-    if type(d) == "string" and pr then
-      local l = last[r.pagina]
-      if not l or d > l.data then last[r.pagina] = {data = d, prezzo = pr} end
+    local id = idDi[perPagina[r.pagina]]
+    local pr = tonumber(r.px)
+    -- salta righe prive di data/prezzo e pagine non collegate a uno strumento
+    if id and type(r.giorno) == "string" and pr then
+      per[id] = per[id] or {}
+      table.insert(per[id], {r.giorno, pr})
     end
   end
+  return per
+end
 
+--- Ultimo prezzo di ogni strumento con quotazioni: lista {id, data, prezzo, valuta}.
+--- strumenti: risultato di investimenti.strumenti(), se già disponibile.
+function investimenti.ultimiPrezzi(strumenti)
+  strumenti = strumenti or investimenti.strumenti()
+  local per = investimenti.quotazioniPerStrumento(strumenti)
   local out = {}
-  for page, r in pairs(last) do
-    local id = string.sub(page, 12)  -- "Quotazioni/" = 11 caratteri
-    table.insert(out, {id = id, data = r.data, prezzo = r.prezzo, valuta = valuta[id] or "EUR"})
+  for _, s in ipairs(strumenti) do
+    local ultimo
+    for _, r in ipairs(per[s.id] or {}) do
+      if not ultimo or r[1] > ultimo[1] then ultimo = r end
+    end
+    if ultimo then table.insert(out, {id = s.id, data = ultimo[1], prezzo = ultimo[2], valuta = s.valuta}) end
   end
-  table.sort(out, function(a, b) return a.id < b.id end)
   return out
 end
 ```
@@ -894,12 +959,12 @@ local function js(x)
   return "null"
 end
 
---- Quotazioni di uno strumento: lista di {data, prezzo}, dalla più vecchia.
-function investimenti.serie(id)
+--- Quotazioni di una pagina Quotazioni/...: lista di {data, prezzo}, dalla più vecchia.
+function investimenti.serie(pagina)
   local out = {}
   for _, r in ipairs(query[[
     from t = index.tables()
-    where t.page == "Quotazioni/" .. id
+    where t.page == pagina
     select {ref = t.ref, giorno = t.data, px = t.prezzo}
   ]]) do
     local pr = tonumber(r.px)
@@ -972,16 +1037,26 @@ disegna(RANGE[3]);
 ]]
 
 --- Grafico lineare delle quotazioni con pulsanti 7G/1M/3M/6M/YTD/1A/5A/Tutto.
---- Su Strumenti/ aggiunge i punti di acquisto. pagina: Quotazioni/<id> o Strumenti/<id>.
+--- Su Strumenti/ aggiunge i punti di acquisto. pagina: Quotazioni/... o Strumenti/<id>.
 function investimenti.grafico(pagina)
   pagina = pagina or editor.getCurrentPage()
   if type(pagina) ~= "string" then return nil end
-  local id, conAcquisti
-  if string.startsWith(pagina, "Quotazioni/") then id = string.sub(pagina, 12)
-  elseif string.startsWith(pagina, "Strumenti/") then id, conAcquisti = string.sub(pagina, 11), true
+  local perIsin, perPagina = investimenti.pagineQuotazioni()
+  local id, quot, conAcquisti
+  if string.startsWith(pagina, "Quotazioni/") then
+    quot = pagina
+    for _, s in ipairs(investimenti.strumenti()) do
+      if s.isin and s.isin == perPagina[pagina] then id = s.id end
+    end
+  elseif string.startsWith(pagina, "Strumenti/") then
+    id, conAcquisti = string.sub(pagina, 11), true
+    for _, s in ipairs(investimenti.strumenti()) do
+      if s.id == id then quot = s.isin and perIsin[s.isin] end
+    end
   else return widget.markdownBlock("_Il grafico vale per pagine Quotazioni/ e Strumenti/._") end
+  if not quot then return widget.markdownBlock("_Nessuna pagina Quotazioni con l'isin dello strumento._") end
 
-  local serie = investimenti.serie(id)
+  local serie = investimenti.serie(quot)
   if #serie < 2 then return widget.markdownBlock("_Quotazioni insufficienti per il grafico._") end
   local acq = conAcquisti and investimenti.acquisti(id) or {}
 
@@ -990,7 +1065,7 @@ function investimenti.grafico(pagina)
     for _, c in ipairs(lista) do table.insert(p, "[" .. js(c[1]) .. "," .. c[2] .. "]") end
     return "[" .. table.concat(p, ",") .. "]"
   end
-  local nome = id
+  local nome = id or quot
   for _, s in ipairs(investimenti.strumenti()) do if s.id == id then nome = s.nome end end
   local dati = "const DATI = {titolo: " .. js(nome) .. ", serie: " .. coppie(serie) ..
     ", acquisti: " .. coppie(acq) .. "};\n"
@@ -1172,28 +1247,17 @@ end
 --- Variazione % a 1M, YTD e 1A per strumento: tabella id -> {m1, ytd, a1} (nil se manca lo storico).
 --- ids: lista di id; nil = tutti gli strumenti con quotazioni.
 function investimenti.performance(ids)
-  local ammessi
+  local lista  -- ids richiesti più EURUSD (serve per le conversioni)
   if ids then
-    ammessi = {EURUSD = true}
-    for _, id in ipairs(ids) do ammessi[id] = true end
+    lista = {"EURUSD"}
+    for _, id in ipairs(ids) do table.insert(lista, id) end
   end
-  local per = {}
-  for _, r in ipairs(query[[
-    from t = index.tables()
-    where string.startsWith(t.page, "Quotazioni/")
-    select {pagina = t.page, ref = t.ref, giorno = t.data, px = t.prezzo}
-  ]]) do
-    local id = string.sub(r.pagina, 12)  -- "Quotazioni/" = 11 caratteri
-    local pr = tonumber(r.px)
-    if type(r.giorno) == "string" and pr and (not ammessi or ammessi[id]) then
-      per[id] = per[id] or {}
-      table.insert(per[id], {r.giorno, pr})
-    end
-  end
+  local strumenti = investimenti.strumenti()
+  local per = investimenti.quotazioniPerStrumento(strumenti, lista)
   for _, s in pairs(per) do table.sort(s, function(a, b) return a[1] < b[1] end) end
 
   local usd = {}
-  for _, s in ipairs(investimenti.strumenti()) do usd[s.id] = s.valuta == "USD" end
+  for _, s in ipairs(strumenti) do usd[s.id] = s.valuta == "USD" end
   local fx = per.EURUSD
 
   -- prezzo in EUR di un punto della serie
