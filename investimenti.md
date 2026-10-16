@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.15"
+version: "0.16"
 versionDate: 2026-10-16
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -9,279 +9,122 @@ share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 
 # 💸 Investimenti
 
-Libreria per monitorare gli investimenti con pagine Markdown: movimenti per strumento, quotazioni storiche scaricate da Yahoo Finance e valorizzazione con profitto/perdita (P/L), per singolo strumento, per conto o per portafoglio. Le pagine Markdown restano la fonte primaria; la libreria scrive solo nelle pagine `Quotazioni/...`, con `quotazioni.crea` e `quotazioni.aggiorna`.
+**Versione 0.16 — 16.10.2026** · Libreria per SilverBullet v2.11+.
 
-Richiede la libreria `DateFormat` per formattare la data dei prezzi; senza, la data resta nel formato ISO.
+Gestione degli strumenti finanziari in Markdown: movimenti, quotazioni storiche, valorizzazioni in EUR, andamento e indicatori. Le pagine Markdown sono la fonte primaria; le sole scritture automatiche riguardano `Quotazioni/...` mediante `quotazioni.crea()` e `quotazioni.aggiorna()`.
 
-## Funzioni
+> **Prima di sostituire la pagina**: conservare un backup della libreria e dello Space. Questa versione mantiene lo schema delle pagine e le funzioni pubbliche della 0.15. Il codice è stato verificato strutturalmente ma non eseguito in SilverBullet: provarlo prima su Space di test.
 
-### investimenti.valorizzazione(pagina)
+## Novità 0.16
 
-Mostra la valorizzazione in EUR come tabella con le colonne `strumento` (link allo strumento, con il suo `displayName`), `quote`, `prezzo_eur`, `data_prezzo`, `acquistato`, `incassato`, `valore`, `pl`, `%` e `segnale` (vedi sotto), più una riga TOTALE in grassetto quando gli strumenti sono più di uno. Sotto i 600 px ogni riga diventa una scheda. P/L = valore + incassato − acquistato, al lordo di imposte e commissioni di conto. Le colonne numeriche sono allineate a destra con due decimali (`quote` con fino a 8 decimali, senza zeri finali), `%` è centrata con il simbolo `%`. I prezzi in USD sono convertiti dividendo per l'ultimo prezzo dello strumento `EURUSD` (cambio USD per 1 EUR). Una posizione chiusa vale 0; uno strumento senza prezzo mostra `n.d.` ed è escluso dal totale, che lo segnala. Il prezzo è mostrato con due decimali: un prezzo come 0,9990 appare come 1,00, mentre il valore è calcolato con il prezzo completo.
+- Aggiornamento conservativo della tabella `Data | Prezzo`: le note successive e precedenti non vengono eliminate.
+- Blocco della scrittura su dati storici illeggibili, date o prezzi non validi, ISIN duplicati e valuta Yahoo diversa dalla valuta dichiarata.
+- Otto decimali per i nuovi prezzi Yahoo; i prezzi storici già memorizzati conservano la precisione originale.
+- Nuova `investimenti.verifica()` in sola lettura per anomalie di struttura, pagine e ISIN.
+- Nessuna migrazione obbligatoria delle tabelle `Quotazioni/...` già presenti in 0.15.
 
-Quali strumenti includere dipende dalla pagina in cui è usata: in `Conti/<nome>` (conto o portafoglio) quelli elencati nell'attributo `strumento` del frontmatter; in `Strumenti/<id>` solo lo strumento della pagina; altrove tutti gli strumenti.
+## Struttura dello Space
 
-**pagina** (stringa, opzionale): nome della pagina da cui ricavare l'elenco degli strumenti, per esempio `"Conti/NEF - Famiglia"`. Se omesso, è la pagina aperta nell'editor. Serve per mostrare la valorizzazione di un conto in una pagina diversa, per esempio un cruscotto.
+- `Strumenti/<id>`: frontmatter con `displayName`, `isin`, `ticker`, `valuta`, `tipo`, `KID` e tabella dei movimenti. `ticker` è facoltativo per quotazioni manuali.
+- `Quotazioni/<id>`: frontmatter con `isin`, tabella `Data | Prezzo` e grafici opzionali. Le quotazioni sono collegate mediante l'ISIN.
+- `Conti/<nome>`: attributo `strumento` con link `[[Strumenti/<id>]]`; conti e portafogli possono essere visualizzati individualmente.
+- `Index`: cruscotto generale; la pagina può essere personalizzata con `config.set("investimenti.paginaIndice", "...")`.
 
-### investimenti.valore(pagina)
+La libreria supporta prezzi in EUR e USD; i prezzi in USD vengono convertiti mediante l'ultimo `EURUSD` disponibile. La performance 1M/YTD/1A è una variazione della quotazione, non un rendimento ponderato sui flussi di cassa. Il P/L è calcolato come valore + incassato − acquistato. Non include automaticamente tutte le imposte, i costi di conto e le particolarità delle obbligazioni.
 
-Versione compatta di `valorizzazione`: tabella con le sole colonne Investimento (link con `displayName`), Acquistato, Attuale (valore di mercato in EUR), P/L, %, 1M, YTD, 1A e Segnale, più la riga TOTALE. Stesso calcolo di `valorizzazione`.
+## API pubbliche
 
-- **`pagina`** (stringa, opzionale): come in `investimenti.elenco`; se omessa, la pagina corrente.
+| Funzione | Uso |
+|---|---|
+| `investimenti.strumenti()` | Elenco strumenti e frontmatter |
+| `investimenti.elenco(pagina)` | Strumenti contenuti nel conto o nella pagina |
+| `investimenti.movimentiDati(ids)` | Quote nette, acquisti e incassi |
+| `investimenti.quotazioniPerStrumento(strumenti, ids)` | Serie storiche per ID |
+| `investimenti.ultimiPrezzi(strumenti, per)` | Ultimo prezzo disponibile |
+| `investimenti.valorizzazioneDati(ids)` | Dati numerici e totali |
+| `investimenti.valorizzazione(pagina)` | Valorizzazione dettagliata |
+| `investimenti.valore(pagina)` | Tabella compatta con performance |
+| `investimenti.movimenti(pagina)` | Movimenti aggregati |
+| `investimenti.performance(ids)` | Variazione quotazioni 1M/YTD/1A |
+| `investimenti.serie(id)` / `investimenti.acquisti(id)` | Dati per grafici |
+| `investimenti.grafico(pagina)` | Prezzi, MM200, Bollinger, RSI, stop/TP/trailing |
+| `investimenti.torta(pagina)` / `investimenti.tortaRischio(pagina)` | Distribuzioni per strumento e KID |
+| `investimenti.allocazione(pagina)` | Entrambe le distribuzioni |
+| `investimenti.barraRischio(n)` / `investimenti.rischio(pagina)` | Indicatore KID per singolo strumento e aggregato |
+| `investimenti.barrePL(pagina)` | Grafico P/L per strumento |
+| `investimenti.scheda(pagina)` / `investimenti.elencoStrumenti()` / `investimenti.elencoConti()` | Viste anagrafiche |
+| `investimenti.vista(pagina)` | Widget automatici per pagina |
+| `investimenti.verifica()` | Anomalie struttura, ISIN e tabelle (v0.16) |
+| `quotazioni.yahoo(simbolo, range)` | Storico Yahoo Finance |
+| `quotazioni.cerca(testo)` / `quotazioni.verifica(simbolo, range)` / `quotazioni.test()` | Ricerca e diagnostica Yahoo |
+| `quotazioni.crea()` / `quotazioni.aggiorna(range, ids, pagine)` | Creazione e aggiornamento pagine quotazioni |
 
-### investimenti.grafico(pagina)
+Le funzioni che accettano `pagina` usano per impostazione predefinita la pagina aperta nell'editor; `ids` è un elenco di identificatori senza prefisso `Strumenti/`. Richiede facoltativamente `DateFormat` per mostrare le date nel formato `DD.MM.YYYY`.
 
-Grafico lineare delle quotazioni (Chart.js in un widget isolato), con i pulsanti di periodo 7G, 1M, 3M, 6M, YTD, 1A, 5A e Tutto (predefinito 6M). Inserito in una pagina `Quotazioni/...` mostra la serie; in una pagina `Strumenti/<id>` aggiunge i punti di acquisto (triangoli, al prezzo unitario pagato). Chart.js viene caricato da cdnjs.
+## Quotazioni: aggiornamento e integrità
 
-Una seconda fila di pulsanti accende e spegne gli indicatori (tutti spenti all'apertura; i pulsanti attivi sono in grassetto):
+`quotazioni.aggiorna()` scarica per default un mese di dati; `quotazioni.aggiorna("5y")` richiede cinque anni. Prima della scrittura il parser `quotazioni.blocco()` verifica la tabella corrente, poi valida tutti i punti scaricati. Se un controllo fallisce, la pagina non viene modificata e il risultato riporta `errore`.
 
-- **MM200**: media mobile semplice sulle ultime 200 quotazioni.
-- **Bollinger**: media mobile a 20 quotazioni ± 2 deviazioni standard.
-- **RSI**: RSI a 14 quotazioni (metodo di Wilder) in un riquadro separato sotto il grafico, con le soglie 70 e 30.
-- **Stop · TP** (solo su `Strumenti/<id>` con acquisti): prezzo medio di carico (media pesata sulle quote degli acquisti, vendite ignorate), stop loss e take profit come percentuali dal prezzo medio.
-- **Trailing** (solo su `Strumenti/<id>` con acquisti): massimo raggiunto dal primo acquisto meno la percentuale; la linea non scende mai.
+La tabella riconosciuta deve avere esattamente due colonne `Data | Prezzo`, date ISO e prezzi positivi separati dal punto. Il contenuto prima e dopo la tabella viene mantenuto; se esistono più intestazioni omonime, l'aggiornamento viene bloccato. Yahoo Finance è una fonte non ufficiale: non si garantiscono disponibilità, puntualità o correttezza dei dati.
 
-Gli indicatori sono calcolati sull'intera serie e poi ritagliati sul periodo scelto; le finestre sono in quotazioni, non in giorni di calendario, quindi con quotazioni rade (per esempio obbligazioni) coprono un periodo più lungo. Sono strumenti di lettura, non segnali di investimento. Le percentuali (predefiniti: stop loss 10, take profit 25, trailing 8) si impostano con gli attributi `stopLoss`, `takeProfit` e `trailing` nel frontmatter dello strumento oppure con `config.set("investimenti.stopLoss", 10)` e le chiavi `investimenti.takeProfit` e `investimenti.trailing`.
+`investimenti.verifica()` restituisce una tabella con `pagina`, `problema`, `dettaglio`, senza modificare dati. Controlli inclusi: ISIN assenti/duplicati, pagine quotazioni prive di tabella valida, strumenti con ticker senza pagina collegata.
 
-- **`pagina`** (stringa, opzionale): `Quotazioni/...` o `Strumenti/<id>`; se omessa, la pagina corrente.
+**Limiti:** le quotazioni obsolete e l'allineamento storico del cambio USD/EUR non vengono ancora bloccati dal motore patrimoniale. L'associazione movimento-conto, le cedole obbligazionarie e il costo medio delle quote residue sono previsti per una versione successiva.
 
-### investimenti.torta(pagina) e investimenti.tortaRischio(pagina)
+## Esempi di pagine
 
-Ciambelle del valore attuale (EUR): `torta` per strumento, `tortaRischio` per classe di rischio 1-7 letta dall'attributo `KID` degli strumenti (gli strumenti senza `KID` vanno in "n.d."). Usano `valorizzazioneDati`, quindi gli strumenti senza prezzo o chiusi non compaiono.
+### Strumento
 
-- **`pagina`** (stringa, opzionale): come in `investimenti.elenco`.
-
-### investimenti.allocazione(pagina)
-
-Le due ciambelle (valore per strumento e valore per classe di rischio KID) in un solo widget con griglia CSS `auto-fit`: affiancate su schermo largo, impilate su schermo stretto. Sostituisce la coppia `torta` + `tortaRischio` nelle viste automatiche; le due funzioni restano disponibili singolarmente.
-
-- **`pagina`** (stringa, opzionale): come in `investimenti.elenco`.
-
-### investimenti.rischio(pagina) e investimenti.barraRischio(n)
-
-`rischio` restituisce il testo con la barra di rischio in emoji (es. `🟩🟩🟨🟨🟧⬜⬜ 5/7`): per uno strumento la sua classe, per conti e portafogli la media dei `KID` ponderata sul valore attuale. `barraRischio` disegna la barra per un numero 1-7 e si può usare in altre tabelle.
-
-- **`pagina`** (stringa, opzionale): come in `investimenti.elenco`.
-- **`n`** (numero): classe di rischio da 1 a 7, arrotondata; se non è un numero restituisce `n.d.`.
-
-### investimenti.serie(id) e investimenti.acquisti(id)
-
-Dati dei grafici: `serie(pagina)` restituisce le quotazioni `{data, prezzo}` di una pagina `Quotazioni/...` in ordine di data; `acquisti` le righe `Acquisto` di `Strumenti/<id>` come `{data, prezzo unitario}`.
-
-- **`id`** (stringa): id dello strumento, cioè il nome della pagina senza prefisso.
-
-### investimenti.performance(ids)
-
-Variazione percentuale per strumento a 1 mese (30 giorni), da inizio anno (YTD, rispetto all'ultima quotazione dell'anno precedente) e a 1 anno (365 giorni), calcolata sulle quotazioni; restituisce una tabella id → `{m1, ytd, a1}`, con `nil` dove lo storico non basta (strumenti a quotazione manuale con un solo prezzo). Per i fondi in USD usa il cambio EURUSD alla data, quindi la variazione è in EUR. È la fonte delle colonne 1M, YTD e 1A di `investimenti.valore`.
-
-- **`ids`** (lista di stringhe, opzionale): id degli strumenti; se omessa, tutti quelli con quotazioni.
-
-### investimenti.barrePL(pagina)
-
-Barre orizzontali (Chart.js) del P/L per strumento, in verde se positivo e in rosso se negativo, ordinate dal maggiore al minore.
-
-- **`pagina`** (stringa, opzionale): come in `investimenti.elenco`.
-
-### investimenti.scheda(pagina), investimenti.elencoStrumenti() e investimenti.elencoConti()
-
-Viste costruite dal frontmatter. `scheda` (pagine `Strumenti/<id>`): descrizione, tipo, valuta, ISIN, tag, barra di rischio e link ai conti/portafogli che contengono lo strumento (attributo `strumento`). `elencoStrumenti` (pagina `Strumenti`): tabella di tutti gli strumenti con tipo, valuta, ultimo prezzo, data e rischio. `elencoConti` (pagina `Conti`): tabella di conti e portafogli con tipo (dal tag `Conto` o `Portafoglio`), numero di strumenti, acquistato, attuale, P/L e %, calcolati con una sola valorizzazione.
-
-- **`pagina`** (stringa, opzionale, solo `scheda`): `Strumenti/<id>`; se omessa, la pagina corrente.
-
-### Widget automatici
-
-Nessuna chiamata nelle pagine: `investimenti.vista(pagina)` elenca i widget di ogni pagina (funzioni, non ancora calcolate) e la libreria li mostra in testa con listener `hooks:renderTopWidgets`, uno per posizione, se `config.set("investimenti.widgetAutomatici", true)`. `view.define` non è usato: il contenuto di una vista non può essere un widget isolato (`navigator: content cannot return a sandboxed widget`) né un `dom.div` con widget come figli.
-
-Pagine gestite: `Index` (nome modificabile con `investimenti.paginaIndice`): `valore`, `barrePL`, `allocazione`; `Strumenti`: `elencoStrumenti`; `Conti`: `elencoConti`; `Conti/<nome>` e portafogli: rischio medio, `valorizzazione`, `allocazione`; `Strumenti/<id>`: `scheda`, `valorizzazione`, `grafico`; `Quotazioni/<id>`: `grafico`. Se una pagina ha già le chiamate `${...}` corrispondenti, i widget compaiono due volte: vanno tolte dalla pagina. Con un solo strumento `valorizzazione` è un elenco verticale campo/valore, senza intestazione e senza riga TOTALE.
-
-### investimenti.movimenti(pagina)
-
-Mostra come tabella i movimenti aggregati per strumento: `id` (link allo strumento, con il suo `displayName`), `quote` (nette: acquisti meno vendite), `acquistato` e `incassato` (vendite e dividendi), in EUR. Le colonne numeriche sono allineate a destra, con due decimali per gli importi. Per gli strumenti in valuta estera usa la colonna `Valore EUR` al posto di `Valore`.
-
-**pagina** (stringa, opzionale): come in `investimenti.valorizzazione`: la pagina da cui ricavare l'elenco degli strumenti. Se omesso, è la pagina aperta nell'editor.
-
-### investimenti.valorizzazioneDati(ids)
-
-Restituisce i dati numerici della valorizzazione, non formattati, per riusarli (grafici, schede). Restituisce tre valori: l'elenco delle righe (`id`, `nome`, `quote`, `prezzo`, `data`, `acquistato`, `incassato`, `valore`, `pl`, `pct`, `segnale`, con `nil` dove un dato manca), il totale (`a` acquistato, `i` incassato, `v` valore, `pl`) e il numero di strumenti senza prezzo.
-
-**ids** (elenco di stringhe, opzionale): id degli strumenti da includere, cioè i nomi delle pagine `Strumenti/` senza prefisso. Se omesso, tutti.
-
-### Colonna Segnale
-
-Compare in `valorizzazione` e `valore`, solo per le posizioni aperte con almeno un acquisto e un prezzo. Una sola etichetta per riga, nell'ordine di priorità:
-
-- **🔴 Stop loss**: il prezzo è almeno `stopLoss` % sotto il prezzo medio di carico (in EUR, media pesata sulle quote degli acquisti, vendite ignorate).
-- **🟠 Trailing**: il prezzo è almeno `trailing` % sotto il massimo raggiunto dal primo acquisto.
-- **🟢 Take profit**: il prezzo è almeno `takeProfit` % sopra il prezzo medio di carico.
-
-Le percentuali sono quelle del grafico (predefiniti 10, 25, 8; frontmatter dello strumento o `config`, risolte da `investimenti.soglie(strumento)`). Per escludere uno strumento, per esempio un'obbligazione tenuta a scadenza, si scrive `segnali: false` nel suo frontmatter. È un'indicazione di lettura, non un consiglio di investimento.
-
-### investimenti.movimentiDati(ids)
-
-Legge le tabelle delle pagine `Strumenti/<id>` e somma per ogni strumento le quote nette, l'importo acquistato e l'importo incassato, in EUR. Restituisce una riga per strumento, ordinata per id, con `id`, `quote`, `acquistato` e `incassato` come numeri, più `qAcq` (quote acquistate, per il prezzo medio di carico) e `primo` (data del primo acquisto, se presente).
-
-**ids** (elenco di stringhe, opzionale): id degli strumenti da includere. Se omesso, tutti.
-
-### investimenti.pagineQuotazioni()
-
-Restituisce due tabelle: `isin → pagina` e `pagina → isin`, lette dall'attributo `isin` del frontmatter delle pagine sotto `Quotazioni/`. È l'unico punto in cui si risolve il collegamento tra uno strumento e le sue quotazioni. Non ha argomenti.
-
-### investimenti.quotazioniPerStrumento(strumenti, ids)
-
-Legge le tabelle `Quotazioni/...` una sola volta e le raggruppa per strumento (collegamento via `isin`): restituisce una tabella `id → lista di {data, prezzo}`, non ordinata. Scarta le righe senza data o prezzo e le pagine senza strumento corrispondente. Alimenta `ultimiPrezzi` e `performance`.
-
-**strumenti** (elenco, opzionale): il risultato di `investimenti.strumenti()`, se già disponibile.
-
-**ids** (elenco di stringhe, opzionale): id degli strumenti da includere. Se omesso, tutti.
-
-### investimenti.ultimiPrezzi(strumenti, per)
-
-Per ogni strumento con quotazioni (collegate via `isin`) restituisce la riga con la data più recente: `id`, `data`, `prezzo` e `valuta` (presa dallo strumento, default `EUR`). Scarta le righe senza data o prezzo, quindi non dipende dall'ordine delle righe nella tabella.
-
-**strumenti** (elenco, opzionale): il risultato di `investimenti.strumenti()`, se già disponibile, per non rileggerlo. Se omesso, viene letto.
-
-### investimenti.elenco(pagina)
-
-Restituisce l'elenco degli id degli strumenti di una pagina. In `Conti/<nome>` legge l'attributo `strumento` del frontmatter (un elenco di link `[[Strumenti/<id>]]`) ed estrae gli id; in `Strumenti/<id>` restituisce l'id della pagina; per qualsiasi altra pagina restituisce `nil`, cioè tutti gli strumenti. Un conto senza l'attributo restituisce un elenco vuoto.
-
-**pagina** (stringa, opzionale): nome della pagina. Se omesso, è la pagina aperta nell'editor.
-
-**per** (tabella, opzionale): il risultato di `investimenti.quotazioniPerStrumento`, se già disponibile.
-
-### investimenti.strumenti()
-
-Restituisce l'elenco degli strumenti, una riga per ogni pagina sotto `Strumenti/`, ordinata per id. Ogni riga contiene `id` (nome della pagina senza il prefisso), `nome` (`displayName` o, se manca, il nome della pagina), `isin`, `ticker` (ticker Yahoo, presente solo per gli strumenti con quotazione automatica), `valuta` (default `EUR`) e `tipo`. Aggiungere uno strumento significa solo creare la sua pagina.
-
-Non ha argomenti.
-
-### quotazioni.yahoo(simbolo, range)
-
-Scarica da Yahoo Finance (endpoint non ufficiale, uso personale) la serie giornaliera di un simbolo. Restituisce `{valuta, righe}`, dove `righe` è l'elenco di `{data, prezzo}` in ordine cronologico, oppure `{errore}` se la richiesta fallisce o il simbolo non ha dati. I giorni senza chiusura sono saltati e le date sono in UTC.
-
-**simbolo** (stringa): ticker Yahoo, per esempio `0P00000I8A.F` (fondo su Francoforte), `BTC-EUR` o `EURUSD=X`. Se manca o non è una stringa, la funzione restituisce `{errore = "simbolo mancante"}`.
-
-**range** (stringa, opzionale): periodo richiesto a Yahoo, per esempio `5d`, `1mo`, `1y`, `5y`, `max`. Il default è `5d`.
-
-### quotazioni.test()
-
-Funzione di prova: per ogni strumento con `ticker` scarica gli ultimi 5 giorni e restituisce `strumento`, `ticker`, `valuta`, `data` e `prezzo` dell'ultima chiusura, il numero di punti e l'eventuale errore. Serve a verificare che i ticker rispondano.
-
-Non ha argomenti.
-
-### quotazioni.cerca(testo)
-
-Cerca su Yahoo Finance un ticker partendo da un ISIN o da un nome e restituisce i risultati grezzi, oppure `{errore}`. Serve a trovare il ticker da scrivere nel frontmatter di uno strumento.
-
-**testo** (stringa): ISIN o nome dello strumento da cercare, per esempio `"LU0210526801"`.
-
-### quotazioni.verifica(simbolo, range)
-
-Riassume una serie Yahoo in una sola riga con `valuta`, numero di `punti`, `prima` e `ultima` data, ultimo `prezzo` ed eventuale errore. Serve a controllare la copertura storica e la valuta di un ticker prima di usarlo.
-
-**simbolo** (stringa): ticker Yahoo da verificare.
-
-**range** (stringa, opzionale): periodo richiesto. Il default è `5y`.
-
-### quotazioni.crea()
-
-Crea la pagina `Quotazioni/<id>` per ogni strumento che ha `ticker` e `isin` e non ha ancora una pagina con quell'`isin`. La pagina contiene il frontmatter `isin`, il titolo, il grafico e la tabella `Data | Prezzo`. Restituisce l'elenco degli id creati e una tabella `id → pagina`, da passare a `quotazioni.aggiorna` (l'indice potrebbe non conoscere ancora le pagine nuove). Gli strumenti senza `isin` vengono saltati.
-
-Non ha argomenti.
-
-### quotazioni.aggiorna(range, ids, pagine)
-
-Scarica le quotazioni degli strumenti con `ticker`, le unisce per data alle righe già presenti (le ultime righe provvisorie vengono corrette) e riscrive la tabella con le date più recenti in alto. Il testo sopra la tabella resta invariato, quello sotto viene riscritto. Mostra una notifica con il numero di pagine e di errori; è un errore anche una serie con meno di 2 punti. Restituisce l'esito per ogni pagina.
-
-**range** (stringa, opzionale): periodo Yahoo da scaricare. Il default è `1mo`; per lo storico completo di una pagina nuova si usa `5y`.
-
-**ids** (elenco di stringhe, opzionale): id degli strumenti da aggiornare, come restituiti da `quotazioni.crea`. Se omesso, sono aggiornati tutti gli strumenti con `ticker` che hanno una pagina `Quotazioni` con lo stesso `isin`.
-
-**pagine** (tabella, opzionale): `id → pagina` per le pagine appena create da `quotazioni.crea`.
-
-## Comandi
-
-- **Quotazioni: Crea pagine e scarica storico**: crea le pagine `Quotazioni/<id>` mancanti e ne scarica 5 anni di storico (`quotazioni.crea` seguita da `quotazioni.aggiorna("5y", ...)`). Da usare quando si aggiunge uno strumento con `ticker` e `isin`.
-- **Quotazioni: Aggiorna**: aggiorna l'ultimo mese di tutte le quotazioni automatiche (`quotazioni.aggiorna("1mo")`). È il comando periodico.
-
-## Funzioni di servizio
-
-Sono locali ai blocchi di codice e non fanno parte dell'interfaccia.
-
-- **`str(x)`**: restituisce `x` se è una stringa, altrimenti un vero `nil`. Serve perché un attributo assente letto in una `select` supera il controllo `if` pur avendo tipo `nil`.
-- **`num(x)`**: converte `x` in numero, con 0 se manca o non è convertibile.
-- **`migliaia(t)`**: separa con uno spazio le migliaia della parte intera di un numero scritto come testo (`15000.00` → `15 000.00`).
-- **`f2(x)`**: formatta un numero con due decimali e migliaia separate, oppure `n.d.` se manca.
-- **`fq(x)`**: formatta una quantità con fino a 8 decimali, senza zeri finali, con migliaia separate.
-- **`data(d)`**: formatta una data ISO come `DD.MM.YYYY` con `date.format` (libreria `DateFormat`); se la libreria manca restituisce la data invariata, se manca la data restituisce `n.d.`.
-- **`investimenti.nomi(strumenti)`**: costruisce la tabella id → `displayName` a partire dall'elenco degli strumenti. Condivisa tra i blocchi.
-- **`investimenti.chartjs`**: indirizzo di Chart.js su cdnjs, usato da tutti i grafici.
-- **`torta(titolo, etichette, valori, colori)`**: costruisce il widget a ciambella usato da `torta` e `tortaRischio`.
-- **`tabella(colonne, righe, verticale)`**: costruisce la tabella come widget isolato, con allineamento per colonna, celle con link (allo strumento, o alla pagina indicata in `pagina`) e riga di totale in grassetto. Sotto i 600 px di larghezza ogni riga diventa una scheda (etichetta e valore per ogni campo); con `verticale = true` è un elenco campo/valore senza intestazione. Il contenuto Markdown del widget alimenta il pulsante Copia.
-- **`investimenti.js(x)`**: converte un numero o una stringa in testo JavaScript per i dati di grafici e tabelle, con escape di barre inverse, virgolette e a capo.
-
-## Struttura delle pagine
-
-La libreria presuppone tre gruppi di pagine, con questi prefissi fissi. L'appartenenza si deduce dalla cartella, quindi non servono tag su `Strumenti/` e `Quotazioni/`.
-
-**`Strumenti/<id>`**: una pagina per strumento, con una tabella dei movimenti. L'id è l'ISIN o un codice (`BTC`, `PIR-F-I50`); dove esiste, `isin` coincide con il nome della pagina.
-
-```
+```markdown
 ---
 displayName: "NEF Ethical Euro Equity R Acc"
-description: "Fondo - NEF - Famiglia"
 isin: "LU0102238655"
 ticker: "0P00000I8A.F"
-tipo: "Fondo"
-valuta: "EUR"
+tipo: Fondo
+valuta: EUR
 KID: 4
 ---
 
-${investimenti.valorizzazione()}
-
 | Data | Tipo | Quantità | Prezzo | Valore | Commissioni | Tasse |
-|---|---|---|---|---|---|---|
+|---|---|---:|---:|---:|---:|---:|
 | 2025-04-01 | Acquisto | 3.983 | 25.11 | 100 | 0 | 0 |
 ```
 
-I tipi di movimento letti sono `Acquisto`, `Vendita` e `Dividendo`. `Valore` è l'importo in valuta dello strumento; per gli strumenti in valuta estera serve anche la colonna `Valore EUR`. `stopLoss`, `takeProfit` e `trailing` (percentuali, facoltative) regolano le linee dei pulsanti del grafico. `KID` (1-7, indicatore sintetico di rischio del KID; maiuscolo) è facoltativo e serve a `rischio` e `tortaRischio`. L'`isin` collega lo strumento alla sua pagina `Quotazioni/...`: serve in ogni strumento che ha quotazioni (anche un codice interno, purché uguale nelle due pagine). Il `ticker` è facoltativo: senza, la quotazione si tiene a mano. Il cambio EUR/USD è lo strumento con id `EURUSD` (`isin: "EURUSD"`, `ticker: "EURUSD=X"`, `valuta: "USD"`), senza movimenti.
+### Quotazioni
 
-**`Quotazioni/<nome>`**: una pagina per strumento con la tabella `| Data | Prezzo |`, la più recente in alto. Il nome è libero; il collegamento allo strumento è l'attributo `isin` nel frontmatter, uguale a quello di `Strumenti/<id>`:
-
-```
+```markdown
 ---
-isin: "PIR-I50"
+isin: "LU0102238655"
 ---
+
+| Data | Prezzo |
+|---|---|
+| 2026-10-15 | 25.112345 |
+
+## Note manuali
+Questo contenuto viene conservato durante l'aggiornamento.
 ```
 
-Le pagine automatiche sono create da `quotazioni.crea`; per gli strumenti senza `ticker` si crea a mano la pagina con la tabella e si aggiunge una riga a ogni aggiornamento.
+### Conto
 
-**`Conti/<nome>`**: una pagina per conto o per portafoglio. L'attributo `strumento` elenca gli strumenti che contiene; il tag `Conto` indica un conto che contiene gli investimenti, `Portafoglio` un raggruppamento di strumenti che possono stare in conti diversi. La valorizzazione si ottiene con `${investimenti.valorizzazione()}`.
-
-```
+```yaml
 ---
-displayName: "NEF - Famiglia"
-valuta: "EUR"
+displayName: NEF - Famiglia
 strumento:
   - "[[Strumenti/LU0102238655]]"
-  - "[[Strumenti/LU0102240719]]"
-tags: Conto
 ---
-
-${investimenti.valorizzazione()}
 ```
 
-## Limiti
+## Comandi
 
-- L'endpoint di Yahoo Finance non è ufficiale e può cambiare o bloccare le richieste; i fondi hanno spesso un ritardo di uno o due giorni.
-- Il P/L è al lordo di imposte e commissioni a livello di conto.
-- Lo strumento di una pagina `Strumenti/` è identificato dal nome della pagina, non dall'attributo `isin`: coincidono dove l'ISIN esiste, e il nome funziona anche per `BTC` e per i PIR, che non hanno ISIN.
-- Per riusare i dati (altre tabelle, grafici) usare `valorizzazioneDati` e `movimentiDati`, che restituiscono tabelle Lua senza formattazione.
+- **Quotazioni: Crea pagine e scarica storico** — crea pagine nuove e richiede cinque anni da Yahoo.
+- **Quotazioni: Aggiorna** — aggiorna l'ultimo mese delle pagine automatiche.
 
-## Codice
+## Implementazione Space Lua
 
-### Elenco strumenti e pagina di riferimento
+I blocchi seguenti costituiscono l'intera implementazione. Non rimuoverli se si sostituisce la pagina `Library/MG/investimenti`.
 
-`investimenti.strumenti`, `investimenti.elenco` e la funzione di servizio `str`. `elenco` legge l'attributo `strumento` dei conti con la stessa query di `strumenti` (sottopagine di `Conti`), senza usare tag.
+### Strumenti e collegamenti
 
 ```space-lua
 investimenti = investimenti or {}
@@ -383,9 +226,7 @@ function investimenti.elenco(pagina)
 end
 ```
 
-### Funzioni Yahoo
-
-`quotazioni.yahoo`, `test`, `cerca` e `verifica`. La riga `quotazioni = quotazioni or {}` è necessaria perché l'ordine di caricamento dei blocchi non è garantito.
+### Accesso Yahoo Finance
 
 ```space-lua
 quotazioni = quotazioni or {}
@@ -446,9 +287,7 @@ function quotazioni.verifica(simbolo, range)
 end
 ```
 
-### Creazione e aggiornamento
-
-`quotazioni.crea` e `quotazioni.aggiorna`.
+### Creazione e aggiornamento conservativo
 
 ```space-lua
 quotazioni = quotazioni or {}
@@ -474,51 +313,150 @@ end
 --- Scarica e unisce le quotazioni (per data) nelle pagine Quotazioni con lo stesso isin dello strumento.
 --- range: periodo Yahoo (default "1mo"); ids: elenco di id strumento (default: strumenti con ticker);
 --- pagine: tabella id -> pagina per le pagine appena create (vedi crea).
+-- Parse conservativo della sola tabella Data | Prezzo.
+function quotazioni.blocco(testo)
+  if type(testo) ~= "string" then return nil, "pagina non leggibile" end
+  local i, j = string.find(testo, "| Data | Prezzo |", 1, true)
+  if not i or string.find(testo, "| Data | Prezzo |", j + 1, true) then
+    return nil, "intestazione assente o duplicata"
+  end
+  local prima, resto = string.sub(testo, 1, i - 1), string.sub(testo, i)
+  local righe, pos = {}, 1
+  while pos <= #resto do
+    local e = string.find(resto, "\n", pos, true)
+    local riga = e and string.sub(resto, pos, e - 1) or string.sub(resto, pos)
+    if #righe > 0 and not string.match(riga, "^%s*|") then break end
+    table.insert(righe, riga)
+    pos = e and e + 1 or #resto + 1
+  end
+  if #righe < 2 or not string.match(righe[2], "^|[%s%-%:|]+|%s*$") then
+    return nil, "separatore tabella non valido"
+  end
+  local m = {}
+  for n = 3, #righe do
+    local d, v = string.match(righe[n], "^|%s*(%d%d%d%d%-%d%d%-%d%d)%s*|%s*([%d%.]+)%s*|%s*$")
+    if not d or not tonumber(v) or tonumber(v) <= 0 or m[d] then
+      return nil, "riga storica non valida o duplicata: " .. righe[n]
+    end
+    m[d] = v
+  end
+  return {prima = prima, dopo = string.sub(resto, pos), valori = m}
+end
+
+-- Aggiornamento conservativo: valida tutto prima di scrivere.
 function quotazioni.aggiorna(range, ids, pagine)
-  range = range or "1mo"
-  local perIsin = investimenti.pagineQuotazioni()
-  local ticker, tutti = {}, {}
+  range, pagine = range or "1mo", pagine or {}
+  local perIsin, duplicati, ticker, valuta, tutti = {}, {}, {}, {}, {}
+  for _, p in ipairs(query[[
+    from p = index.subPages("Quotazioni")
+    select {name = p.name, isin = p.isin}
+  ]]) do
+    if type(p.isin) == "string" then
+      if perIsin[p.isin] then duplicati[p.isin] = true end
+      perIsin[p.isin] = p.name
+    end
+  end
   for _, s in ipairs(investimenti.strumenti()) do
     if s.ticker then
-      ticker[s.id] = s.ticker
+      ticker[s.id], valuta[s.id] = s.ticker, s.valuta
       table.insert(tutti, s.id)
-      pagine = pagine or {}
       pagine[s.id] = pagine[s.id] or (s.isin and perIsin[s.isin])
+      if s.isin and duplicati[s.isin] then pagine[s.id] = nil end
     end
   end
   ids = ids or tutti
-  local esiti, err = {}, 0
+  local esiti, errori = {}, 0
   for _, id in ipairs(ids) do
-    local nome = pagine and pagine[id]
-    if ticker[id] and nome and space.pageExists(nome) then
+    local nome, errore, nuovi = pagine[id], nil, nil
+    if not ticker[id] then errore = "ticker mancante"
+    elseif not nome then errore = "pagina mancante o ISIN duplicato"
+    elseif not space.pageExists(nome) then errore = "pagina inesistente"
+    else
       local testo = space.readPage(nome)
-      local i = string.find(testo, "| Data | Prezzo |", 1, true)
-      local q = i and quotazioni.yahoo(ticker[id], range) or {errore = "tabella non trovata"}
-      if q.righe then
-        local m = {}  -- data -> prezzo
-        for d, v in string.gmatch(testo, "| (%d%d%d%d%-%d%d%-%d%d) | ([%d%.]+) |") do m[d] = v end
-        for _, r in ipairs(q.righe) do m[r.data] = string.format("%.4f", r.prezzo) end
-        local date = {}
-        for d in pairs(m) do table.insert(date, d) end
-        table.sort(date, function(a, b) return a > b end)  -- più recenti in alto
-        local righe = {"| Data | Prezzo |", "|---|---|"}
-        for _, d in ipairs(date) do table.insert(righe, "| " .. d .. " | " .. m[d] .. " |") end
-        space.writePage(nome, string.sub(testo, 1, i - 1) .. table.concat(righe, "\n") .. "\n")
-        if #q.righe < 2 then err = err + 1 end
+      local blocco, e = quotazioni.blocco(testo)
+      if not blocco then errore = e
       else
-        err = err + 1
+        local q = quotazioni.yahoo(ticker[id], range)
+        if q.errore then errore = q.errore
+        elseif not q.valuta or string.upper(q.valuta) ~= string.upper(valuta[id] or "EUR") then
+          errore = "valuta Yahoo non coerente: " .. tostring(q.valuta)
+        elseif not q.righe or #q.righe == 0 then errore = "nessuna quotazione"
+        else
+          local valori, valido = {}, true
+          for _, r in ipairs(q.righe) do
+            if type(r.data) ~= "string" or not string.match(r.data, "^%d%d%d%d%-%d%d%-%d%d$")
+              or type(r.prezzo) ~= "number" or r.prezzo <= 0 or r.prezzo ~= r.prezzo
+              or r.prezzo == math.huge or r.prezzo == -math.huge then
+              valido = false
+              break
+            end
+            valori[r.data] = string.format("%.8f", r.prezzo)
+          end
+          if not valido then errore = "serie scaricata non valida"
+          else
+            nuovi = #q.righe
+            for d, v in pairs(valori) do blocco.valori[d] = v end
+            local date, righe = {}, {"| Data | Prezzo |", "|---|---|"}
+            for d in pairs(blocco.valori) do table.insert(date, d) end
+            table.sort(date, function(a, b) return a > b end)
+            for _, d in ipairs(date) do
+              table.insert(righe, "| " .. d .. " | " .. blocco.valori[d] .. " |")
+            end
+            local aggiornato = blocco.prima .. table.concat(righe, "\n") .. "\n" .. blocco.dopo
+            if aggiornato ~= testo then space.writePage(nome, aggiornato) end
+          end
+        end
       end
-      table.insert(esiti, {pagina = nome, righe = q.righe and #q.righe, errore = q.errore})
     end
+    if errore then errori = errori + 1 end
+    table.insert(esiti, {id = id, pagina = nome, righe = nuovi, errore = errore})
   end
-  editor.flashNotification(#esiti .. " pagine, " .. err .. " errori", err > 0 and "warning" or "info")
+  editor.flashNotification(#esiti .. " strumenti, " .. errori .. " errori",
+    errori > 0 and "warning" or "info")
   return esiti
 end
 ```
 
-### Comandi
+### Verifica in sola lettura
 
-I due comandi sono in blocchi separati, uno per blocco.
+```space-lua
+investimenti = investimenti or {}
+quotazioni = quotazioni or {}
+
+function investimenti.verifica()
+  local anomalie, perIsin, perStrumento = {}, {}, {}
+  local function avvisa(pagina, problema, dettaglio)
+    table.insert(anomalie, {pagina = pagina, problema = problema, dettaglio = dettaglio})
+  end
+  for _, p in ipairs(query[[
+    from p = index.subPages("Quotazioni")
+    select {name = p.name, isin = p.isin}
+  ]]) do
+    if type(p.isin) ~= "string" or p.isin == "" then
+      avvisa(p.name, "ISIN_MANCANTE", "Frontmatter senza isin")
+    else
+      if perIsin[p.isin] then avvisa(p.name, "ISIN_DUPLICATO", perIsin[p.isin]) end
+      perIsin[p.isin] = p.name
+    end
+    local blocco, errore = quotazioni.blocco(space.readPage(p.name))
+    if not blocco then avvisa(p.name, "TABELLA_NON_VALIDA", errore) end
+  end
+  for _, s in ipairs(investimenti.strumenti()) do
+    if s.ticker and (not s.isin or not perIsin[s.isin]) then
+      avvisa("Strumenti/" .. s.id, "QUOTAZIONI_MANCANTI", "Ticker senza pagina quotazioni collegata")
+    end
+    if s.isin then
+      if perStrumento[s.isin] then
+        avvisa("Strumenti/" .. s.id, "STRUMENTI_ISIN_DUPLICATO", perStrumento[s.isin])
+      end
+      perStrumento[s.isin] = s.id
+    end
+  end
+  return anomalie
+end
+```
+
+### Comando: crea quotazioni
 
 ```space-lua
 command.define {
@@ -530,6 +468,8 @@ command.define {
 }
 ```
 
+### Comando: aggiorna quotazioni
+
 ```space-lua
 command.define {
   name = "Quotazioni: Aggiorna",
@@ -539,9 +479,7 @@ command.define {
 }
 ```
 
-### Dati: movimenti e ultimi prezzi
-
-`investimenti.movimentiDati`, `investimenti.ultimiPrezzi` e la funzione di servizio `num`. La `select` di `movimentiDati` include `ref` perché righe identiche verrebbero altrimenti fuse.
+### Movimenti e ultimi prezzi
 
 ```space-lua
 investimenti = investimenti or {}
@@ -638,9 +576,7 @@ function investimenti.ultimiPrezzi(strumenti, per)
 end
 ```
 
-### Dati: valorizzazione
-
-`investimenti.valorizzazioneDati` combina movimenti e ultimi prezzi in righe numeriche; non formatta nulla.
+### Valorizzazione numerica
 
 ```space-lua
 investimenti = investimenti or {}
@@ -701,9 +637,7 @@ function investimenti.valorizzazioneDati(ids)
 end
 ```
 
-### Presentazione: tabelle
-
-`investimenti.movimenti` e `investimenti.valorizzazione` costruiscono la tabella HTML di un widget. Le funzioni di servizio `migliaia`, `f2`, `fq`, `data` e `tabella` formattano numeri e date e disegnano la tabella; ogni colonna ha titolo, chiave, allineamento e le celle `{id, nome}` diventano link allo strumento.
+### Tabelle e viste
 
 ```space-lua
 investimenti = investimenti or {}
@@ -1014,9 +948,7 @@ function investimenti.elencoConti()
 end
 ```
 
-### Grafici e rischio
-
-`investimenti.serie` e `investimenti.acquisti` leggono quotazioni e acquisti di uno strumento con una query per pagina (l'id è una variabile locale usata nella query). `investimenti.grafico` costruisce il widget Chart.js (via `widget.sandbox` e `loadJsByUrl`) con i pulsanti di periodo; `torta` e `tortaRischio` disegnano le ciambelle; `barraRischio` e `rischio` mostrano la classe 1-7 con emoji.
+### Grafici e allocazione
 
 ```space-lua
 investimenti = investimenti or {}
@@ -1401,9 +1333,7 @@ function investimenti.rischio(pagina)
 end
 ```
 
-### Performance, barre di P/L e widget automatici
-
-`investimenti.performance` calcola la variazione percentuale a 1 mese (30 giorni), da inizio anno e a 1 anno (365 giorni) con una sola scansione delle quotazioni; per i fondi in USD usa il cambio EURUSD, quindi la variazione è in EUR. `investimenti.barrePL` disegna le barre del P/L per strumento (verde guadagno, rosso perdita). `investimenti.vista` e i listener `hooks:renderTopWidgets` mostrano automaticamente i widget in testa alle pagine, solo se `config.set("investimenti.widgetAutomatici", true)`.
+### Performance e widget automatici
 
 ```space-lua
 investimenti = investimenti or {}
