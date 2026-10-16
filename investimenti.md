@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.13"
+version: "0.14"
 versionDate: 2026-10-16
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -9,7 +9,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 
 # 💸 Investimenti
 
-**Versione:** 0.13 — 16.10.2026 (Produzione)
+**Versione:** 0.14 — 16.10.2026 Produzione
 
 Libreria per monitorare gli investimenti con pagine Markdown: movimenti per strumento, quotazioni storiche scaricate da Yahoo Finance e valorizzazione con profitto/perdita (P/L), per singolo strumento, per conto o per portafoglio. Le pagine Markdown restano la fonte primaria; la libreria scrive solo nelle pagine `Quotazioni/...`, con `quotazioni.crea` e `quotazioni.aggiorna`.
 
@@ -34,6 +34,16 @@ Versione compatta di `valorizzazione`: tabella con le sole colonne Investimento 
 ### investimenti.grafico(pagina)
 
 Grafico lineare delle quotazioni (Chart.js in un widget isolato), con i pulsanti di periodo 7G, 1M, 3M, 6M, YTD, 1A, 5A e Tutto (predefinito 6M). Inserito in una pagina `Quotazioni/...` mostra la serie; in una pagina `Strumenti/<id>` aggiunge i punti di acquisto (triangoli, al prezzo unitario pagato). Chart.js viene caricato da cdnjs.
+
+Una seconda fila di pulsanti accende e spegne gli indicatori (tutti spenti all'apertura; i pulsanti attivi sono in grassetto):
+
+- **MM200**: media mobile semplice sulle ultime 200 quotazioni.
+- **Bollinger**: media mobile a 20 quotazioni ± 2 deviazioni standard.
+- **RSI**: RSI a 14 quotazioni (metodo di Wilder) in un riquadro separato sotto il grafico, con le soglie 70 e 30.
+- **Stop · TP** (solo su `Strumenti/<id>` con acquisti): prezzo medio di carico (media pesata sulle quote degli acquisti, vendite ignorate), stop loss e take profit come percentuali dal prezzo medio.
+- **Trailing** (solo su `Strumenti/<id>` con acquisti): massimo raggiunto dal primo acquisto meno la percentuale; la linea non scende mai.
+
+Gli indicatori sono calcolati sull'intera serie e poi ritagliati sul periodo scelto; le finestre sono in quotazioni, non in giorni di calendario, quindi con quotazioni rade (per esempio obbligazioni) coprono un periodo più lungo. Sono strumenti di lettura, non segnali di investimento. Le percentuali (predefiniti: stop loss 10, take profit 25, trailing 8) si impostano con gli attributi `stopLoss`, `takeProfit` e `trailing` nel frontmatter dello strumento oppure con `config.set("investimenti.stopLoss", 10)` e le chiavi `investimenti.takeProfit` e `investimenti.trailing`.
 
 - **`pagina`** (stringa, opzionale): `Quotazioni/...` o `Strumenti/<id>`; se omessa, la pagina corrente.
 
@@ -223,7 +233,7 @@ ${investimenti.valorizzazione()}
 | 2025-04-01 | Acquisto | 3.983 | 25.11 | 100 | 0 | 0 |
 ```
 
-I tipi di movimento letti sono `Acquisto`, `Vendita` e `Dividendo`. `Valore` è l'importo in valuta dello strumento; per gli strumenti in valuta estera serve anche la colonna `Valore EUR`. `KID` (1-7, indicatore sintetico di rischio del KID; maiuscolo) è facoltativo e serve a `rischio` e `tortaRischio`. L'`isin` collega lo strumento alla sua pagina `Quotazioni/...`: serve in ogni strumento che ha quotazioni (anche un codice interno, purché uguale nelle due pagine). Il `ticker` è facoltativo: senza, la quotazione si tiene a mano. Il cambio EUR/USD è lo strumento con id `EURUSD` (`isin: "EURUSD"`, `ticker: "EURUSD=X"`, `valuta: "USD"`), senza movimenti.
+I tipi di movimento letti sono `Acquisto`, `Vendita` e `Dividendo`. `Valore` è l'importo in valuta dello strumento; per gli strumenti in valuta estera serve anche la colonna `Valore EUR`. `stopLoss`, `takeProfit` e `trailing` (percentuali, facoltative) regolano le linee dei pulsanti del grafico. `KID` (1-7, indicatore sintetico di rischio del KID; maiuscolo) è facoltativo e serve a `rischio` e `tortaRischio`. L'`isin` collega lo strumento alla sua pagina `Quotazioni/...`: serve in ogni strumento che ha quotazioni (anche un codice interno, purché uguale nelle due pagine). Il `ticker` è facoltativo: senza, la quotazione si tiene a mano. Il cambio EUR/USD è lo strumento con id `EURUSD` (`isin: "EURUSD"`, `ticker: "EURUSD=X"`, `valuta: "USD"`), senza movimenti.
 
 **`Quotazioni/<nome>`**: una pagina per strumento con la tabella `| Data | Prezzo |`, la più recente in alto. Il nome è libero; il collegamento allo strumento è l'attributo `isin` nel frontmatter, uguale a quello di `Strumenti/<id>`:
 
@@ -297,13 +307,16 @@ function investimenti.strumenti()
     from p = index.subPages("Strumenti")
     select {name = p.name, nome = p.displayName, isin = p.isin, ticker = p.ticker,
       valuta = p.valuta, tipo = p.tipo, rischio = p.KID,
-      descrizione = p.description, tags = p.tags}
+      descrizione = p.description, tags = p.tags,
+      stopLoss = p.stopLoss, takeProfit = p.takeProfit, trailing = p.trailing}
   ]]) do
     table.insert(out, {id = string.sub(p.name, 11),  -- "Strumenti/" = 10 caratteri
       nome = str(p.nome) or p.name, isin = str(p.isin), ticker = str(p.ticker),
       valuta = str(p.valuta) or "EUR", tipo = str(p.tipo),
       rischio = type(p.rischio) == "number" and p.rischio or nil,  -- p.rischio = attributo KID
-      descrizione = str(p.descrizione), tags = p.tags})
+      descrizione = str(p.descrizione), tags = p.tags,
+      stopLoss = tonumber(p.stopLoss), takeProfit = tonumber(p.takeProfit),
+      trailing = tonumber(p.trailing)})
   end
   table.sort(out, function(a, b) return a.id < b.id end)
   return out
@@ -981,28 +994,78 @@ function investimenti.serie(pagina)
   return out
 end
 
---- Acquisti di uno strumento: lista di {data, prezzo unitario in valuta strumento}.
+--- Acquisti di uno strumento: lista di {data, prezzo unitario in valuta strumento, quote}.
 function investimenti.acquisti(id)
   local out = {}
   for _, r in ipairs(query[[
     from t = index.tables()
     where t.page == "Strumenti/" .. id and t.tipo == "Acquisto"
-    select {ref = t.ref, giorno = t.data, px = t.prezzo}
+    select {ref = t.ref, giorno = t.data, px = t.prezzo, qt = t.quantit_}
   ]]) do
     local pr = tonumber(r.px)
-    if type(r.giorno) == "string" and pr then table.insert(out, {r.giorno, pr}) end
+    if type(r.giorno) == "string" and pr then table.insert(out, {r.giorno, pr, tonumber(r.qt) or 0}) end
   end
   table.sort(out, function(a, b) return a[1] < b[1] end)
   return out
 end
 
--- Script del grafico lineare: dati in DATI = {serie, acquisti, titolo}.
+-- Script del grafico lineare. DATI = {titolo, serie, acquisti, pmc, stop, tp, trailing}:
+-- serie e acquisti sono liste di [data, prezzo]; pmc/stop/tp sono null senza acquisti.
+-- Gli indicatori (finestre in osservazioni, cioè in quotazioni) sono calcolati sull'intera serie
+-- e poi ritagliati sul periodo scelto, così all'inizio del periodo sono già completi.
 local JS_LINEA = [[
 const RANGE = [{n:"7G",d:7},{n:"1M",d:30},{n:"3M",d:91},{n:"6M",d:182},{n:"YTD",d:-1},{n:"1A",d:365},{n:"5A",d:1826},{n:"Tutto",d:0}];
 const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
 const txt = dark ? "#ddd" : "#333", grid = "rgba(128,128,128,.25)";
-const ultimo = DATI.serie[DATI.serie.length - 1][0];
-let chart = null;
+const S = DATI.serie, P = S.map(function (p) { return p[1]; });
+const ultimo = S[S.length - 1][0];
+const primoAcq = DATI.acquisti.length ? DATI.acquisti[0][0] : null;
+function mediaMobile(n) {
+  return P.map(function (v, i) {
+    if (i < n - 1) return null;
+    let s = 0;
+    for (let k = i - n + 1; k <= i; k++) s += P[k];
+    return s / n;
+  });
+}
+function scarto(n, m) {
+  return P.map(function (v, i) {
+    if (i < n - 1) return null;
+    let s = 0;
+    for (let k = i - n + 1; k <= i; k++) s += (P[k] - m[i]) * (P[k] - m[i]);
+    return Math.sqrt(s / n);
+  });
+}
+function rsi(n) {
+  const out = P.map(function () { return null; });
+  if (P.length <= n) return out;
+  let g = 0, l = 0;
+  for (let i = 1; i <= n; i++) {
+    const d = P[i] - P[i - 1];
+    if (d > 0) g += d; else l -= d;
+  }
+  g /= n; l /= n;
+  out[n] = l === 0 ? 100 : 100 - 100 / (1 + g / l);
+  for (let i = n + 1; i < P.length; i++) {
+    const d = P[i] - P[i - 1];
+    g = (g * (n - 1) + (d > 0 ? d : 0)) / n;
+    l = (l * (n - 1) + (d < 0 ? -d : 0)) / n;
+    out[i] = l === 0 ? 100 : 100 - 100 / (1 + g / l);
+  }
+  return out;
+}
+const MM = mediaMobile(200);
+const BM = mediaMobile(20), BS = scarto(20, BM);
+const BU = BM.map(function (m, i) { return m === null ? null : m + 2 * BS[i]; });
+const BL = BM.map(function (m, i) { return m === null ? null : m - 2 * BS[i]; });
+const RS = rsi(14);
+// trailing stop: massimo dal primo acquisto meno la percentuale; non scende mai
+let massimo = null;
+const TR = S.map(function (p) {
+  if (primoAcq === null || p[0] < primoAcq) return null;
+  massimo = massimo === null ? p[1] : Math.max(massimo, p[1]);
+  return massimo * (1 - DATI.trailing / 100);
+});
 function da(r) {
   if (r.d === 0) return "0000-00-00";
   if (r.d < 0) return ultimo.slice(0, 4) + "-01-01";
@@ -1010,37 +1073,94 @@ function da(r) {
   d.setUTCDate(d.getUTCDate() - r.d);
   return d.toISOString().slice(0, 10);
 }
-function disegna(r) {
-  const da0 = da(r);
-  const s = DATI.serie.filter(function (p) { return p[0] >= da0; });
-  const lab = s.map(function (p) { return p[0]; });
+const attivi = {};
+let periodo = RANGE[3], grafico = null, graficoRsi = null;
+function linea(nome, dati, colore, tratto) {
+  return {label: nome, data: dati, borderColor: colore, borderWidth: 1.2, pointRadius: 0,
+    tension: 0, borderDash: tratto || []};
+}
+function asseY() {
+  return {ticks: {color: txt}, grid: {color: grid}, afterFit: function (a) { a.width = 56; }};
+}
+function asseX(visibile) {
+  return {ticks: {color: txt, maxTicksLimit: 8}, grid: {color: grid}, display: visibile};
+}
+function disegna() {
+  const da0 = da(periodo);
+  const ix = [];
+  S.forEach(function (p, i) { if (p[0] >= da0) ix.push(i); });
+  const lab = ix.map(function (i) { return S[i][0]; });
+  const scegli = function (a) { return ix.map(function (i) { return a[i]; }); };
+  const fisso = function (v) { return lab.map(function () { return v; }); };
   const buy = lab.map(function () { return null; });
   DATI.acquisti.forEach(function (a) {
     const i = lab.findIndex(function (d) { return d >= a[0]; });
     if (i >= 0 && a[0] >= da0 && a[0] >= lab[0]) buy[i] = a[1];
   });
-  const ds = [{label: DATI.titolo, data: s.map(function (p) { return p[1]; }),
-    borderColor: "#2f6fdb", borderWidth: 1.5, pointRadius: 0, tension: 0}];
+  const ds = [{label: DATI.titolo, data: scegli(P), borderColor: "#2f6fdb", borderWidth: 1.5,
+    pointRadius: 0, tension: 0}];
   if (DATI.acquisti.length) ds.push({label: "Acquisti", data: buy, showLine: false,
     pointStyle: "triangle", pointRadius: 7, backgroundColor: "#d9822b", borderColor: "#d9822b"});
-  if (chart) chart.destroy();
-  chart = new Chart(document.getElementById("c"), {type: "line",
+  if (attivi.mm) ds.push(linea("MM200", scegli(MM), "#9b5de5"));
+  if (attivi.bb) {
+    ds.push(linea("Bollinger +2σ", scegli(BU), "#7d8597", [4, 3]));
+    ds.push(linea("Bollinger −2σ", scegli(BL), "#7d8597", [4, 3]));
+  }
+  if (attivi.sl) {
+    ds.push(linea("Prezzo medio di carico", fisso(DATI.pmc), "#7d8597", [2, 3]));
+    ds.push(linea("Stop loss −" + DATI.stopPct + "%", fisso(DATI.stop), "#e4572e", [6, 4]));
+    ds.push(linea("Take profit +" + DATI.tpPct + "%", fisso(DATI.tp), "#2a9d4a", [6, 4]));
+  }
+  if (attivi.tr) ds.push(linea("Trailing stop −" + DATI.trailing + "%", scegli(TR), "#c1666b"));
+  if (grafico) grafico.destroy();
+  grafico = new Chart(document.getElementById("c"), {type: "line",
     data: {labels: lab, datasets: ds},
     options: {responsive: true, maintainAspectRatio: false, animation: false,
       interaction: {mode: "nearest", axis: "x", intersect: false},
-      plugins: {legend: {display: DATI.acquisti.length > 0, labels: {color: txt}}},
-      scales: {x: {ticks: {color: txt, maxTicksLimit: 8}, grid: {color: grid}},
-               y: {ticks: {color: txt}, grid: {color: grid}}}}});
+      plugins: {legend: {display: ds.length > 1, labels: {color: txt}}},
+      scales: {x: asseX(true), y: asseY()}}});
+  const box = document.getElementById("rw");
+  box.style.display = attivi.rsi ? "block" : "none";
+  if (graficoRsi) { graficoRsi.destroy(); graficoRsi = null; }
+  if (attivi.rsi) {
+    graficoRsi = new Chart(document.getElementById("r"), {type: "line",
+      data: {labels: lab, datasets: [linea("RSI 14", scegli(RS), "#2f6fdb"),
+        linea("70", fisso(70), "#e4572e", [4, 3]), linea("30", fisso(30), "#2a9d4a", [4, 3])]},
+      options: {responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: {legend: {display: false}, title: {display: true, text: "RSI 14", color: txt}},
+        scales: {x: asseX(false), y: Object.assign(asseY(), {min: 0, max: 100})}}});
+  }
 }
-const bar = document.getElementById("b");
+const bottoni = [];
+function stile() {
+  bottoni.forEach(function (b) {
+    b.el.style.fontWeight = b.attivo() ? "bold" : "normal";
+    b.el.style.background = b.attivo() ? "rgba(47,111,219,.25)" : "";
+  });
+}
+function bottone(riga, nome, attivo, azione) {
+  const el = document.createElement("button");
+  el.textContent = nome;
+  el.style.cssText = "margin:0 4px 6px 0;padding:2px 10px;cursor:pointer";
+  el.onclick = function () { azione(); stile(); disegna(); };
+  bottoni.push({el: el, attivo: attivo});
+  riga.appendChild(el);
+}
+const barra = document.getElementById("b");
 RANGE.forEach(function (r) {
-  const b = document.createElement("button");
-  b.textContent = r.n;
-  b.style.cssText = "margin:0 4px 6px 0;padding:2px 10px;cursor:pointer";
-  b.onclick = function () { disegna(r); };
-  bar.appendChild(b);
+  bottone(barra, r.n, function () { return periodo === r; }, function () { periodo = r; });
 });
-disegna(RANGE[3]);
+const indicatori = [{k: "mm", n: "MM200"}, {k: "bb", n: "Bollinger"}, {k: "rsi", n: "RSI"}];
+if (DATI.pmc !== null) {
+  indicatori.push({k: "sl", n: "Stop · TP"});
+  indicatori.push({k: "tr", n: "Trailing"});
+}
+const barra2 = document.getElementById("b2");
+indicatori.forEach(function (x) {
+  bottone(barra2, x.n, function () { return !!attivi[x.k]; }, function () { attivi[x.k] = !attivi[x.k]; });
+});
+stile();
+disegna();
 ]]
 
 --- Grafico lineare delle quotazioni con pulsanti 7G/1M/3M/6M/YTD/1A/5A/Tutto.
@@ -1067,6 +1187,20 @@ function investimenti.grafico(pagina)
   if #serie < 2 then return widget.markdownBlock("_Quotazioni insufficienti per il grafico._") end
   local acq = conAcquisti and investimenti.acquisti(id) or {}
 
+  -- prezzo medio di carico (pesato sulle quote) e livelli di stop loss / take profit
+  local pmc, stop, tp
+  local sl, tpp, tr = 10, 25, 8   -- percentuali predefinite (config o frontmatter dello strumento)
+  for _, s in ipairs(investimenti.strumenti()) do
+    if s.id == id then
+      sl = s.stopLoss or config.get("investimenti.stopLoss") or sl
+      tpp = s.takeProfit or config.get("investimenti.takeProfit") or tpp
+      tr = s.trailing or config.get("investimenti.trailing") or tr
+    end
+  end
+  local q, v = 0, 0
+  for _, a in ipairs(acq) do q, v = q + a[3], v + a[3] * a[2] end
+  if q > 0 then pmc = v / q; stop = pmc * (1 - sl / 100); tp = pmc * (1 + tpp / 100) end
+
   local function coppie(lista)
     local p = {}
     for _, c in ipairs(lista) do table.insert(p, "[" .. investimenti.js(c[1]) .. "," .. c[2] .. "]") end
@@ -1075,9 +1209,12 @@ function investimenti.grafico(pagina)
   local nome = id or quot
   for _, s in ipairs(investimenti.strumenti()) do if s.id == id then nome = s.nome end end
   local dati = "const DATI = {titolo: " .. investimenti.js(nome) .. ", serie: " .. coppie(serie) ..
-    ", acquisti: " .. coppie(acq) .. "};\n"
+    ", acquisti: " .. coppie(acq) .. ", pmc: " .. (pmc or "null") .. ", stop: " .. (stop or "null") ..
+    ", tp: " .. (tp or "null") .. ", stopPct: " .. sl .. ", tpPct: " .. tpp .. ", trailing: " .. tr .. "};\n"
   return widget.sandbox {
-    html = '<div id="b"></div><div style="position:relative;height:300px"><canvas id="c"></canvas></div>',
+    html = '<div id="b"></div><div id="b2"></div><div style="position:relative;height:300px">' ..
+      '<canvas id="c"></canvas></div><div id="rw" style="display:none;position:relative;height:140px;' ..
+      'margin-top:6px"><canvas id="r"></canvas></div>',
     script = 'loadJsByUrl("' .. investimenti.chartjs .. '").then(function () {\n' .. dati ..
       JS_LINEA .. "\n});",
     markdown = "Grafico " .. nome,
