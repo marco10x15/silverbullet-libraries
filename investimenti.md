@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.11b"
+version: "0.11c"
 versionDate: 2026-10-15
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -9,7 +9,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 
 # 💸 Investimenti
 
-**Versione:** 0.11b — 15.10.2026
+**Versione:** 0.11c — 16.10.2026 (produzione)
 
 Libreria per monitorare gli investimenti con pagine Markdown: movimenti per strumento, quotazioni storiche scaricate da Yahoo Finance e valorizzazione con profitto/perdita (P/L), per singolo strumento, per conto o per portafoglio. Le pagine Markdown restano la fonte primaria; la libreria scrive solo nelle pagine `Quotazioni/<id>`, con `quotazioni.crea` e `quotazioni.aggiorna`.
 
@@ -76,7 +76,7 @@ Barre orizzontali (Chart.js) del P/L per strumento, in verde se positivo e in ro
 
 ### investimenti.scheda(pagina), investimenti.elencoStrumenti() e investimenti.elencoConti()
 
-Viste costruite dal frontmatter. `scheda` (pagine `Strumenti/<id>`): descrizione, tipo, valuta, ISIN, tag, barra di rischio e link alle quotazioni. `elencoStrumenti` (pagina `Strumenti`): tabella di tutti gli strumenti con tipo, valuta, ultimo prezzo, data e rischio. `elencoConti` (pagina `Conti`): tabella di conti e portafogli con tipo (dal tag `Conto` o `Portafoglio`), numero di strumenti, acquistato, attuale, P/L e %, calcolati con una sola valorizzazione.
+Viste costruite dal frontmatter. `scheda` (pagine `Strumenti/<id>`): descrizione, tipo, valuta, ISIN, tag, barra di rischio e link ai conti/portafogli che contengono lo strumento (attributo `strumento`). `elencoStrumenti` (pagina `Strumenti`): tabella di tutti gli strumenti con tipo, valuta, ultimo prezzo, data e rischio. `elencoConti` (pagina `Conti`): tabella di conti e portafogli con tipo (dal tag `Conto` o `Portafoglio`), numero di strumenti, acquistato, attuale, P/L e %, calcolati con una sola valorizzazione.
 
 - **`pagina`** (stringa, opzionale, solo `scheda`): `Strumenti/<id>`; se omessa, la pagina corrente.
 
@@ -792,17 +792,30 @@ local function listaTags(t)
   return out
 end
 
---- Scheda di uno strumento dal frontmatter, su una riga: tipo, valuta, rischio e link alle
---- quotazioni; seguita dall'etichetta "Valorizzazione:" (a capo forzato, senza riga vuota).
+--- Scheda di uno strumento dal frontmatter, su una riga: tipo, valuta, rischio e link ai
+--- conti/portafogli che lo contengono (attributo `strumento` delle pagine Conti/...).
 function investimenti.scheda(pagina)
   pagina = pagina or editor.getCurrentPage()
   if type(pagina) ~= "string" or not string.startsWith(pagina, "Strumenti/") then return nil end
   local id = string.sub(pagina, 11)
   for _, s in ipairs(investimenti.strumenti()) do
     if s.id == id then
-      return widget.markdownBlock((s.tipo or "n.d.") .. " · " .. s.valuta ..
-        " · Rischio: " .. investimenti.barraRischio(s.rischio) ..
-        " · Quotazioni: [[Quotazioni/" .. id .. "|" .. id .. "]]  \nValorizzazione:")
+      local testo = (s.tipo or "n.d.") .. " · " .. s.valuta ..
+        " · Rischio: " .. investimenti.barraRischio(s.rischio)
+      local link = {}
+      for _, c in ipairs(query[[
+        from p = index.subPages("Conti")
+        select {name = p.name, nome = p.displayName}
+      ]]) do
+        for _, x in ipairs(investimenti.elenco(c.name) or {}) do
+          if x == id then
+            table.insert(link, "[[" .. c.name .. "|" .. (type(c.nome) == "string" and c.nome or c.name) .. "]]")
+            break
+          end
+        end
+      end
+      if #link > 0 then testo = testo .. " · " .. table.concat(link, ", ") end
+      return widget.markdownBlock(testo)
     end
   end
 end
