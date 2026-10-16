@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.12"
+version: "0.13"
 versionDate: 2026-10-16
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -9,7 +9,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 
 # 💸 Investimenti
 
-**Versione:** 0.12 — 16.10.2026 (Produzione)
+**Versione:** 0.13 — 16.10.2026 (Produzione)
 
 Libreria per monitorare gli investimenti con pagine Markdown: movimenti per strumento, quotazioni storiche scaricate da Yahoo Finance e valorizzazione con profitto/perdita (P/L), per singolo strumento, per conto o per portafoglio. Le pagine Markdown restano la fonte primaria; la libreria scrive solo nelle pagine `Quotazioni/...`, con `quotazioni.crea` e `quotazioni.aggiorna`.
 
@@ -189,14 +189,15 @@ Sono locali ai blocchi di codice e non fanno parte dell'interfaccia.
 
 - **`str(x)`**: restituisce `x` se è una stringa, altrimenti un vero `nil`. Serve perché un attributo assente letto in una `select` supera il controllo `if` pur avendo tipo `nil`.
 - **`num(x)`**: converte `x` in numero, con 0 se manca o non è convertibile.
-- **`f2(x)`**: formatta un numero con due decimali, oppure `n.d.` se manca.
-- **`fq(x)`**: formatta una quantità con fino a 8 decimali, senza zeri finali.
+- **`migliaia(t)`**: separa con uno spazio le migliaia della parte intera di un numero scritto come testo (`15000.00` → `15 000.00`).
+- **`f2(x)`**: formatta un numero con due decimali e migliaia separate, oppure `n.d.` se manca.
+- **`fq(x)`**: formatta una quantità con fino a 8 decimali, senza zeri finali, con migliaia separate.
 - **`data(d)`**: formatta una data ISO come `DD.MM.YYYY` con `date.format` (libreria `DateFormat`); se la libreria manca restituisce la data invariata, se manca la data restituisce `n.d.`.
-- **`nomi(strumenti)`**: costruisce la tabella id → `displayName` a partire dall'elenco degli strumenti.
-- **`js(x)`**: converte un numero o una stringa semplice in testo JavaScript per i dati dei grafici.
+- **`investimenti.nomi(strumenti)`**: costruisce la tabella id → `displayName` a partire dall'elenco degli strumenti. Condivisa tra i blocchi.
+- **`investimenti.chartjs`**: indirizzo di Chart.js su cdnjs, usato da tutti i grafici.
 - **`torta(titolo, etichette, valori, colori)`**: costruisce il widget a ciambella usato da `torta` e `tortaRischio`.
 - **`tabella(colonne, righe, verticale)`**: costruisce la tabella come widget isolato, con allineamento per colonna, celle con link (allo strumento, o alla pagina indicata in `pagina`) e riga di totale in grassetto. Sotto i 600 px di larghezza ogni riga diventa una scheda (etichetta e valore per ogni campo); con `verticale = true` è un elenco campo/valore senza intestazione. Il contenuto Markdown del widget alimenta il pulsante Copia.
-- **`jt(x)`**: converte un numero o una stringa in testo JavaScript, con escape di barre inverse, virgolette e a capo.
+- **`investimenti.js(x)`**: converte un numero o una stringa in testo JavaScript per i dati di grafici e tabelle, con escape di barre inverse, virgolette e a capo.
 
 ## Struttura delle pagine
 
@@ -268,6 +269,26 @@ investimenti = investimenti or {}
 -- Un attributo assente in una select supera il controllo "if x" pur avendo type "nil":
 -- str() lo riporta a un vero nil, così "if x" funziona.
 local function str(x) if type(x) == "string" then return x end end
+
+-- Helper condivisi tra i blocchi (ogni blocco ha i propri local): usati solo a chiamata avvenuta.
+investimenti.chartjs = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+
+--- Testo JavaScript per un numero o una stringa (escape di \\, virgolette e a capo).
+function investimenti.js(x)
+  if type(x) == "number" then return tostring(x) end
+  if type(x) ~= "string" then return '""' end
+  local t = string.gsub(x, "\\", "\\\\")
+  t = string.gsub(t, '"', '\\"')
+  t = string.gsub(t, "\n", " ")
+  return '"' .. t .. '"'
+end
+
+--- Tabella id -> displayName da un elenco di strumenti.
+function investimenti.nomi(strumenti)
+  local out = {}
+  for _, s in ipairs(strumenti) do out[s.id] = s.nome end
+  return out
+end
 
 --- Strumenti: pagine sotto Strumenti/, ordinate per id.
 function investimenti.strumenti()
@@ -593,8 +614,7 @@ investimenti = investimenti or {}
 --- e numero di strumenti senza prezzo. Prezzi in USD convertiti con lo strumento EURUSD.
 function investimenti.valorizzazioneDati(ids)
   local strumenti = investimenti.strumenti()
-  local nome = {}
-  for _, s in ipairs(strumenti) do nome[s.id] = s.nome end
+  local nome = investimenti.nomi(strumenti)
 
   local px, fx = {}, nil
   for _, p in ipairs(investimenti.ultimiPrezzi(strumenti)) do
@@ -629,20 +649,29 @@ end
 
 ### Presentazione: tabelle
 
-`investimenti.movimenti` e `investimenti.valorizzazione` costruiscono la tabella HTML di un widget. Le funzioni di servizio `f2`, `fq`, `data`, `nomi` e `tabella` formattano numeri e date e disegnano la tabella; ogni colonna ha titolo, chiave, allineamento e le celle `{id, nome}` diventano link allo strumento.
+`investimenti.movimenti` e `investimenti.valorizzazione` costruiscono la tabella HTML di un widget. Le funzioni di servizio `migliaia`, `f2`, `fq`, `data` e `tabella` formattano numeri e date e disegnano la tabella; ogni colonna ha titolo, chiave, allineamento e le celle `{id, nome}` diventano link allo strumento.
 
 ```space-lua
 investimenti = investimenti or {}
 
--- Due decimali, "n.d." se manca.
-local function f2(x) return x and string.format("%.2f", x) or "n.d." end
+-- Separa le migliaia con uno spazio nella parte intera ("15000.00" -> "15 000.00").
+local function migliaia(t)
+  local segno, int, resto = string.match(t, "^(-?)(%d+)(.*)$")
+  if not int then return t end
+  local n = 1
+  while n > 0 do int, n = string.gsub(int, "^(%d+)(%d%d%d)", "%1 %2") end
+  return segno .. int .. resto
+end
+
+-- Due decimali con migliaia separate, "n.d." se manca.
+local function f2(x) return x and migliaia(string.format("%.2f", x)) or "n.d." end
 
 -- Quantità: fino a 8 decimali, senza zeri finali.
 local function fq(x)
   local s = string.format("%.8f", x)
   s = string.gsub(s, "0+$", "")
   s = string.gsub(s, "%.$", "")
-  return s
+  return migliaia(s)
 end
 
 -- Data ISO come DD.MM.YYYY con date.format (libreria DateFormat); senza, resta ISO.
@@ -654,27 +683,13 @@ local function data(d)
   return d
 end
 
--- id -> displayName.
-local function nomi(strumenti)
-  local out = {}
-  for _, s in ipairs(strumenti) do out[s.id] = s.nome end
-  return out
-end
 
--- Testo JavaScript per numeri e stringhe (escape di \\, virgolette e a capo).
-local function jt(x)
-  if type(x) == "number" then return tostring(x) end
-  if type(x) ~= "string" then return '""' end
-  local t = string.gsub(x, "\\", "\\\\")
-  t = string.gsub(t, '"', '\\"')
-  t = string.gsub(t, "\n", " ")
-  return '"' .. t .. '"'
-end
 
 -- Stile della tabella nel widget isolato: sotto 600 px ogni riga diventa una scheda
 -- (etichetta e valore per ogni campo); .v = elenco verticale, senza modalità scheda.
 local CSS_TABELLA = [[
-body{margin:0;font:14px system-ui,sans-serif}
+body{margin:0;font:18px system-ui,sans-serif}
+td{white-space:nowrap}
 @media (prefers-color-scheme: dark){body{color:#ddd}}
 table{border-collapse:collapse;width:100%}
 th,td{padding:2px 10px}
@@ -740,7 +755,7 @@ local function tabella(colonne, righe, verticale)
   local sigla = {left = "l", right = "r", center = "c"}
   local cols, rows, md = {}, {}, {}
   for _, c in ipairs(colonne) do
-    table.insert(cols, '{"t":' .. jt(c.titolo) .. ',"a":"' .. (sigla[c.allinea] or "l") .. '"}')
+    table.insert(cols, '{"t":' .. investimenti.js(c.titolo) .. ',"a":"' .. (sigla[c.allinea] or "l") .. '"}')
   end
   local testa, riga = {}, {}
   for _, c in ipairs(colonne) do table.insert(testa, c.titolo); table.insert(riga, "---") end
@@ -751,10 +766,10 @@ local function tabella(colonne, righe, verticale)
     for _, c in ipairs(colonne) do
       local v = r[c.chiave]
       if type(v) == "table" then
-        table.insert(celle, '{"n":' .. jt(v.nome) .. ',"p":' .. jt(v.pagina or ("Strumenti/" .. v.id)) .. '}')
+        table.insert(celle, '{"n":' .. investimenti.js(v.nome) .. ',"p":' .. investimenti.js(v.pagina or ("Strumenti/" .. v.id)) .. '}')
         table.insert(testo, v.nome)
       else
-        table.insert(celle, jt(v or ""))
+        table.insert(celle, investimenti.js(v or ""))
         table.insert(testo, v or "")
       end
     end
@@ -774,7 +789,7 @@ end
 function investimenti.movimenti(pagina)
   local ids = investimenti.elenco(pagina)
   if ids and #ids == 0 then return widget.markdownBlock("_Nessuno strumento._") end
-  local nome = nomi(investimenti.strumenti())
+  local nome = investimenti.nomi(investimenti.strumenti())
   local righe = {}
   for _, m in ipairs(investimenti.movimentiDati(ids)) do
     table.insert(righe, {id = {id = m.id, nome = nome[m.id] or m.id}, quote = fq(m.quote),
@@ -950,14 +965,6 @@ end
 ```space-lua
 investimenti = investimenti or {}
 
-local CHARTJS = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
-
--- JSON minimale: numeri e stringhe semplici (date, nomi senza virgolette)
-local function js(x)
-  if type(x) == "number" then return tostring(x) end
-  if type(x) == "string" then return '"' .. string.gsub(x, '"', "'") .. '"' end
-  return "null"
-end
 
 --- Quotazioni di una pagina Quotazioni/...: lista di {data, prezzo}, dalla più vecchia.
 function investimenti.serie(pagina)
@@ -1062,16 +1069,16 @@ function investimenti.grafico(pagina)
 
   local function coppie(lista)
     local p = {}
-    for _, c in ipairs(lista) do table.insert(p, "[" .. js(c[1]) .. "," .. c[2] .. "]") end
+    for _, c in ipairs(lista) do table.insert(p, "[" .. investimenti.js(c[1]) .. "," .. c[2] .. "]") end
     return "[" .. table.concat(p, ",") .. "]"
   end
   local nome = id or quot
   for _, s in ipairs(investimenti.strumenti()) do if s.id == id then nome = s.nome end end
-  local dati = "const DATI = {titolo: " .. js(nome) .. ", serie: " .. coppie(serie) ..
+  local dati = "const DATI = {titolo: " .. investimenti.js(nome) .. ", serie: " .. coppie(serie) ..
     ", acquisti: " .. coppie(acq) .. "};\n"
   return widget.sandbox {
     html = '<div id="b"></div><div style="position:relative;height:300px"><canvas id="c"></canvas></div>',
-    script = 'loadJsByUrl("' .. CHARTJS .. '").then(function () {\n' .. dati ..
+    script = 'loadJsByUrl("' .. investimenti.chartjs .. '").then(function () {\n' .. dati ..
       JS_LINEA .. "\n});",
     markdown = "Grafico " .. nome,
   }
@@ -1105,11 +1112,11 @@ local function torte(specs)
   for i, sp in ipairs(specs) do
     local e, v, c = {}, {}, {}
     for k = 1, #sp.etichette do
-      table.insert(e, js(sp.etichette[k]))
+      table.insert(e, investimenti.js(sp.etichette[k]))
       table.insert(v, string.format("%.2f", sp.valori[k]))
-      table.insert(c, js(sp.colori[k]))
+      table.insert(c, investimenti.js(sp.colori[k]))
     end
-    table.insert(grafici, "{id: \"g" .. i .. "\", titolo: " .. js(sp.titolo) .. ", etichette: [" ..
+    table.insert(grafici, "{id: \"g" .. i .. "\", titolo: " .. investimenti.js(sp.titolo) .. ", etichette: [" ..
       table.concat(e, ",") .. "], valori: [" .. table.concat(v, ",") .. "], colori: [" ..
       table.concat(c, ",") .. "]}")
     table.insert(celle, '<div style="position:relative;height:280px"><canvas id="g' .. i .. '"></canvas></div>')
@@ -1119,7 +1126,7 @@ local function torte(specs)
   return widget.sandbox {
     html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">' ..
       table.concat(celle) .. "</div>",
-    script = 'loadJsByUrl("' .. CHARTJS .. '").then(function () {\nconst GRAFICI = [' ..
+    script = 'loadJsByUrl("' .. investimenti.chartjs .. '").then(function () {\nconst GRAFICI = [' ..
       table.concat(grafici, ",") .. "];\n" .. JS_TORTA .. "\n});",
     markdown = table.concat(titoli, " / "),
   }
@@ -1225,8 +1232,6 @@ end
 ```space-lua
 investimenti = investimenti or {}
 
-local CHARTJS = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
-
 -- Ultimo punto {data, prezzo} con data <= limite (serie ordinata), o nil.
 local function finoA(serie, limite)
   local best
@@ -1321,7 +1326,7 @@ function investimenti.barrePL(pagina)
     table.concat(v, ",") .. "]};\n"
   return widget.sandbox {
     html = '<div style="position:relative;height:' .. (60 + 28 * #righe) .. 'px"><canvas id="c"></canvas></div>',
-    script = 'loadJsByUrl("' .. CHARTJS .. '").then(function () {\n' .. dati .. JS_BARRE .. "\n});",
+    script = 'loadJsByUrl("' .. investimenti.chartjs .. '").then(function () {\n' .. dati .. JS_BARRE .. "\n});",
     markdown = "P/L per strumento",
   }
 end
