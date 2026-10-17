@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.19.1"
+version: "0.19.2"
 versionDate: 2026-10-17
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -9,12 +9,14 @@ share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 
 # Investimenti
 
-**Versione 0.19.1 — consolidamento SilverBullet v2.11+.** Libreria completa, da sostituire integralmente a `Library/MG/investimenti`.
+**Versione 0.19.2 — Index, formato numerico e scheda strumento, SilverBullet v2.11+.** Libreria completa, da sostituire integralmente a `Library/MG/investimenti`.
 
 ## Modifiche e compatibilità
 
+- v0.19.2: data dell’ultima osservazione disponibile nel perimetro della dashboard (non data di esecuzione del comando), formato numerico italiano con separatore migliaia spazio e decimali a virgola; ripristinata `investimenti.scheda()` con rischio KID e collegamenti distinti a conti e portafogli. Nessuna modifica ai calcoli o ai movimenti.
+
 - Eliminato il vecchio motore `movimentiDati` / `posizioni` / `valorizzazioneDati`, che calcolava gli acquisti storici come costo ancora investito e poteva mostrare posizioni chiuse o PIR senza snapshot. Il calcolo economico autorevole è ora `lotti018` + `valoreAllaData` + `risultatoDati`.
-- Eliminate le viste legacy `movimenti`, `valorizzazione`, `valore`, `torta`, `tortaRischio`, `allocazione`, `barraRischio`, `rischio`, `performance`, `barrePL`, `scheda`, `elencoStrumenti`, `elencoConti` e le loro dipendenze di presentazione. **Le pagine che chiamano esplicitamente queste funzioni devono usare le nuove API**: la rimozione è intenzionale.
+- Eliminate le viste legacy `movimenti`, `valorizzazione`, `valore`, `torta`, `tortaRischio`, `allocazione`, `barraRischio`, `rischio`, `performance`, `barrePL`, `elencoStrumenti`, `elencoConti` e le loro dipendenze di presentazione. La scheda `investimenti.scheda()` è stata ripristinata nella v0.19.2 senza ripristinare il motore legacy. **Le pagine che chiamano esplicitamente le altre funzioni eliminate devono usare le nuove API**.
 - Conservati l'archivio delle quotazioni, gli aggiornamenti sicuri, la diagnostica contabile, i calcoli PMC/P-L/XIRR e il grafico delle **quotazioni** `investimenti.grafico()` con indicatori e segnali; lo stop/TP usa ora il PMC delle quote residue, non la media degli acquisti storici.
 - `investimenti.dashboard()` presenta costo residuo, valore, P/L latente e percentuale. Rimossi dalla tabella `Δ valore` (non è un rendimento) e lo stato tecnico (disponibile in diagnostica).
 - `investimenti.graficoPatrimonio()` resta invariato: rendering confermato dall'utente. La selezione del periodo (`1M`, `3M`, `6M`, `YTD`, `1A`, `Tutto`) si applica al grafico patrimoniale. L'eventuale terzo argomento `periodo` di `dashboard()` è accettato per compatibilità, ma non cambia i dati correnti.
@@ -31,7 +33,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 | Strumenti e conti | `strumenti`, `elenco`, `contiStrumento`, `risolviConto`, `ledger`, `verificaConti` |
 | Quotazioni | `quotazioni.yahoo`, `quotazioni.cerca`, `quotazioni.verifica`, `quotazioni.crea`, `quotazioni.aggiorna`, `quotazioni.blocco`, `investimenti.quotazioniPerStrumento` |
 | Motore economico | `metodo`, `metadati018`, `prezzi018`, `lotti018`, `valoreAllaData`, `risultatoDati`, `rendimentoDati`, `coperturaDati` |
-| Presentazione | `dashboard`, `risultato`, `rendimento`, `copertura`, `grafico` (prezzi), `graficoPatrimonio` (valore) |
+| Presentazione | `dashboard`, `scheda`, `risultato`, `rendimento`, `copertura`, `grafico` (prezzi), `graficoPatrimonio` (valore) |
 | Controlli | `verifica`, `verificaPatrimonio`, `switch019`, `flussiEsterni019`, `diagnostica019`, `diagnosticaVista019` |
 | Serie e dati | `dashboardDati`, `serie`, `acquisti`, `seriePatrimonio019`, `vista` |
 
@@ -39,6 +41,7 @@ share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 
 ```lua
 investimenti.dashboard("Index")
+investimenti.scheda("Strumenti/LU0140696401")
 investimenti.dashboard("Conti/NEF - Famiglia", "Fondo")
 investimenti.dashboard("Conti/Portafoglio - Samuele", "Fondo")
 investimenti.grafico("Strumenti/LU0140696401")
@@ -55,7 +58,7 @@ investimenti.rendimentoDati("Strumenti/LU0140696401", "xirr")
 - Gli switch NEF possono usare colonne facoltative `Causale` e `Riferimento`, con lo stesso riferimento nei due lati. Senza identificativi non vengono riconciliati artificialmente; nessuna modifica automatica di `Inbox` o dei movimenti.
 - Il rendimento XIRR calcolato per singolo strumento richiede flussi attendibili e valore finale; il TWR non viene stimato se mancano i sottoperiodi. I PIR senza valore ufficiale non sono valorizzati fittiziamente.
 
-> **Collaudo:** test statici e regressioni sui dati disponibili sono eseguiti sul file; test di esecuzione in SilverBullet v2.11 da completare nello Space di prova. Conservare una copia della v0.19 prima della sostituzione.
+> **Collaudo:** la v0.19.1 è stata collaudata dall’utente; le modifiche della v0.19.2 richiedono ancora un test esecutivo in SilverBullet. I movimenti, il motore economico e le tabelle delle quotazioni non sono modificati. Conservare una copia della v0.19.1 prima della sostituzione.
 
 ## Codice della libreria
 
@@ -106,6 +109,54 @@ function investimenti.strumenti()
   end
   table.sort(out, function(a, b) return a.id < b.id end)
   return out
+end
+
+-- Formattazione SOLO per la presentazione: nessuna modifica ai numeri dei calcoli.
+-- I prezzi e le quantità nei dati restano numeri con punto decimale.
+function investimenti.formatoNumero(x, decimali)
+  if type(x) ~= "number" or x ~= x or x == math.huge or x == -math.huge then return "n.d." end
+  local d = decimali or 2
+  local t = string.format("%." .. d .. "f", x)
+  local segno, intero, frazione = string.match(t, "^([%-]?)(%d+)%.(%d+)$")
+  if not intero then return t end
+  local gruppi = {}
+  while #intero > 3 do
+    table.insert(gruppi, 1, string.sub(intero, -3))
+    intero = string.sub(intero, 1, -4)
+  end
+  table.insert(gruppi, 1, intero)
+  local z = segno .. table.concat(gruppi, " ")
+  if d > 0 then return z .. "," .. frazione end
+  return z
+end
+
+-- La scheda usa solo metadati e relazioni già presenti, senza il motore legacy.
+function investimenti.scheda(pagina)
+  pagina = pagina or editor.getCurrentPage()
+  if type(pagina) ~= "string" or not string.startsWith(pagina, "Strumenti/") then return nil end
+  local id = string.sub(pagina, 11)
+  local s
+  for _, x in ipairs(investimenti.strumenti()) do
+    if x.id == id then s = x; break end
+  end
+  if not s then return widget.markdown("_Strumento non trovato._") end
+  local info = {(s.tipo or "Strumento"), s.valuta or "EUR"}
+  local kid = tonumber(s.rischio)
+  if kid and kid >= 1 and kid <= 7 then
+    local pieni = string.rep("■", math.floor(kid))
+    local vuoti = string.rep("□", 7 - math.floor(kid))
+    table.insert(info, "Rischio KID " .. tostring(kid) .. "/7 " .. pieni .. vuoti)
+  else table.insert(info, "Rischio KID n.d.") end
+  local fisici, portafogli = investimenti.contiStrumento()
+  local function links(pagine)
+    local a = {}
+    for _, nome in ipairs(pagine or {}) do table.insert(a, "[[" .. nome .. "]]") end
+    table.sort(a)
+    return #a > 0 and table.concat(a, ", ") or "nessuno"
+  end
+  return widget.markdown("**" .. table.concat(info, " · ") .. "**" ..
+    "\n\n**Conti:** " .. links(fisici[id]) ..
+    "\n\n**Portafogli:** " .. links(portafogli[id]))
 end
 
 --- Soglie percentuali di uno strumento: stop loss, take profit, trailing stop.
@@ -1038,9 +1089,9 @@ end
 function investimenti.risultato(pagina)
   local _, t = investimenti.risultatoDati(pagina)
   return widget.markdown("**Risultato economico (EUR)**: realizzato " ..
-    string.format("%.2f", t.realizzato) .. "; redditi " .. string.format("%.2f", t.redditi) ..
-    "; latente " .. string.format("%.2f", t.latente) ..
-    (t.completo and "; totale " .. string.format("%.2f", t.complessivo) or
+    investimenti.formatoNumero(t.realizzato, 2) .. "; redditi " .. investimenti.formatoNumero(t.redditi, 2) ..
+    "; latente " .. investimenti.formatoNumero(t.latente, 2) ..
+    (t.completo and "; totale " .. investimenti.formatoNumero(t.complessivo, 2) or
     "; **totale non disponibile: posizioni senza valore " .. t.indisponibili .. "**"))
 end
 
@@ -1124,7 +1175,7 @@ function investimenti.rendimento(pagina, metodo)
   local r = investimenti.rendimentoDati(pagina, metodo)
   if r.errore then return widget.markdown("**Rendimento n.d.**: " .. r.errore) end
   return widget.markdown("**" .. string.upper(r.metodo) .. "**: " ..
-    string.format("%.2f%%", r.percentuale) .. " — " .. r.nota)
+    investimenti.formatoNumero(r.percentuale, 2) .. " %" .. " — " .. r.nota)
 end
 
 function investimenti.coperturaDati(pagina, data)
@@ -1157,7 +1208,7 @@ function investimenti.copertura(pagina)
     " posizioni; " .. r.aggiornati .. " aggiornate, " ..
     r.obsoleti .. " obsolete, " .. r.stimati .. " indicative, " ..
     r.mancanti .. " mancanti. **Valore parziale:** " ..
-    string.format("%.2f EUR", r.valoreParziale) ..
+    investimenti.formatoNumero(r.valoreParziale, 2) .. " €" ..
     (r.completo and "" or " (NON rappresenta il patrimonio completo)"))
 end
 
@@ -1241,13 +1292,29 @@ end
 --- viene applicata al graficoPatrimonio, non al valore attuale.
 function investimenti.dashboard(pagina, tipo, periodo)
   local rows, tot = investimenti.dashboardDati(pagina, tipo, periodo)
-  local function eur(n) return n and string.format("%.2f", n) or "n.d." end
+  local function eur(n) return investimenti.formatoNumero(n, 2) .. (n ~= nil and " €" or "") end
   local function pct(v, base)
-    return base and base ~= 0 and string.format("%+.2f %%", 100*v/base) or "n.d."
+    if not base or base == 0 then return "n.d." end
+    local z = 100 * v / base
+    return (z > 0 and "+" or "") .. investimenti.formatoNumero(z, 2) .. " %"
   end
-  local out = {"**Patrimonio investito:** " .. eur(tot.valore) .. " EUR · **Costo residuo:** " ..
-    eur(tot.costo) .. " EUR · **P/L latente:** " .. eur(tot.pl) .. " EUR (" ..
+  -- Ultima data effettivamente utilizzata dalle posizioni visualizzate.
+  -- Non e' il timestamp del download, ne' significa che tutti i prezzi siano recenti.
+  local ultima
+  local ndDate = 0
+  for _, r in ipairs(rows) do
+    if type(r.dataPrezzo) == "string" and string.match(r.dataPrezzo, "^%d%d%d%d%-%d%d%-%d%d$") then
+      if not ultima or r.dataPrezzo > ultima then ultima = r.dataPrezzo end
+    else ndDate = ndDate + 1 end
+  end
+  local data = ultima and (string.sub(ultima, 9, 10) .. "." ..
+    string.sub(ultima, 6, 7) .. "." .. string.sub(ultima, 1, 4)) or "n.d."
+  local out = {"**Patrimonio investito:** " .. eur(tot.valore) .. " · **Costo residuo:** " ..
+    eur(tot.costo) .. " · **P/L latente:** " .. eur(tot.pl) .. " (" ..
     pct(tot.pl, tot.costo) .. ")",
+    "\n**Ultima valorizzazione disponibile:** " .. data ..
+    (ndDate > 0 and (" · " .. ndDate .. " posizioni senza data del valore") or "") ..
+    " · _la data più recente non certifica l'aggiornamento di tutti gli strumenti_",
     "\n**Copertura:** " .. (tot.conteggio-tot.mancanti) .. "/" .. tot.conteggio ..
     " posizioni con valore; " .. tot.indicativi .. " indicative, " .. tot.mancanti ..
     " mancanti" .. (tot.completo and "." or ". **Patrimonio parziale.**"),
@@ -1422,7 +1489,7 @@ function investimenti.vista(pagina)
   elseif string.startsWith(pagina, "Conti/") then
     return {v(investimenti.dashboard, pagina), v(investimenti.diagnosticaVista019, pagina)}
   elseif string.startsWith(pagina, "Strumenti/") then
-    return {v(investimenti.risultato, pagina), v(investimenti.grafico, pagina)}
+    return {v(investimenti.scheda, pagina), v(investimenti.risultato, pagina), v(investimenti.grafico, pagina)}
   elseif string.startsWith(pagina, "Quotazioni/") then
     return {v(investimenti.grafico, pagina)}
   end
