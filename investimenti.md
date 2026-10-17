@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.19.2"
+version: "0.19.3"
 versionDate: 2026-10-17
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -9,9 +9,11 @@ share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 
 # Investimenti
 
-**Versione 0.19.2 — Index, formato numerico e scheda strumento, SilverBullet v2.11+.** Libreria completa, da sostituire integralmente a `Library/MG/investimenti`.
+**Versione 0.19.3 — Scheda strumento compatta e colore KID, SilverBullet v2.11+.** Libreria completa, da sostituire integralmente a `Library/MG/investimenti`.
 
 ## Modifiche e compatibilità
+
+- v0.19.3: scheda strumento in due righe senza paragrafi vuoti, conti e portafogli sulla stessa riga, un solo quadrato colorato per KID (1 bianco, 2 verdino, 3 verde, 4 arancio, 5 arancio scuro, 6 rosso, 7 viola). Nessun cambiamento ai calcoli.
 
 - v0.19.2: data dell’ultima osservazione disponibile nel perimetro della dashboard (non data di esecuzione del comando), formato numerico italiano con separatore migliaia spazio e decimali a virgola; ripristinata `investimenti.scheda()` con rischio KID e collegamenti distinti a conti e portafogli. Nessuna modifica ai calcoli o ai movimenti.
 
@@ -58,7 +60,7 @@ investimenti.rendimentoDati("Strumenti/LU0140696401", "xirr")
 - Gli switch NEF possono usare colonne facoltative `Causale` e `Riferimento`, con lo stesso riferimento nei due lati. Senza identificativi non vengono riconciliati artificialmente; nessuna modifica automatica di `Inbox` o dei movimenti.
 - Il rendimento XIRR calcolato per singolo strumento richiede flussi attendibili e valore finale; il TWR non viene stimato se mancano i sottoperiodi. I PIR senza valore ufficiale non sono valorizzati fittiziamente.
 
-> **Collaudo:** la v0.19.1 è stata collaudata dall’utente; le modifiche della v0.19.2 richiedono ancora un test esecutivo in SilverBullet. I movimenti, il motore economico e le tabelle delle quotazioni non sono modificati. Conservare una copia della v0.19.1 prima della sostituzione.
+> **Collaudo:** la v0.19.1 è stata collaudata dall’utente; le modifiche alla scheda della v0.19.3 richiedono un test esecutivo in SilverBullet. I movimenti, il motore economico e le tabelle delle quotazioni non sono modificati. Conservare una copia della v0.19.1 prima della sostituzione.
 
 ## Codice della libreria
 
@@ -140,13 +142,16 @@ function investimenti.scheda(pagina)
     if x.id == id then s = x; break end
   end
   if not s then return widget.markdown("_Strumento non trovato._") end
-  local info = {(s.tipo or "Strumento"), s.valuta or "EUR"}
+
+  -- Una sola casella colorata per il livello KID; la scala cromatica e personalizzata.
+  local colori = {"#FFFFFF", "#B6E6A0", "#49AD65", "#EFA04C", "#CD681D", "#D94040", "#8B45BB"}
   local kid = tonumber(s.rischio)
-  if kid and kid >= 1 and kid <= 7 then
-    local pieni = string.rep("■", math.floor(kid))
-    local vuoti = string.rep("□", 7 - math.floor(kid))
-    table.insert(info, "Rischio KID " .. tostring(kid) .. "/7 " .. pieni .. vuoti)
-  else table.insert(info, "Rischio KID n.d.") end
+  local rischio = "Rischio KID n.d."
+  if kid and kid == math.floor(kid) and kid >= 1 and kid <= 7 then
+    rischio = "Rischio KID " .. tostring(kid) .. "/7 " ..
+      '<span style="color: ' .. colori[kid] .. ';">■</span>'
+  end
+
   local fisici, portafogli = investimenti.contiStrumento()
   local function links(pagine)
     local a = {}
@@ -154,9 +159,11 @@ function investimenti.scheda(pagina)
     table.sort(a)
     return #a > 0 and table.concat(a, ", ") or "nessuno"
   end
-  return widget.markdown("**" .. table.concat(info, " · ") .. "**" ..
-    "\n\n**Conti:** " .. links(fisici[id]) ..
-    "\n\n**Portafogli:** " .. links(portafogli[id]))
+  -- Due righe compatte: nessun paragrafo vuoto; link wiki attivi anche nella seconda riga.
+  local riga1 = "**" .. (s.tipo or "Strumento") .. " · " .. (s.valuta or "EUR") ..
+    " · " .. rischio .. "**"
+  local riga2 = "**Conti:** " .. links(fisici[id]) .. " · **Portafogli:** " .. links(portafogli[id])
+  return widget.markdown(riga1 .. "  \n" .. riga2)
 end
 
 --- Soglie percentuali di uno strumento: stop loss, take profit, trailing stop.
