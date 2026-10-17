@@ -1,80 +1,73 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.17"
+version: "0.18"
 versionDate: 2026-10-16
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
----
-
-# 💸 Investimenti
-
-**Versione 0.17 — 16.10.2026** · Libreria per SilverBullet v2.11+.
-
+💸 Investimenti
+Versione 0.18 — 16.10.2026 · Libreria per SilverBullet v2.11+.
 Gestione degli strumenti finanziari in Markdown: movimenti, quotazioni storiche, valorizzazioni in EUR, andamento e indicatori. Le pagine Markdown sono la fonte primaria; le sole scritture automatiche riguardano `Quotazioni/...` mediante `quotazioni.crea()` e `quotazioni.aggiorna()`.
-
 > **Prima di sostituire la pagina**: conservare un backup della libreria e dello Space. Questa versione mantiene lo schema delle pagine e le funzioni pubbliche della 0.15. Il codice è stato verificato strutturalmente ma non eseguito in SilverBullet: provarlo prima su Space di test.
-
-## Novità 0.16
-
-- Aggiornamento conservativo della tabella `Data | Prezzo`: le note successive e precedenti non vengono eliminate.
-- Blocco della scrittura su dati storici illeggibili, date o prezzi non validi, ISIN duplicati e valuta Yahoo diversa dalla valuta dichiarata.
-- Otto decimali per i nuovi prezzi Yahoo; i prezzi storici già memorizzati conservano la precisione originale.
-- Nuova `investimenti.verifica()` in sola lettura per anomalie di struttura, pagine e ISIN.
-- Nessuna migrazione obbligatoria delle tabelle `Quotazioni/...` già presenti in 0.15.
-
-## Struttura dello Space
-
-- `Strumenti/<id>`: frontmatter con `displayName`, `isin`, `ticker`, `valuta`, `tipo`, `KID` e tabella dei movimenti. `ticker` è facoltativo per quotazioni manuali.
-- `Quotazioni/<id>`: frontmatter con `isin`, tabella `Data | Prezzo` e grafici opzionali. Le quotazioni sono collegate mediante l'ISIN.
-- `Conti/<nome>`: attributo `strumento` con link `[[Strumenti/<id>]]`; conti e portafogli possono essere visualizzati individualmente.
-- `Index`: cruscotto generale; la pagina può essere personalizzata con `config.set("investimenti.paginaIndice", "...")`.
-
+Novità 0.16
+Aggiornamento conservativo della tabella `Data | Prezzo`: le note successive e precedenti non vengono eliminate.
+Blocco della scrittura su dati storici illeggibili, date o prezzi non validi, ISIN duplicati e valuta Yahoo diversa dalla valuta dichiarata.
+Otto decimali per i nuovi prezzi Yahoo; i prezzi storici già memorizzati conservano la precisione originale.
+Nuova `investimenti.verifica()` in sola lettura per anomalie di struttura, pagine e ISIN.
+Nessuna migrazione obbligatoria delle tabelle `Quotazioni/...` già presenti in 0.15.
+Novità 0.18 — Patrimonio e rendimenti
+Compatibilità: le funzioni v0.17 e il formato delle pagine esistenti rimangono disponibili. Le nuove funzioni operano in sola lettura. Nessun aggiornamento automatico di movimenti o quotazioni e nessun calcolo di tasse fiscali per lotti.
+`investimenti.metodo(strumento)` sceglie fra `mercato`, `nav`, `obbligazione`, `contrattuale`, `snapshot`, `manuale`, `nominale`, `costo` (attributo facoltativo `metodoValorizzazione`). Fonte e data della stima sono sempre esplicite. I PIR simulati con 15.000 quote a 1 € non sono identificati automaticamente come vere quote NAV; restano indicativi, salvo esplicita conferma `quoteReali: true` e disponibilità del NAV.
+`investimenti.risultatoDati(pagina, data)` separa costo residuo PMC, risultato realizzato, latente, cedole/dividendi e anomalie. Le commissioni dell'acquisto sono incluse una sola volta solo quando dichiarate separatamente dall'importo; in caso ambiguo si conserva `Valore EUR`/`Valore` come importo effettivo, senza aggiunta automatica.
+`investimenti.risultato(pagina)` mostra il riepilogo; `investimenti.rendimentoDati(pagina, metodo)` e `investimenti.rendimento(pagina, metodo)` offrono XIRR e TWR conservativo (non disponibile se mancano i dati di sottoperiodo). XIRR è annualizzato; le funzioni dichiarano sempre motivazioni in caso di indisponibilità. Non si calcola XIRR aggregato di conto quando manca il libro cassa completo, salvo selezione di un singolo strumento.
+`investimenti.valoreAllaData(pagina, data)` restituisce i valori per data; `investimenti.coperturaDati(pagina, data)` e `investimenti.copertura(pagina)` mostrano presenza e anzianità del prezzo rispetto alla frequenza prevista. I cambi USD sono associati alla data (ultimo cambio non successivo), non all'ultimo disponibile oggi.
+Quotazioni manuali e importate restano registrabili nelle tabelle Markdown `Quotazioni/...`, che possono contenere prezzi di fonte ufficiale. Non sono effettuate scritture per l'inserimento manuale. Per importare una storia, inserire o incollare righe ISO in una pagina senza ticker; la compatibilità del parser v0.17 resta invariata.
+Vincoli espliciti: valore nominale e costo non equivalgono a prezzo di realizzo; il rateo obbligazionario non è stimato senza dati contrattuali sufficienti; gli snapshot annuali non costituiscono prezzi giornalieri; il calcolo XIRR personale considera le date dei flussi di posizione, non sostituisce un rendimento fiscale; nessun TWR esatto con versamenti intermedi privi di prezzi coincidenti. `investimenti.valorizzazioneDati` della v0.17 resta la vista legacy (non assume automaticamente i nuovi metodi): usare `investimenti.valoreAllaData` e `investimenti.risultatoDati` per la nuova metodologia. Questa scelta evita di modificare silenziosamente le dashboard preesistenti.
+Esempio facoltativo nel frontmatter dello strumento:
+```yaml
+metodoValorizzazione: contrattuale
+frequenzaPrezzoGiorni: 365
+quoteReali: false
+```
+Per un fondo si può utilizzare `nav` con `quoteReali: true` se le quantità rappresentano effettivamente le quote.
+Struttura dello Space
+`Strumenti/<id>`: frontmatter con `displayName`, `isin`, `ticker`, `valuta`, `tipo`, `KID` e tabella dei movimenti. `ticker` è facoltativo per quotazioni manuali.
+`Quotazioni/<id>`: frontmatter con `isin`, tabella `Data | Prezzo` e grafici opzionali. Le quotazioni sono collegate mediante l'ISIN.
+`Conti/<nome>`: attributo `strumento` con link `[[Strumenti/<id>]]`; conti e portafogli possono essere visualizzati individualmente.
+`Index`: cruscotto generale; la pagina può essere personalizzata con `config.set("investimenti.paginaIndice", "...")`.
 La libreria supporta prezzi in EUR e USD; i prezzi in USD vengono convertiti mediante l'ultimo `EURUSD` disponibile. La performance 1M/YTD/1A è una variazione della quotazione, non un rendimento ponderato sui flussi di cassa. Il P/L è calcolato come valore + incassato − acquistato. Non include automaticamente tutte le imposte, i costi di conto e le particolarità delle obbligazioni.
-
-## API pubbliche
-
-| Funzione | Uso |
-|---|---|
-| `investimenti.strumenti()` | Elenco strumenti e frontmatter |
-| `investimenti.elenco(pagina)` | Strumenti contenuti nel conto o nella pagina |
-| `investimenti.movimentiDati(ids)` | Quote nette, acquisti e incassi |
-| `investimenti.quotazioniPerStrumento(strumenti, ids)` | Serie storiche per ID |
-| `investimenti.ultimiPrezzi(strumenti, per)` | Ultimo prezzo disponibile |
-| `investimenti.valorizzazioneDati(ids)` | Dati numerici e totali |
-| `investimenti.valorizzazione(pagina)` | Valorizzazione dettagliata |
-| `investimenti.valore(pagina)` | Tabella compatta con performance |
-| `investimenti.movimenti(pagina)` | Movimenti aggregati |
-| `investimenti.performance(ids)` | Variazione quotazioni 1M/YTD/1A |
-| `investimenti.serie(id)` / `investimenti.acquisti(id)` | Dati per grafici |
-| `investimenti.grafico(pagina)` | Prezzi, MM200, Bollinger, RSI, stop/TP/trailing |
-| `investimenti.torta(pagina)` / `investimenti.tortaRischio(pagina)` | Distribuzioni per strumento e KID |
-| `investimenti.allocazione(pagina)` | Entrambe le distribuzioni |
-| `investimenti.barraRischio(n)` / `investimenti.rischio(pagina)` | Indicatore KID per singolo strumento e aggregato |
-| `investimenti.barrePL(pagina)` | Grafico P/L per strumento |
-| `investimenti.scheda(pagina)` / `investimenti.elencoStrumenti()` / `investimenti.elencoConti()` | Viste anagrafiche |
-| `investimenti.vista(pagina)` | Widget automatici per pagina |
-| `investimenti.verifica()` | Anomalie struttura, ISIN e tabelle (v0.16) |
-| `quotazioni.yahoo(simbolo, range)` | Storico Yahoo Finance |
-| `quotazioni.cerca(testo)` / `quotazioni.verifica(simbolo, range)` / `quotazioni.test()` | Ricerca e diagnostica Yahoo |
-| `quotazioni.crea()` / `quotazioni.aggiorna(range, ids, pagine)` | Creazione e aggiornamento pagine quotazioni |
-
+API pubbliche
+Funzione	Uso
+`investimenti.strumenti()`	Elenco strumenti e frontmatter
+`investimenti.elenco(pagina)`	Strumenti contenuti nel conto o nella pagina
+`investimenti.movimentiDati(ids)`	Quote nette, acquisti e incassi
+`investimenti.quotazioniPerStrumento(strumenti, ids)`	Serie storiche per ID
+`investimenti.ultimiPrezzi(strumenti, per)`	Ultimo prezzo disponibile
+`investimenti.valorizzazioneDati(ids)`	Dati numerici e totali
+`investimenti.valorizzazione(pagina)`	Valorizzazione dettagliata
+`investimenti.valore(pagina)`	Tabella compatta con performance
+`investimenti.movimenti(pagina)`	Movimenti aggregati
+`investimenti.performance(ids)`	Variazione quotazioni 1M/YTD/1A
+`investimenti.serie(id)` / `investimenti.acquisti(id)`	Dati per grafici
+`investimenti.grafico(pagina)`	Prezzi, MM200, Bollinger, RSI, stop/TP/trailing
+`investimenti.torta(pagina)` / `investimenti.tortaRischio(pagina)`	Distribuzioni per strumento e KID
+`investimenti.allocazione(pagina)`	Entrambe le distribuzioni
+`investimenti.barraRischio(n)` / `investimenti.rischio(pagina)`	Indicatore KID per singolo strumento e aggregato
+`investimenti.barrePL(pagina)`	Grafico P/L per strumento
+`investimenti.scheda(pagina)` / `investimenti.elencoStrumenti()` / `investimenti.elencoConti()`	Viste anagrafiche
+`investimenti.vista(pagina)`	Widget automatici per pagina
+`investimenti.verifica()`	Anomalie struttura, ISIN e tabelle (v0.16)
+`quotazioni.yahoo(simbolo, range)`	Storico Yahoo Finance
+`quotazioni.cerca(testo)` / `quotazioni.verifica(simbolo, range)` / `quotazioni.test()`	Ricerca e diagnostica Yahoo
+`quotazioni.crea()` / `quotazioni.aggiorna(range, ids, pagine)`	Creazione e aggiornamento pagine quotazioni
 Le funzioni che accettano `pagina` usano per impostazione predefinita la pagina aperta nell'editor; `ids` è un elenco di identificatori senza prefisso `Strumenti/`. Richiede facoltativamente `DateFormat` per mostrare le date nel formato `DD.MM.YYYY`.
-
-## Quotazioni: aggiornamento e integrità
-
+Quotazioni: aggiornamento e integrità
 `quotazioni.aggiorna()` scarica per default un mese di dati; `quotazioni.aggiorna("5y")` richiede cinque anni. Prima della scrittura il parser `quotazioni.blocco()` verifica la tabella corrente, poi valida tutti i punti scaricati. Se un controllo fallisce, la pagina non viene modificata e il risultato riporta `errore`.
-
 La tabella riconosciuta deve avere esattamente due colonne `Data | Prezzo`, date ISO e prezzi positivi separati dal punto. Il contenuto prima e dopo la tabella viene mantenuto; se esistono più intestazioni omonime, l'aggiornamento viene bloccato. Yahoo Finance è una fonte non ufficiale: non si garantiscono disponibilità, puntualità o correttezza dei dati.
-
 `investimenti.verifica()` restituisce una tabella con `pagina`, `problema`, `dettaglio`, senza modificare dati. Controlli inclusi: ISIN assenti/duplicati, pagine quotazioni prive di tabella valida, strumenti con ticker senza pagina collegata.
-
-**Limiti:** le quotazioni obsolete e l'allineamento storico del cambio USD/EUR non vengono ancora bloccati dal motore patrimoniale. L'associazione movimento-conto, le cedole obbligazionarie e il costo medio delle quote residue sono previsti per una versione successiva.
-
-## Esempi di pagine
-
-### Strumento
-
+Limiti: le quotazioni obsolete e l'allineamento storico del cambio USD/EUR non vengono ancora bloccati dal motore patrimoniale. L'associazione movimento-conto, le cedole obbligazionarie e il costo medio delle quote residue sono previsti per una versione successiva.
+Esempi di pagine
+Strumento
 ```markdown
 ---
 displayName: "NEF Ethical Euro Equity R Acc"
@@ -89,9 +82,7 @@ KID: 4
 |---|---|---:|---:|---:|---:|---:|
 | 2025-04-01 | Acquisto | 3.983 | 25.11 | 100 | 0 | 0 |
 ```
-
-### Quotazioni
-
+Quotazioni
 ```markdown
 ---
 isin: "LU0102238655"
@@ -104,9 +95,7 @@ isin: "LU0102238655"
 ## Note manuali
 Questo contenuto viene conservato durante l'aggiornamento.
 ```
-
-### Conto
-
+Conto
 ```yaml
 ---
 displayName: NEF - Famiglia
@@ -114,18 +103,12 @@ strumento:
   - "[[Strumenti/LU0102238655]]"
 ---
 ```
-
-## Comandi
-
-- **Quotazioni: Crea pagine e scarica storico** — crea pagine nuove e richiede cinque anni da Yahoo.
-- **Quotazioni: Aggiorna** — aggiorna l'ultimo mese delle pagine automatiche.
-
-## Implementazione Space Lua
-
+Comandi
+Quotazioni: Crea pagine e scarica storico — crea pagine nuove e richiede cinque anni da Yahoo.
+Quotazioni: Aggiorna — aggiorna l'ultimo mese delle pagine automatiche.
+Implementazione Space Lua
 I blocchi seguenti costituiscono l'intera implementazione. Non rimuoverli se si sostituisce la pagina `Library/MG/investimenti`.
-
-### Strumenti e collegamenti
-
+Strumenti e collegamenti
 ```space-lua
 investimenti = investimenti or {}
 
@@ -225,9 +208,7 @@ function investimenti.elenco(pagina)
   return ids
 end
 ```
-
-### Accesso Yahoo Finance
-
+Accesso Yahoo Finance
 ```space-lua
 quotazioni = quotazioni or {}
 
@@ -286,9 +267,7 @@ function quotazioni.verifica(simbolo, range)
     prezzo = r[#r] and r[#r].prezzo, errore = q.errore}}
 end
 ```
-
-### Creazione e aggiornamento conservativo
-
+Creazione e aggiornamento conservativo
 ```space-lua
 quotazioni = quotazioni or {}
 
@@ -416,9 +395,7 @@ function quotazioni.aggiorna(range, ids, pagine)
   return esiti
 end
 ```
-
-### Verifica in sola lettura
-
+Verifica in sola lettura
 ```space-lua
 investimenti = investimenti or {}
 quotazioni = quotazioni or {}
@@ -455,9 +432,7 @@ function investimenti.verifica()
   return anomalie
 end
 ```
-
-### Comando: crea quotazioni
-
+Comando: crea quotazioni
 ```space-lua
 command.define {
   name = "Quotazioni: Crea pagine e scarica storico",
@@ -467,9 +442,7 @@ command.define {
   end
 }
 ```
-
-### Comando: aggiorna quotazioni
-
+Comando: aggiorna quotazioni
 ```space-lua
 command.define {
   name = "Quotazioni: Aggiorna",
@@ -478,17 +451,11 @@ command.define {
   end
 }
 ```
-
-### v0.17 — Conti, posizioni e portafogli
-
-La pagina dello **strumento** conserva i movimenti, ma uno stesso ISIN può avere più pagine strumento e più intestatari. La chiave contabile è **conto + id strumento**, non l'ISIN. Per le pagine dell'archivio di esempio il conto è inferito dai riferimenti nei frontmatter `Conti/...`: le pagine con tag `Portafoglio` sono aggregatori e non duplicano i movimenti. In mancanza di un conto fisico, una pagina `Portafoglio` può essere il contenitore esclusivo (es. Samuele).
-
+v0.17 — Conti, posizioni e portafogli
+La pagina dello strumento conserva i movimenti, ma uno stesso ISIN può avere più pagine strumento e più intestatari. La chiave contabile è conto + id strumento, non l'ISIN. Per le pagine dell'archivio di esempio il conto è inferito dai riferimenti nei frontmatter `Conti/...`: le pagine con tag `Portafoglio` sono aggregatori e non duplicano i movimenti. In mancanza di un conto fisico, una pagina `Portafoglio` può essere il contenitore esclusivo (es. Samuele).
 Nelle tabelle dei movimenti è facoltativa la colonna `Conto`, con nome esatto della pagina, es. `Conti/NEF - Famiglia` o il solo nome `NEF - Famiglia`. È necessaria per distinguere acquisti del medesimo strumento presso conti fisici diversi. Se esistono più conti fisici candidati e manca `Conto`, la riga non è assegnata a nessun conto specifico: resta visibile nell'aggregato globale ed è segnalata da `investimenti.verificaConti()`. Non vengono ripartite quote in modo arbitrario.
-
 `investimenti.posizioni(pagina)` produce righe `{conto, id, quote, acquistato, incassato, qAcq, primo}`; `investimenti.verificaConti()` segnala i riferimenti e le assegnazioni ambigue. La somma per portafoglio utilizza gli id di strumenti associati, senza sommare i totali dei conti figli. Restano invariati i frontmatter e le tabelle esistenti.
-
-### Movimenti e ultimi prezzi
-
+Movimenti e ultimi prezzi
 ```space-lua
 investimenti = investimenti or {}
 
@@ -731,9 +698,7 @@ function investimenti.ultimiPrezzi(strumenti, per)
   return out
 end
 ```
-
-### Valorizzazione numerica
-
+Valorizzazione numerica
 ```space-lua
 investimenti = investimenti or {}
 
@@ -792,9 +757,7 @@ function investimenti.valorizzazioneDati(ids, pagina)
   return righe, tot, nd
 end
 ```
-
-### Tabelle e viste
-
+Tabelle e viste
 ```space-lua
 investimenti = investimenti or {}
 
@@ -1098,9 +1061,7 @@ function investimenti.elencoConti()
   }, righe)
 end
 ```
-
-### Grafici e allocazione
-
+Grafici e allocazione
 ```space-lua
 investimenti = investimenti or {}
 
@@ -1483,9 +1444,7 @@ function investimenti.rischio(pagina)
   return investimenti.barraRischio(somma / peso)
 end
 ```
-
-### Performance e widget automatici
-
+Performance e widget automatici
 ```space-lua
 investimenti = investimenti or {}
 
@@ -1623,9 +1582,7 @@ for i = 1, 4 do
   }
 end
 ```
-
-### Comando diagnostico v0.17
-
+Comando diagnostico v0.17
 ```space-lua
 command.define {
   name = "Investimenti: Verifica conti e movimenti",
@@ -1636,4 +1593,375 @@ command.define {
     return problemi
   end
 }
+```
+v0.18 — Calcoli patrimoniali, rendimento e copertura (sola lettura)
+```space-lua
+investimenti = investimenti or {}
+
+-- Metadati aggiuntivi opzionali, letti senza modificare lo schema v0.17.
+function investimenti.metadati018()
+  local out = {}
+  for _, p in ipairs(query[[
+    from p = index.subPages("Strumenti")
+    select {name = p.name, metodo = p.metodoValorizzazione,
+      frequenza = p.frequenzaPrezzoGiorni, quoteReali = p.quoteReali,
+      valoreManuale = p.valoreManuale, dataValore = p.dataValore}
+  ]]) do
+    out[string.sub(p.name, 11)] = {metodo = p.metodo,
+      frequenza = tonumber(p.frequenza), quoteReali = p.quoteReali,
+      valoreManuale = tonumber(p.valoreManuale), dataValore = p.dataValore}
+  end
+  return out
+end
+
+function investimenti.metodo(s, meta)
+  if type(s) ~= "table" then return "manuale" end
+  local m = meta or {}
+  local dichiarato = type(m.metodo) == "string" and m.metodo
+  local ammessi = {mercato = true, nav = true, obbligazione = true,
+    contrattuale = true, snapshot = true, manuale = true, nominale = true, costo = true}
+  if dichiarato and ammessi[dichiarato] then return dichiarato end
+  if s.tipo == "Cambio" then return "mercato" end
+  if s.tipo == "PIR" then return "snapshot" end
+  if s.tipo == "Fondo" then return "nav" end
+  if s.tipo == "Cripto" then return "mercato" end
+  if s.tipo == "Obbligazione" then
+    if string.startsWith(s.id, "CD-") then return "contrattuale" end
+    return "obbligazione"
+  end
+  return "mercato"
+end
+
+-- Restituisce il prezzo noto non successivo alla data richiesta.
+local function prezzoPrima018(serie, data)
+  local scelta
+  for _, r in ipairs(serie or {}) do
+    if type(r[1]) == "string" and r[1] <= data and type(r[2]) == "number"
+       and r[2] > 0 and (not scelta or r[1] > scelta[1]) then scelta = r end
+  end
+  return scelta
+end
+
+local function giorni018(a, b)
+  local function giorno(x)
+    if type(x) ~= "string" then return nil end
+    local y, m, d = string.match(x, "^(%d%d%d%d)%-(%d%d)%-(%d%d)$")
+    if not y then return nil end
+    -- Giorni civili gregoriani: nessuna dipendenza da os.time/timezone.
+    y, m, d = tonumber(y), tonumber(m), tonumber(d)
+    if m < 1 or m > 12 or d < 1 or d > 31 then return nil end
+    if m <= 2 then y = y - 1 end
+    local era = math.floor(y / 400)
+    local yo = y - era * 400
+    local mp = m + (m > 2 and -3 or 9)
+    local doy = math.floor((153 * mp + 2) / 5) + d - 1
+    return era * 146097 + yo * 365 + math.floor(yo / 4) - math.floor(yo / 100) + doy
+  end
+  local x, y = giorno(a), giorno(b)
+  return x and y and (y - x) or nil
+end
+
+function investimenti.prezzi018(data)
+  data = data or os.date("!%Y-%m-%d")
+  local strumenti = investimenti.strumenti()
+  local per = investimenti.quotazioniPerStrumento(strumenti)
+  local px = {}
+  for _, s in ipairs(strumenti) do
+    local r = prezzoPrima018(per[s.id], data)
+    if r then
+      local eur = r[2]
+      local dtCambio
+      if s.valuta == "USD" and s.id ~= "EURUSD" then
+        local cambioData = prezzoPrima018(per.EURUSD, r[1])
+        if cambioData and cambioData[2] > 0 then eur, dtCambio = eur / cambioData[2], cambioData[1]
+        else eur = nil end
+      end
+      px[s.id] = {data = r[1], prezzo = r[2], eur = eur, dataCambio = dtCambio}
+    end
+  end
+  return px
+end
+
+-- Posizioni e lotti PMC, calcolati cronologicamente per conto + strumento.
+function investimenti.lotti018(pagina, data)
+  data = data or os.date("!%Y-%m-%d")
+  local idOk = investimenti.elenco(pagina)
+  local ammessi
+  if idOk then ammessi = {}; for _, id in ipairs(idOk) do ammessi[id] = true end end
+  local conto = type(pagina) == "string" and string.startsWith(pagina, "Conti/") and pagina
+  local portafoglio = false
+  if conto then
+    for _, p in ipairs(query[[
+      from p = index.subPages("Conti")
+      select {name = p.name, tags = p.tags}
+    ]]) do
+      if p.name == conto then
+        if type(p.tags) == "string" then portafoglio = string.find(p.tags, "Portafoglio", 1, true) ~= nil end
+        if type(p.tags) == "table" then
+          for _, tag in ipairs(p.tags) do if tag == "Portafoglio" then portafoglio = true end end
+        end
+      end
+    end
+  end
+  local righe = investimenti.ledger(idOk)
+  table.sort(righe, function(a,b)
+    if tostring(a.data) ~= tostring(b.data) then return tostring(a.data) < tostring(b.data) end
+    return tostring(a.ref or "") < tostring(b.ref or "")
+  end)
+  local per, chiavi = {}, {}
+  for _, r in ipairs(righe) do
+    local include = (not ammessi or ammessi[r.id]) and type(r.data) == "string" and r.data <= data
+    if include and conto then
+      include = r.conto ~= nil and (r.conto == conto or portafoglio)
+    end
+    if include then
+      local key = (r.conto or "NON_ASSEGNATO") .. "|" .. r.id
+      if not per[key] then
+        per[key] = {id = r.id, conto = r.conto, quote = 0, costo = 0,
+          realizzato = 0, redditi = 0, acquisti = 0, vendite = 0,
+          errori = {}, flussi = {}, primo = nil}
+        table.insert(chiavi, key)
+      end
+      local v, q, p = tonumber(r.valore), tonumber(r.quote), per[key]
+      if r.tipo == "Acquisto" then
+        if not q or q <= 0 or not v or v <= 0 then
+          table.insert(p.errori, "ACQUISTO_NON_VALIDO " .. r.data)
+        else
+          p.quote, p.costo, p.acquisti = p.quote + q, p.costo + v, p.acquisti + v
+          if not p.primo then p.primo = r.data end
+          table.insert(p.flussi, {data = r.data, valore = -v})
+        end
+      elseif r.tipo == "Vendita" then
+        if not q or q <= 0 or not v or v < 0 or q > p.quote + 1e-7 then
+          table.insert(p.errori, "VENDITA_NON_VALIDA " .. r.data)
+        else
+          local costoVenduto = p.quote > 0 and p.costo * q / p.quote or 0
+          p.realizzato = p.realizzato + v - costoVenduto
+          p.quote, p.costo, p.vendite = p.quote - q, p.costo - costoVenduto, p.vendite + v
+          if math.abs(p.quote) < 1e-7 then p.quote, p.costo = 0, 0 end
+          table.insert(p.flussi, {data = r.data, valore = v})
+        end
+      elseif r.tipo == "Dividendo" or r.tipo == "Cedola" then
+        if v and v >= 0 then
+          p.redditi = p.redditi + v
+          table.insert(p.flussi, {data = r.data, valore = v})
+        else table.insert(p.errori, "REDDITO_NON_VALIDO " .. r.data) end
+      end
+    end
+  end
+  table.sort(chiavi)
+  local out = {}
+  for _, k in ipairs(chiavi) do table.insert(out, per[k]) end
+  return out
+end
+
+-- Valorizzazione datata: NAV e mercato su quotazioni; contrattuale/nominale su
+-- capitale effettivo; snapshot/manuale solo con valore di posizione esplicito.
+-- I PIR dell'esempio: l'unità sintetica di 1 EUR NON è un numero di quote NAV.
+function investimenti.valoreAllaData(pagina, data)
+  data = data or os.date("!%Y-%m-%d")
+  local metadati = investimenti.metadati018()
+  local strumenti = {}; for _, s in ipairs(investimenti.strumenti()) do strumenti[s.id] = s end
+  local prezzi = investimenti.prezzi018(data)
+  local righe, totale = {}, {valore = 0, note = 0, mancanti = 0, stimati = 0, posizioni = 0}
+  for _, p in ipairs(investimenti.lotti018(pagina, data)) do
+    local s = strumenti[p.id] or {id = p.id, tipo = ""}
+    local meta = metadati[p.id] or {}
+    local metodo = investimenti.metodo(s, meta)
+    local px = prezzi[p.id]
+    local valore, stato, dt, fonte
+    if p.quote == 0 then valore, stato = 0, "CHIUSA"
+    elseif #p.errori > 0 then stato = "MOVIMENTI_INVALIDI"
+    elseif (metodo == "mercato" or metodo == "nav" or metodo == "obbligazione") then
+      if metodo == "nav" and s.tipo == "PIR" and meta.quoteReali ~= true then
+        stato = "QUOTE_NAV_NON_VERIFICATE"
+      elseif px and px.eur then
+        valore, dt, fonte = p.quote * px.eur, px.data, "quotazione"
+        stato = "PREZZO_DISPONIBILE"
+      else stato = px and "CAMBIO_MANCANTE" or "PREZZO_MANCANTE" end
+    elseif metodo == "snapshot" or metodo == "manuale" then
+      if meta.valoreManuale and type(meta.dataValore) == "string" and meta.dataValore <= data then
+        valore, dt, fonte = meta.valoreManuale, meta.dataValore, metodo
+        stato = "STIMA_MANUALE"
+      elseif px and px.eur and meta.quoteReali == true then
+        valore, dt, fonte = p.quote * px.eur, px.data, "nav_confermato"
+        stato = "PREZZO_DISPONIBILE"
+      else stato = "SNAPSHOT_MANCANTE" end
+    elseif metodo == "nominale" or metodo == "contrattuale" then
+      -- PMC residuo è solo un'approssimazione nominale, non prezzo di mercato.
+      -- Per CD dell'esempio 10.050 include già 50 di commissioni: non duplicare.
+      valore, stato, fonte = p.costo, "COSTO_PROXY_CONTRATTUALE", "costo_residuo"
+    elseif metodo == "costo" then
+      valore, stato, fonte = p.costo, "COSTO_NON_MERCATO", "costo_residuo"
+    end
+    if valore ~= nil then
+      totale.valore = totale.valore + valore
+      totale.note = totale.note + 1
+      if stato ~= "PREZZO_DISPONIBILE" and stato ~= "CHIUSA" then totale.stimati = totale.stimati + 1 end
+    else totale.mancanti = totale.mancanti + 1 end
+    totale.posizioni = totale.posizioni + 1
+    table.insert(righe, {id = p.id, conto = p.conto, metodo = metodo, quote = p.quote,
+      valore = valore, stato = stato, fonte = fonte, dataPrezzo = dt,
+      prezzo = px and px.prezzo, dataCambio = px and px.dataCambio, costo = p.costo})
+  end
+  return righe, totale
+end
+
+function investimenti.risultatoDati(pagina, data)
+  local valori = investimenti.valoreAllaData(pagina, data)
+  local per = {}
+  for _, r in ipairs(valori) do per[(r.conto or "NON_ASSEGNATO") .. "|" .. r.id] = r end
+  local out, tot = {}, {realizzato = 0, latente = 0, redditi = 0, complessivo = 0, indisponibili = 0}
+  for _, p in ipairs(investimenti.lotti018(pagina, data)) do
+    local v = per[(p.conto or "NON_ASSEGNATO") .. "|" .. p.id]
+    local latente = v and v.valore and (v.valore - p.costo) or nil
+    local risultato = latente and (p.realizzato + latente + p.redditi) or nil
+    tot.realizzato, tot.redditi = tot.realizzato + p.realizzato, tot.redditi + p.redditi
+    if latente then tot.latente, tot.complessivo = tot.latente + latente, tot.complessivo + risultato
+    else tot.indisponibili = tot.indisponibili + 1 end
+    table.insert(out, {id = p.id, conto = p.conto, costo = p.costo,
+      realizzato = p.realizzato, latente = latente, redditi = p.redditi,
+      risultato = risultato, stato = v and v.stato, errori = p.errori})
+  end
+  tot.completo = tot.indisponibili == 0
+  return out, tot
+end
+
+function investimenti.risultato(pagina)
+  local _, t = investimenti.risultatoDati(pagina)
+  return widget.markdown("**Risultato economico (EUR)**: realizzato " ..
+    string.format("%.2f", t.realizzato) .. "; redditi " .. string.format("%.2f", t.redditi) ..
+    "; latente " .. string.format("%.2f", t.latente) ..
+    (t.completo and "; totale " .. string.format("%.2f", t.complessivo) or
+    "; **totale non disponibile: posizioni senza valore " .. t.indisponibili .. "**"))
+end
+
+local function xirr018(flussi)
+  if #flussi < 2 then return nil, "FLUSSI_INSUFFICIENTI" end
+  local d0 = flussi[1].data
+  local neg, pos = false, false
+  for _, f in ipairs(flussi) do
+    if f.valore < 0 then neg = true end
+    if f.valore > 0 then pos = true end
+  end
+  if not neg or not pos then return nil, "SEGNI_INSUFFICIENTI" end
+  local function npv(r)
+    local somma = 0
+    for _, f in ipairs(flussi) do
+      local delta = giorni018(d0, f.data)
+      if not delta then return nil end
+      somma = somma + f.valore / ((1 + r) ^ (delta / 365))
+    end
+    return somma
+  end
+  -- La ricerca nel dominio (-1, +10000) individua solo un cambio di segno;
+  -- multipli IRR non sono certificabili, vengono rifiutati.
+  local intervalli = {-0.9999, -0.99, -0.9, -0.5, 0, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 100, 10000}
+  local a, b, cambi = nil, nil, 0
+  for i = 2, #intervalli do
+    local x, y = intervalli[i-1], intervalli[i]
+    local fx, fy = npv(x), npv(y)
+    if fx and fy and fx * fy <= 0 then a, b, cambi = x, y, cambi + 1 end
+  end
+  if cambi ~= 1 then return nil, cambi == 0 and "NESSUNA_RADICE" or "RADICI_MULTIPLE" end
+  local fa = npv(a)
+  for _ = 1, 100 do
+    local m = (a + b) / 2
+    local fm = npv(m)
+    if not fm then return nil, "DATE_NON_VALIDE" end
+    if math.abs(fm) < 1e-8 then return m * 100 end
+    if fa * fm <= 0 then b = m else a, fa = m, fm end
+  end
+  return ((a + b) / 2) * 100
+end
+
+function investimenti.rendimentoDati(pagina, metodo)
+  pagina = pagina or editor.getCurrentPage()
+  metodo = metodo or "xirr"
+  if metodo ~= "xirr" and metodo ~= "twr" then return {errore = "METODO_SCONOSCIUTO"} end
+  local id = type(pagina) == "string" and string.startsWith(pagina, "Strumenti/") and string.sub(pagina, 11)
+  if not id then return {errore = "PERIMETRO_NON_RICONCILIATO", dettaglio = "Richiesto singolo strumento: mancano liquidita e flussi esterni del conto"} end
+  local parti = investimenti.lotti018(pagina)
+  if #parti ~= 1 then return {errore = "POSIZIONI_MULTIPLE", dettaglio = "Serve una posizione univoca per conto"} end
+  local p = parti[1]
+  if #p.errori > 0 then return {errore = "MOVIMENTI_INVALIDI"} end
+  local data = os.date("!%Y-%m-%d")
+  local valori = investimenti.valoreAllaData(pagina, data)
+  local v = valori[1]
+  if not v or v.valore == nil then return {errore = v and v.stato or "VALORE_MANCANTE"} end
+  if v.stato ~= "PREZZO_DISPONIBILE" and v.stato ~= "CHIUSA" then
+    return {errore = "VALORE_INDICATIVO", dettaglio = v.stato}
+  end
+  if metodo == "twr" then
+    -- Evita di dichiarare esatto un TWR con versamenti intermedi o dividendi.
+    local acquisti, altri = 0, 0
+    for _, f in ipairs(p.flussi) do
+      if f.valore < 0 then acquisti = acquisti + 1 else altri = altri + 1 end
+    end
+    if acquisti ~= 1 or altri > 0 then return {errore = "SOTTOPERIODI_MANCANTI"} end
+    if p.acquisti <= 0 then return {errore = "CAPITALE_MANCANTE"} end
+    return {metodo = metodo, percentuale = (v.valore / p.acquisti - 1) * 100,
+      nota = "Rendimento dal solo acquisto iniziale, non annualizzato"}
+  end
+  local flussi = {}
+  for _, f in ipairs(p.flussi) do table.insert(flussi, {data = f.data, valore = f.valore}) end
+  if p.quote ~= 0 then table.insert(flussi, {data = data, valore = v.valore}) end
+  table.sort(flussi, function(a,b) return a.data < b.data end)
+  local rendimento, errore = xirr018(flussi)
+  return {metodo = metodo, percentuale = rendimento, errore = errore,
+    nota = "XIRR annualizzato; flussi della singola posizione"}
+end
+
+function investimenti.rendimento(pagina, metodo)
+  local r = investimenti.rendimentoDati(pagina, metodo)
+  if r.errore then return widget.markdown("**Rendimento n.d.**: " .. r.errore) end
+  return widget.markdown("**" .. string.upper(r.metodo) .. "**: " ..
+    string.format("%.2f%%", r.percentuale) .. " — " .. r.nota)
+end
+
+function investimenti.coperturaDati(pagina, data)
+  data = data or os.date("!%Y-%m-%d")
+  local righe, tot = investimenti.valoreAllaData(pagina, data)
+  local meta = investimenti.metadati018()
+  local report = {aggiornati = 0, obsoleti = 0, mancanti = tot.mancanti,
+    stimati = tot.stimati, totalePosizioni = tot.posizioni, valoreParziale = tot.valore}
+  for _, r in ipairs(righe) do
+    local m = meta[r.id] or {}
+    local limite = m.frequenza or
+      ((r.metodo == "snapshot" or r.metodo == "contrattuale") and 365 or 7)
+    local gg = r.dataPrezzo and giorni018(r.dataPrezzo, data)
+    r.etaGiorni = gg
+    r.sogliaGiorni = limite
+    if r.valore ~= nil and r.stato == "PREZZO_DISPONIBILE" then
+      if gg and gg <= limite and gg >= 0 then
+        r.copertura = "AGGIORNATO"; report.aggiornati = report.aggiornati + 1
+      else r.copertura = "OBSOLETO"; report.obsoleti = report.obsoleti + 1 end
+    elseif r.valore ~= nil then r.copertura = "INDICATIVO"
+    else r.copertura = "MANCANTE" end
+  end
+  report.completo = report.mancanti == 0 and report.obsoleti == 0 and report.stimati == 0
+  return righe, report
+end
+
+function investimenti.copertura(pagina)
+  local _, r = investimenti.coperturaDati(pagina)
+  return widget.markdown("**Copertura patrimonio**: " .. r.totalePosizioni ..
+    " posizioni; " .. r.aggiornati .. " aggiornate, " ..
+    r.obsoleti .. " obsolete, " .. r.stimati .. " indicative, " ..
+    r.mancanti .. " mancanti. **Valore parziale:** " ..
+    string.format("%.2f EUR", r.valoreParziale) ..
+    (r.completo and "" or " (NON rappresenta il patrimonio completo)"))
+end
+
+function investimenti.verificaPatrimonio()
+  local righe = investimenti.coperturaDati("Index")
+  local out = {}
+  for _, r in ipairs(righe) do
+    if r.copertura ~= "AGGIORNATO" and r.stato ~= "CHIUSA" then
+      table.insert(out, {pagina = "Strumenti/" .. r.id, conto = r.conto,
+        problema = r.copertura, dettaglio = r.stato, data = r.dataPrezzo})
+    end
+  end
+  return out
+end
 ```
