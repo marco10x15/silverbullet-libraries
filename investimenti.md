@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.19.3"
+version: "0.19.4"
 versionDate: 2026-10-17
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -9,9 +9,11 @@ share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 
 # Investimenti
 
-**Versione 0.19.3 — Scheda strumento compatta e colore KID, SilverBullet v2.11+.** Libreria completa, da sostituire integralmente a `Library/MG/investimenti`.
+**Versione 0.19.4 — Indicatore di rischio KID con emoji Unicode, SilverBullet v2.11+.** Libreria completa, da sostituire integralmente a `Library/MG/investimenti`.
 
 ## Modifiche e compatibilità
+
+- v0.19.4: sostituito il tag HTML del KID (visualizzato come testo in SilverBullet) con un cerchio emoji Unicode. Nessun cambiamento a calcoli, conti, dashboard o quotazioni.
 
 - v0.19.3: scheda strumento in due righe senza paragrafi vuoti, conti e portafogli sulla stessa riga, un solo quadrato colorato per KID (1 bianco, 2 verdino, 3 verde, 4 arancio, 5 arancio scuro, 6 rosso, 7 viola). Nessun cambiamento ai calcoli.
 
@@ -60,7 +62,7 @@ investimenti.rendimentoDati("Strumenti/LU0140696401", "xirr")
 - Gli switch NEF possono usare colonne facoltative `Causale` e `Riferimento`, con lo stesso riferimento nei due lati. Senza identificativi non vengono riconciliati artificialmente; nessuna modifica automatica di `Inbox` o dei movimenti.
 - Il rendimento XIRR calcolato per singolo strumento richiede flussi attendibili e valore finale; il TWR non viene stimato se mancano i sottoperiodi. I PIR senza valore ufficiale non sono valorizzati fittiziamente.
 
-> **Collaudo:** la v0.19.1 è stata collaudata dall’utente; le modifiche alla scheda della v0.19.3 richiedono un test esecutivo in SilverBullet. I movimenti, il motore economico e le tabelle delle quotazioni non sono modificati. Conservare una copia della v0.19.1 prima della sostituzione.
+> **Collaudo:** la v0.19.1 è stata collaudata dall’utente; le modifiche alla scheda della v0.19.4 richiedono un test esecutivo in SilverBullet. I movimenti, il motore economico e le tabelle delle quotazioni non sono modificati. Conservare una copia della v0.19.1 prima della sostituzione.
 
 ## Codice della libreria
 
@@ -143,13 +145,13 @@ function investimenti.scheda(pagina)
   end
   if not s then return widget.markdown("_Strumento non trovato._") end
 
-  -- Una sola casella colorata per il livello KID; la scala cromatica e personalizzata.
-  local colori = {"#FFFFFF", "#B6E6A0", "#49AD65", "#EFA04C", "#CD681D", "#D94040", "#8B45BB"}
+  -- Emoji Unicode: nessun tag HTML/CSS, per il rendering Markdown di SilverBullet.
+  -- Il livello numerico KID resta sempre visibile; 2 e 3 condividono il verde.
+  local colori = {"⚪", "🟢", "🟢", "🟠", "🟤", "🔴", "🟣"}
   local kid = tonumber(s.rischio)
   local rischio = "Rischio KID n.d."
   if kid and kid == math.floor(kid) and kid >= 1 and kid <= 7 then
-    rischio = "Rischio KID " .. tostring(kid) .. "/7 " ..
-      '<span style="color: ' .. colori[kid] .. ';">■</span>'
+    rischio = "Rischio KID " .. tostring(kid) .. "/7 " .. colori[kid]
   end
 
   local fisici, portafogli = investimenti.contiStrumento()
