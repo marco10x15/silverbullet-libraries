@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.19.4"
+version: "0.19.6"
 versionDate: 2026-10-17
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -9,9 +9,22 @@ share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 
 # Investimenti
 
-**Versione 0.19.4 — Indicatore di rischio KID con emoji Unicode, SilverBullet v2.11+.** Libreria completa, da sostituire integralmente a `Library/MG/investimenti`.
+**Versione 0.19.6 — Snapshot nei movimenti e serie storiche patrimoniali, SilverBullet v2.11+.** Libreria completa, da sostituire integralmente a `Library/MG/investimenti`.
 
 ## Modifiche e compatibilità
+
+**v0.19.6:** `Snapshot` è una riga informativa della tabella `## Movimenti` di ogni strumento, con `Data`, `Tipo = Snapshot`, `Valore` (controvalore totale della posizione in EUR) e campi `Quantità`, `Prezzo`, `Commissioni`, `Tasse` vuoti. Non incrementa quote, costo, redditi o flussi XIRR. Per il metodo `snapshot`, l'ultima riga valida prevale su `valoreManuale`/`dataValore` del frontmatter; questi ultimi restano come ripiego di compatibilità quando manca uno snapshot nei movimenti. Dopo l'ultimo snapshot, gli acquisti e le vendite successivi concorrono soltanto al **valore contabile indicativo** (snapshot + acquisti − vendite), non a una nuova valorizzazione certificata. La data mostrata resta quella del rendiconto. Gli snapshot sono inclusi nelle date candidate del grafico patrimoniale; i grafici non interpolano prezzi né introducono liquidità. Uno snapshot non è un prezzo unitario e non va moltiplicato per le quote. Le valorizzazioni da snapshot sono indicative ai fini di XIRR/TWR, che continuano a rifiutare un valore non di mercato validato.
+
+**Esempio PIR (importi illustrativi):**
+
+| Data | Tipo | Quantità | Prezzo | Valore | Commissioni | Tasse |
+|---|---|---:|---:|---:|---:|---:|
+| 2026-08-16 | Snapshot | | | 15100 | | |
+| 2026-05-11 | Acquisto | 15000 | 1 | 15000 | 0 | 0 |
+
+Per PIR Franca/Marco IAZ/I50 ogni pagina `Strumenti/...` ha i propri snapshot; per Helvetia la stessa regola funziona con PAC e snapshot annuale. Valori ipotetici non vanno copiati su posizioni reali. Non inserire più valori nuovi nel frontmatter se si utilizza lo storico `Snapshot`.
+
+**v0.19.5:** risultato economico reso compatto con `widget.html(dom.span)`, senza modifiche ai calcoli.
 
 - v0.19.4: sostituito il tag HTML del KID (visualizzato come testo in SilverBullet) con un cerchio emoji Unicode. Nessun cambiamento a calcoli, conti, dashboard o quotazioni.
 
@@ -1018,6 +1031,62 @@ function investimenti.lotti018(pagina, data)
   return out
 end
 
+-- Snapshot informativi: un controvalore in EUR per posizione e data.
+-- Non contribuiscono ai lotti o ai flussi finanziari. Il conto viene risolto
+-- dal ledger esistente, così gli snapshot rimangono nella stessa posizione.
+function investimenti.snapshotDati(pagina, data)
+  data = data or os.date("!%Y-%m-%d")
+  local ids = investimenti.elenco(pagina)
+  local conto = type(pagina) == "string" and string.startsWith(pagina,"Conti/") and pagina
+  local aggregato = false
+  if conto then
+    for _, x in ipairs(query[[
+      from p = index.subPages("Conti")
+      select {name = p.name, tags = p.tags}
+    ]]) do
+      if x.name == conto then
+        local tags = x.tags
+        if type(tags) == "string" then aggregato = string.find(tags,"Portafoglio",1,true) ~= nil end
+        if type(tags) == "table" then
+          for _, t in ipairs(tags) do if t == "Portafoglio" then aggregato = true end end
+        end
+      end
+    end
+  end
+  local out = {}
+  for _, r in ipairs(investimenti.ledger(ids)) do
+    if type(r.tipo) == "string" and string.lower(r.tipo) == "snapshot" and
+      type(r.data) == "string" and string.match(r.data,"^%d%d%d%d%-%d%d%-%d%d$") and r.data <= data and
+      (not conto or r.conto == conto or aggregato) then
+      local v = tonumber(r.valore)
+      if v and v >= 0 then
+        local key = (r.conto or "NON_ASSEGNATO") .. "|" .. r.id
+        out[key] = out[key] or {}
+        table.insert(out[key], {data=r.data, valore=v})
+      end
+    end
+  end
+  for _, serie in pairs(out) do
+    table.sort(serie,function(a,b) return a.data < b.data end)
+  end
+  return out
+end
+
+-- Apporti e rimborsi posteriori all'ultimo rendiconto: una PROXY
+-- contabile, non una quotazione o una variazione certificata di mercato.
+function investimenti.movimentiDopoSnapshot(id, conto, dataSnapshot, dataFine, ledger)
+  local netto = 0
+  for _, r in ipairs(ledger or investimenti.ledger({id})) do
+    local v = tonumber(r.valore)
+    if r.id == id and (r.conto or "NON_ASSEGNATO") == (conto or "NON_ASSEGNATO") and
+      type(r.data) == "string" and r.data > dataSnapshot and r.data <= dataFine and v then
+      if r.tipo == "Acquisto" then netto = netto + v
+      elseif r.tipo == "Vendita" then netto = netto - v end
+    end
+  end
+  return netto
+end
+
 -- Valorizzazione datata: NAV e mercato su quotazioni; contrattuale/nominale su
 -- capitale effettivo; snapshot/manuale solo con valore di posizione esplicito.
 -- I PIR dell'esempio: l'unità sintetica di 1 EUR NON è un numero di quote NAV.
@@ -1026,6 +1095,8 @@ function investimenti.valoreAllaData(pagina, data)
   local metadati = investimenti.metadati018()
   local strumenti = {}; for _, s in ipairs(investimenti.strumenti()) do strumenti[s.id] = s end
   local prezzi = investimenti.prezzi018(data)
+  local snapshots = investimenti.snapshotDati(pagina, data)
+  local operazioni = investimenti.ledger(investimenti.elenco(pagina))
   local righe, totale = {}, {valore = 0, note = 0, mancanti = 0, stimati = 0, posizioni = 0}
   for _, p in ipairs(investimenti.lotti018(pagina, data)) do
     local s = strumenti[p.id] or {id = p.id, tipo = ""}
@@ -1043,9 +1114,23 @@ function investimenti.valoreAllaData(pagina, data)
         stato = "PREZZO_DISPONIBILE"
       else stato = px and "CAMBIO_MANCANTE" or "PREZZO_MANCANTE" end
     elseif metodo == "snapshot" or metodo == "manuale" then
-      if meta.valoreManuale and type(meta.dataValore) == "string" and meta.dataValore <= data then
-        valore, dt, fonte = meta.valoreManuale, meta.dataValore, metodo
-        stato = "STIMA_MANUALE"
+      local key = (p.conto or "NON_ASSEGNATO") .. "|" .. p.id
+      local serie = snapshots[key] or {}
+      local ultimo = serie[#serie]
+      -- Frontmatter precedente: ripiego quando non ci sono righe Snapshot.
+      if not ultimo and meta.valoreManuale and type(meta.dataValore) == "string" and
+        meta.dataValore <= data then
+        ultimo = {data=meta.dataValore, valore=meta.valoreManuale}
+        fonte = "frontmatter"
+      end
+      if ultimo then
+        local flussi = investimenti.movimentiDopoSnapshot(p.id,p.conto,ultimo.data,data,operazioni)
+        valore, dt = ultimo.valore + flussi, ultimo.data
+        if math.abs(flussi) > 0.000001 then
+          stato, fonte = "SNAPSHOT_CON_APPORTI", "snapshot_piu_movimenti_indicativo"
+        else
+          stato, fonte = "SNAPSHOT_DISPONIBILE", fonte or "snapshot_movimenti"
+        end
       elseif px and px.eur and meta.quoteReali == true then
         valore, dt, fonte = p.quote * px.eur, px.data, "nav_confermato"
         stato = "PREZZO_DISPONIBILE"
@@ -1097,11 +1182,21 @@ end
 
 function investimenti.risultato(pagina)
   local _, t = investimenti.risultatoDati(pagina)
-  return widget.markdown("**Risultato economico (EUR)**: realizzato " ..
-    investimenti.formatoNumero(t.realizzato, 2) .. "; redditi " .. investimenti.formatoNumero(t.redditi, 2) ..
-    "; latente " .. investimenti.formatoNumero(t.latente, 2) ..
-    (t.completo and "; totale " .. investimenti.formatoNumero(t.complessivo, 2) or
-    "; **totale non disponibile: posizioni senza valore " .. t.indisponibili .. "**"))
+  local testo = ": realizzato " .. investimenti.formatoNumero(t.realizzato, 2) ..
+    "; redditi " .. investimenti.formatoNumero(t.redditi, 2) ..
+    "; latente " .. investimenti.formatoNumero(t.latente, 2)
+  -- Un elemento inline evita il margine verticale del paragrafo Markdown.
+  -- I contenitori dei widget, gestiti da SilverBullet, non sono modificati.
+  if t.completo then
+    return widget.html(dom.span {
+      dom.strong {"Risultato economico (EUR)"},
+      testo .. "; totale " .. investimenti.formatoNumero(t.complessivo, 2)
+    })
+  end
+  return widget.html(dom.span {
+    dom.strong {"Risultato economico (EUR)"}, testo .. "; ",
+    dom.strong {"totale non disponibile: posizioni senza valore " .. t.indisponibili}
+  })
 end
 
 local function xirr018(flussi)
@@ -1444,6 +1539,14 @@ function investimenti.seriePatrimonio019(pagina, periodo, tipo)
   local fine = os.date("!%Y-%m-%d")
   local inizio = inizio019(periodo or "1A", fine)
   local serie, date = investimenti.quotazioniPerStrumento(investimenti.strumenti()) , {}
+  -- Oltre ai NAV, i rendiconti Snapshot definiscono date reali del patrimonio.
+  for _, r in ipairs(investimenti.ledger()) do
+    if ids[r.id] and type(r.tipo) == "string" and string.lower(r.tipo) == "snapshot" and
+      type(r.data) == "string" and r.data <= fine and (not inizio or r.data >= inizio) and
+      tonumber(r.valore) and tonumber(r.valore) >= 0 then
+      date[r.data] = true
+    end
+  end
   for id in pairs(ids) do
     for _, r in ipairs(serie[id] or {}) do
       if type(r[1]) == "string" and r[1] <= fine and (not inizio or r[1] >= inizio) then
