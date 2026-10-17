@@ -5,6 +5,8 @@ version: "0.18"
 versionDate: 2026-10-16
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
+---
+
 💸 Investimenti
 Versione 0.18 — 16.10.2026 · Libreria per SilverBullet v2.11+.
 Gestione degli strumenti finanziari in Markdown: movimenti, quotazioni storiche, valorizzazioni in EUR, andamento e indicatori. Le pagine Markdown sono la fonte primaria; le sole scritture automatiche riguardano `Quotazioni/...` mediante `quotazioni.crea()` e `quotazioni.aggiorna()`.
