@@ -1,15 +1,16 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.19.7"
+version: "0.19.8"
 versionDate: 2026-10-17
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 ---
 
 Investimenti
-Versione 0.19.7 — Dashboard patrimoniale, classificazione snapshot e indicatori essenziali, SilverBullet v2.11+. Libreria completa, da sostituire integralmente a `Library/MG/investimenti`.
+Versione 0.19.8 — Dashboard patrimoniale, classificazione snapshot e indicatori essenziali, SilverBullet v2.11+. Libreria completa, da sostituire integralmente a `Library/MG/investimenti`.
 Modifiche e compatibilità
+v0.19.8: separazione Markdown tra tabella Patrimonio e Copertura, senza altre modifiche funzionali.
 v0.19.7 (consolidamento): dashboard con tabella Patrimonio (investito, attuale, P/L, percentuale, data e KID ponderato sul controvalore), senza avvertimenti sulla data. Gli snapshot `SNAPSHOT_DISPONIBILE` sono valorizzazioni ufficiali nella copertura; i `SNAPSHOT_CON_APPORTI` restano indicativi. Grafico quotazioni limitato a MM200, RSI e Bollinger; invariati grafico patrimoniale, movimenti, P/L e XIRR. Il KID aggregato esclude posizioni prive di KID e arrotonda la media ponderata all’intero più vicino.
 v0.19.6: `Snapshot` è una riga informativa della tabella `## Movimenti` di ogni strumento, con `Data`, `Tipo = Snapshot`, `Valore` (controvalore totale della posizione in EUR) e campi `Quantità`, `Prezzo`, `Commissioni`, `Tasse` vuoti. Non incrementa quote, costo, redditi o flussi XIRR. Per il metodo `snapshot`, l'ultima riga valida prevale su `valoreManuale`/`dataValore` del frontmatter; questi ultimi restano come ripiego di compatibilità quando manca uno snapshot nei movimenti. Dopo l'ultimo snapshot, gli acquisti e le vendite successivi concorrono soltanto al valore contabile indicativo (snapshot + acquisti − vendite), non a una nuova valorizzazione certificata. La data mostrata resta quella del rendiconto. Gli snapshot sono inclusi nelle date candidate del grafico patrimoniale; i grafici non interpolano prezzi né introducono liquidità. Uno snapshot non è un prezzo unitario e non va moltiplicato per le quote. Le valorizzazioni da snapshot sono indicative ai fini di XIRR/TWR, che continuano a rifiutare un valore non di mercato validato.
 Esempio PIR (importi illustrativi):
@@ -1354,6 +1355,7 @@ function investimenti.dashboard(pagina, tipo, periodo)
     "| " .. eur(tot.costo) .. " € | " .. eur(tot.valore) .. " € | **" ..
       eur(tot.pl) .. " €** | " .. pct(tot.pl, tot.costo) .. " % | " .. data ..
       " | " .. (tot.kid and tostring(tot.kid) or "n.d.") .. " |",
+    "",
     "**Copertura:** " .. (tot.conteggio - tot.mancanti) .. "/" .. tot.conteggio ..
       " posizioni valorizzate; " .. tot.ufficiali .. " snapshot ufficiali, " ..
       tot.indicativi .. " indicative, " .. tot.mancanti .. " mancanti" ..
