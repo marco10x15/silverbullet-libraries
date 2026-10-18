@@ -1,61 +1,44 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.19.6"
+version: "0.19.7"
 versionDate: 2026-10-17
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 ---
 
-# Investimenti
-
-**Versione 0.19.6 — Snapshot nei movimenti e serie storiche patrimoniali, SilverBullet v2.11+.** Libreria completa, da sostituire integralmente a `Library/MG/investimenti`.
-
-## Modifiche e compatibilità
-
-**v0.19.6:** `Snapshot` è una riga informativa della tabella `## Movimenti` di ogni strumento, con `Data`, `Tipo = Snapshot`, `Valore` (controvalore totale della posizione in EUR) e campi `Quantità`, `Prezzo`, `Commissioni`, `Tasse` vuoti. Non incrementa quote, costo, redditi o flussi XIRR. Per il metodo `snapshot`, l'ultima riga valida prevale su `valoreManuale`/`dataValore` del frontmatter; questi ultimi restano come ripiego di compatibilità quando manca uno snapshot nei movimenti. Dopo l'ultimo snapshot, gli acquisti e le vendite successivi concorrono soltanto al **valore contabile indicativo** (snapshot + acquisti − vendite), non a una nuova valorizzazione certificata. La data mostrata resta quella del rendiconto. Gli snapshot sono inclusi nelle date candidate del grafico patrimoniale; i grafici non interpolano prezzi né introducono liquidità. Uno snapshot non è un prezzo unitario e non va moltiplicato per le quote. Le valorizzazioni da snapshot sono indicative ai fini di XIRR/TWR, che continuano a rifiutare un valore non di mercato validato.
-
-**Esempio PIR (importi illustrativi):**
-
-| Data | Tipo | Quantità | Prezzo | Valore | Commissioni | Tasse |
-|---|---|---:|---:|---:|---:|---:|
-| 2026-08-16 | Snapshot | | | 15100 | | |
-| 2026-05-11 | Acquisto | 15000 | 1 | 15000 | 0 | 0 |
-
+Investimenti
+Versione 0.19.7 — Dashboard patrimoniale, classificazione snapshot e indicatori essenziali, SilverBullet v2.11+. Libreria completa, da sostituire integralmente a `Library/MG/investimenti`.
+Modifiche e compatibilità
+v0.19.7 (consolidamento): dashboard con tabella Patrimonio (investito, attuale, P/L, percentuale, data e KID ponderato sul controvalore), senza avvertimenti sulla data. Gli snapshot `SNAPSHOT_DISPONIBILE` sono valorizzazioni ufficiali nella copertura; i `SNAPSHOT_CON_APPORTI` restano indicativi. Grafico quotazioni limitato a MM200, RSI e Bollinger; invariati grafico patrimoniale, movimenti, P/L e XIRR. Il KID aggregato esclude posizioni prive di KID e arrotonda la media ponderata all’intero più vicino.
+v0.19.6: `Snapshot` è una riga informativa della tabella `## Movimenti` di ogni strumento, con `Data`, `Tipo = Snapshot`, `Valore` (controvalore totale della posizione in EUR) e campi `Quantità`, `Prezzo`, `Commissioni`, `Tasse` vuoti. Non incrementa quote, costo, redditi o flussi XIRR. Per il metodo `snapshot`, l'ultima riga valida prevale su `valoreManuale`/`dataValore` del frontmatter; questi ultimi restano come ripiego di compatibilità quando manca uno snapshot nei movimenti. Dopo l'ultimo snapshot, gli acquisti e le vendite successivi concorrono soltanto al valore contabile indicativo (snapshot + acquisti − vendite), non a una nuova valorizzazione certificata. La data mostrata resta quella del rendiconto. Gli snapshot sono inclusi nelle date candidate del grafico patrimoniale; i grafici non interpolano prezzi né introducono liquidità. Uno snapshot non è un prezzo unitario e non va moltiplicato per le quote. Le valorizzazioni da snapshot sono indicative ai fini di XIRR/TWR, che continuano a rifiutare un valore non di mercato validato.
+Esempio PIR (importi illustrativi):
+Data	Tipo	Quantità	Prezzo	Valore	Commissioni	Tasse
+2026-08-16	Snapshot			15100		
+2026-05-11	Acquisto	15000	1	15000	0	0
 Per PIR Franca/Marco IAZ/I50 ogni pagina `Strumenti/...` ha i propri snapshot; per Helvetia la stessa regola funziona con PAC e snapshot annuale. Valori ipotetici non vanno copiati su posizioni reali. Non inserire più valori nuovi nel frontmatter se si utilizza lo storico `Snapshot`.
-
-**v0.19.5:** risultato economico reso compatto con `widget.html(dom.span)`, senza modifiche ai calcoli.
-
-- v0.19.4: sostituito il tag HTML del KID (visualizzato come testo in SilverBullet) con un cerchio emoji Unicode. Nessun cambiamento a calcoli, conti, dashboard o quotazioni.
-
-- v0.19.3: scheda strumento in due righe senza paragrafi vuoti, conti e portafogli sulla stessa riga, un solo quadrato colorato per KID (1 bianco, 2 verdino, 3 verde, 4 arancio, 5 arancio scuro, 6 rosso, 7 viola). Nessun cambiamento ai calcoli.
-
-- v0.19.2: data dell’ultima osservazione disponibile nel perimetro della dashboard (non data di esecuzione del comando), formato numerico italiano con separatore migliaia spazio e decimali a virgola; ripristinata `investimenti.scheda()` con rischio KID e collegamenti distinti a conti e portafogli. Nessuna modifica ai calcoli o ai movimenti.
-
-- Eliminato il vecchio motore `movimentiDati` / `posizioni` / `valorizzazioneDati`, che calcolava gli acquisti storici come costo ancora investito e poteva mostrare posizioni chiuse o PIR senza snapshot. Il calcolo economico autorevole è ora `lotti018` + `valoreAllaData` + `risultatoDati`.
-- Eliminate le viste legacy `movimenti`, `valorizzazione`, `valore`, `torta`, `tortaRischio`, `allocazione`, `barraRischio`, `rischio`, `performance`, `barrePL`, `elencoStrumenti`, `elencoConti` e le loro dipendenze di presentazione. La scheda `investimenti.scheda()` è stata ripristinata nella v0.19.2 senza ripristinare il motore legacy. **Le pagine che chiamano esplicitamente le altre funzioni eliminate devono usare le nuove API**.
-- Conservati l'archivio delle quotazioni, gli aggiornamenti sicuri, la diagnostica contabile, i calcoli PMC/P-L/XIRR e il grafico delle **quotazioni** `investimenti.grafico()` con indicatori e segnali; lo stop/TP usa ora il PMC delle quote residue, non la media degli acquisti storici.
-- `investimenti.dashboard()` presenta costo residuo, valore, P/L latente e percentuale. Rimossi dalla tabella `Δ valore` (non è un rendimento) e lo stato tecnico (disponibile in diagnostica).
-- `investimenti.graficoPatrimonio()` resta invariato: rendering confermato dall'utente. La selezione del periodo (`1M`, `3M`, `6M`, `YTD`, `1A`, `Tutto`) si applica al grafico patrimoniale. L'eventuale terzo argomento `periodo` di `dashboard()` è accettato per compatibilità, ma non cambia i dati correnti.
-- Rimosso l'avviso statico `AUDIT_INBOX_SEPARATO` hardcoded. `diagnosticaVista019()` mostra soltanto anomalie rilevate nei dati presenti; l'audit separato degli switch NEF resta il riferimento documentale, non viene importato automaticamente.
-- I widget automatici, se abilitati da `config.set("investimenti.widgetAutomatici", true)`, usano la dashboard e la diagnostica attuali; non chiamano più viste obsolete.
-- Nessun conto liquidità. Versamenti PAC/PIC NEF e JPM come apporti; switch come vendite/acquisti dello strumento, con `Causale` e `Riferimento` facoltativi. Solo costi e fiscalità interni agli investimenti; spese del conto corrente escluse.
-
-**Migrazione:** su `Index` sostituire `investimenti.valore()` con `investimenti.dashboard("Index")`. Su `Conti/...` usare `investimenti.dashboard("Conti/<nome>")`. Le funzioni `investimenti.risultato()`, `investimenti.rendimento()`, `investimenti.copertura()`, `investimenti.grafico()` e `investimenti.graficoPatrimonio()` restano disponibili. Le tabelle dei movimenti e delle quotazioni non richiedono modifiche.
-
-## API attuali
-
-| Ambito | Funzioni |
-|---|---|
-| Strumenti e conti | `strumenti`, `elenco`, `contiStrumento`, `risolviConto`, `ledger`, `verificaConti` |
-| Quotazioni | `quotazioni.yahoo`, `quotazioni.cerca`, `quotazioni.verifica`, `quotazioni.crea`, `quotazioni.aggiorna`, `quotazioni.blocco`, `investimenti.quotazioniPerStrumento` |
-| Motore economico | `metodo`, `metadati018`, `prezzi018`, `lotti018`, `valoreAllaData`, `risultatoDati`, `rendimentoDati`, `coperturaDati` |
-| Presentazione | `dashboard`, `scheda`, `risultato`, `rendimento`, `copertura`, `grafico` (prezzi), `graficoPatrimonio` (valore) |
-| Controlli | `verifica`, `verificaPatrimonio`, `switch019`, `flussiEsterni019`, `diagnostica019`, `diagnosticaVista019` |
-| Serie e dati | `dashboardDati`, `serie`, `acquisti`, `seriePatrimonio019`, `vista` |
-
-## Esempi
-
+v0.19.5: risultato economico reso compatto con `widget.html(dom.span)`, senza modifiche ai calcoli.
+v0.19.4: sostituito il tag HTML del KID (visualizzato come testo in SilverBullet) con un cerchio emoji Unicode. Nessun cambiamento a calcoli, conti, dashboard o quotazioni.
+v0.19.3: scheda strumento in due righe senza paragrafi vuoti, conti e portafogli sulla stessa riga, un solo quadrato colorato per KID (1 bianco, 2 verdino, 3 verde, 4 arancio, 5 arancio scuro, 6 rosso, 7 viola). Nessun cambiamento ai calcoli.
+v0.19.2: data dell’ultima osservazione disponibile nel perimetro della dashboard (non data di esecuzione del comando), formato numerico italiano con separatore migliaia spazio e decimali a virgola; ripristinata `investimenti.scheda()` con rischio KID e collegamenti distinti a conti e portafogli. Nessuna modifica ai calcoli o ai movimenti.
+Eliminato il vecchio motore `movimentiDati` / `posizioni` / `valorizzazioneDati`, che calcolava gli acquisti storici come costo ancora investito e poteva mostrare posizioni chiuse o PIR senza snapshot. Il calcolo economico autorevole è ora `lotti018` + `valoreAllaData` + `risultatoDati`.
+Eliminate le viste legacy `movimenti`, `valorizzazione`, `valore`, `torta`, `tortaRischio`, `allocazione`, `barraRischio`, `rischio`, `performance`, `barrePL`, `elencoStrumenti`, `elencoConti` e le loro dipendenze di presentazione. La scheda `investimenti.scheda()` è stata ripristinata nella v0.19.2 senza ripristinare il motore legacy. Le pagine che chiamano esplicitamente le altre funzioni eliminate devono usare le nuove API.
+Conservati l'archivio delle quotazioni, gli aggiornamenti sicuri, la diagnostica contabile, i calcoli PMC/P-L/XIRR e il grafico delle quotazioni `investimenti.grafico()` con indicatori e segnali; lo stop/TP usa ora il PMC delle quote residue, non la media degli acquisti storici.
+`investimenti.dashboard()` presenta costo residuo, valore, P/L latente e percentuale. Rimossi dalla tabella `Δ valore` (non è un rendimento) e lo stato tecnico (disponibile in diagnostica).
+`investimenti.graficoPatrimonio()` resta invariato: rendering confermato dall'utente. La selezione del periodo (`1M`, `3M`, `6M`, `YTD`, `1A`, `Tutto`) si applica al grafico patrimoniale. L'eventuale terzo argomento `periodo` di `dashboard()` è accettato per compatibilità, ma non cambia i dati correnti.
+Rimosso l'avviso statico `AUDIT_INBOX_SEPARATO` hardcoded. `diagnosticaVista019()` mostra soltanto anomalie rilevate nei dati presenti; l'audit separato degli switch NEF resta il riferimento documentale, non viene importato automaticamente.
+I widget automatici, se abilitati da `config.set("investimenti.widgetAutomatici", true)`, usano la dashboard e la diagnostica attuali; non chiamano più viste obsolete.
+Nessun conto liquidità. Versamenti PAC/PIC NEF e JPM come apporti; switch come vendite/acquisti dello strumento, con `Causale` e `Riferimento` facoltativi. Solo costi e fiscalità interni agli investimenti; spese del conto corrente escluse.
+Migrazione: su `Index` sostituire `investimenti.valore()` con `investimenti.dashboard("Index")`. Su `Conti/...` usare `investimenti.dashboard("Conti/<nome>")`. Le funzioni `investimenti.risultato()`, `investimenti.rendimento()`, `investimenti.copertura()`, `investimenti.grafico()` e `investimenti.graficoPatrimonio()` restano disponibili. Le tabelle dei movimenti e delle quotazioni non richiedono modifiche.
+API attuali
+Ambito	Funzioni
+Strumenti e conti	`strumenti`, `elenco`, `contiStrumento`, `risolviConto`, `ledger`, `verificaConti`
+Quotazioni	`quotazioni.yahoo`, `quotazioni.cerca`, `quotazioni.verifica`, `quotazioni.crea`, `quotazioni.aggiorna`, `quotazioni.blocco`, `investimenti.quotazioniPerStrumento`
+Motore economico	`metodo`, `metadati018`, `prezzi018`, `lotti018`, `valoreAllaData`, `risultatoDati`, `rendimentoDati`, `coperturaDati`
+Presentazione	`dashboard`, `scheda`, `risultato`, `rendimento`, `copertura`, `grafico` (prezzi), `graficoPatrimonio` (valore)
+Controlli	`verifica`, `verificaPatrimonio`, `switch019`, `flussiEsterni019`, `diagnostica019`, `diagnosticaVista019`
+Serie e dati	`dashboardDati`, `serie`, `acquisti`, `seriePatrimonio019`, `vista`
+Esempi
 ```lua
 investimenti.dashboard("Index")
 investimenti.scheda("Strumenti/LU0140696401")
@@ -66,19 +49,14 @@ investimenti.graficoPatrimonio("Conti/NEF - Famiglia", "YTD", "Fondo")
 investimenti.diagnosticaVista019("Conti/NEF - Famiglia")
 investimenti.rendimentoDati("Strumenti/LU0140696401", "xirr")
 ```
-
-## Modello dati
-
-- `Strumenti/<id>` con frontmatter: `displayName`, `isin`, `ticker`, `valuta`, `tipo`, `metodoValorizzazione` (facoltativo), `quoteReali` (facoltativo) e tabella movimenti (`Data`, `Tipo`, `Quantità`, `Prezzo`, `Valore`/`Valore EUR`).
-- `Quotazioni/<id>` con attributo `isin` e tabella `Data | Prezzo`. L'ultima quotazione storica disponibile viene utilizzata senza forzare la data NAV a quella odierna.
-- `Conti/<nome>` con elenco `strumento` di collegamenti alle pagine `Strumenti/`.
-- Gli switch NEF possono usare colonne facoltative `Causale` e `Riferimento`, con lo stesso riferimento nei due lati. Senza identificativi non vengono riconciliati artificialmente; nessuna modifica automatica di `Inbox` o dei movimenti.
-- Il rendimento XIRR calcolato per singolo strumento richiede flussi attendibili e valore finale; il TWR non viene stimato se mancano i sottoperiodi. I PIR senza valore ufficiale non sono valorizzati fittiziamente.
-
+Modello dati
+`Strumenti/<id>` con frontmatter: `displayName`, `isin`, `ticker`, `valuta`, `tipo`, `metodoValorizzazione` (facoltativo), `quoteReali` (facoltativo) e tabella movimenti (`Data`, `Tipo`, `Quantità`, `Prezzo`, `Valore`/`Valore EUR`).
+`Quotazioni/<id>` con attributo `isin` e tabella `Data | Prezzo`. L'ultima quotazione storica disponibile viene utilizzata senza forzare la data NAV a quella odierna.
+`Conti/<nome>` con elenco `strumento` di collegamenti alle pagine `Strumenti/`.
+Gli switch NEF possono usare colonne facoltative `Causale` e `Riferimento`, con lo stesso riferimento nei due lati. Senza identificativi non vengono riconciliati artificialmente; nessuna modifica automatica di `Inbox` o dei movimenti.
+Il rendimento XIRR calcolato per singolo strumento richiede flussi attendibili e valore finale; il TWR non viene stimato se mancano i sottoperiodi. I PIR senza valore ufficiale non sono valorizzati fittiziamente.
 > **Collaudo:** la v0.19.1 è stata collaudata dall’utente; le modifiche alla scheda della v0.19.4 richiedono un test esecutivo in SilverBullet. I movimenti, il motore economico e le tabelle delle quotazioni non sono modificati. Conservare una copia della v0.19.1 prima della sostituzione.
-
-## Codice della libreria
-
+Codice della libreria
 ```space-lua
 investimenti = investimenti or {}
 
@@ -181,14 +159,6 @@ function investimenti.scheda(pagina)
   return widget.markdown(riga1 .. "  \n" .. riga2)
 end
 
---- Soglie percentuali di uno strumento: stop loss, take profit, trailing stop.
---- Frontmatter dello strumento, poi config (investimenti.stopLoss/takeProfit/trailing), poi 10/25/8.
-function investimenti.soglie(s)
-  return s.stopLoss or config.get("investimenti.stopLoss") or 10,
-    s.takeProfit or config.get("investimenti.takeProfit") or 25,
-    s.trailing or config.get("investimenti.trailing") or 8
-end
-
 --- Pagine Quotazioni/...: restituisce due tabelle, isin -> pagina e pagina -> isin.
 --- Il collegamento tra Strumenti/<id> e la sua pagina quotazioni è l'attributo isin.
 function investimenti.pagineQuotazioni()
@@ -231,7 +201,6 @@ function investimenti.elenco(pagina)
   return ids
 end
 ```
-
 ```space-lua
 quotazioni = quotazioni or {}
 
@@ -290,7 +259,6 @@ function quotazioni.verifica(simbolo, range)
     prezzo = r[#r] and r[#r].prezzo, errore = q.errore}}
 end
 ```
-
 ```space-lua
 quotazioni = quotazioni or {}
 
@@ -418,7 +386,6 @@ function quotazioni.aggiorna(range, ids, pagine)
   return esiti
 end
 ```
-
 ```space-lua
 investimenti = investimenti or {}
 quotazioni = quotazioni or {}
@@ -455,7 +422,6 @@ function investimenti.verifica()
   return anomalie
 end
 ```
-
 ```space-lua
 command.define {
   name = "Quotazioni: Crea pagine e scarica storico",
@@ -465,7 +431,6 @@ command.define {
   end
 }
 ```
-
 ```space-lua
 command.define {
   name = "Quotazioni: Aggiorna",
@@ -474,7 +439,6 @@ command.define {
   end
 }
 ```
-
 ```space-lua
 investimenti = investimenti or {}
 
@@ -609,7 +573,6 @@ end
 --- strumenti: risultato di investimenti.strumenti(); per: risultato di quotazioniPerStrumento,
 --- se già disponibili (evita riletture).
 ```
-
 ```space-lua
 investimenti = investimenti or {}
 
@@ -644,8 +607,8 @@ function investimenti.acquisti(id)
   return out
 end
 
--- Script del grafico lineare. DATI = {titolo, serie, acquisti, pmc, stop, tp, trailing}:
--- serie e acquisti sono liste di [data, prezzo]; pmc/stop/tp sono null senza acquisti.
+-- Script del grafico lineare: prezzi, acquisti, MM200, Bollinger e RSI.
+-- serie e acquisti sono liste di [data, prezzo].
 -- Gli indicatori (finestre in osservazioni, cioè in quotazioni) sono calcolati sull'intera serie
 -- e poi ritagliati sul periodo scelto, così all'inizio del periodo sono già completi.
 local JS_LINEA = [[
@@ -654,7 +617,6 @@ const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark
 const txt = dark ? "#ddd" : "#333", grid = "rgba(128,128,128,.25)";
 const S = DATI.serie, P = S.map(function (p) { return p[1]; });
 const ultimo = S[S.length - 1][0];
-const primoAcq = DATI.acquisti.length ? DATI.acquisti[0][0] : null;
 function mediaMobile(n) {
   return P.map(function (v, i) {
     if (i < n - 1) return null;
@@ -694,13 +656,6 @@ const BM = mediaMobile(20), BS = scarto(20, BM);
 const BU = BM.map(function (m, i) { return m === null ? null : m + 2 * BS[i]; });
 const BL = BM.map(function (m, i) { return m === null ? null : m - 2 * BS[i]; });
 const RS = rsi(14);
-// trailing stop: massimo dal primo acquisto meno la percentuale; non scende mai
-let massimo = null;
-const TR = S.map(function (p) {
-  if (primoAcq === null || p[0] < primoAcq) return null;
-  massimo = massimo === null ? p[1] : Math.max(massimo, p[1]);
-  return massimo * (1 - DATI.trailing / 100);
-});
 function da(r) {
   if (r.d === 0) return "0000-00-00";
   if (r.d < 0) return ultimo.slice(0, 4) + "-01-01";
@@ -741,12 +696,6 @@ function disegna() {
     ds.push(linea("Bollinger +2σ", scegli(BU), "#7d8597", [4, 3]));
     ds.push(linea("Bollinger −2σ", scegli(BL), "#7d8597", [4, 3]));
   }
-  if (attivi.sl) {
-    ds.push(linea("Prezzo medio di carico", fisso(DATI.pmc), "#7d8597", [2, 3]));
-    ds.push(linea("Stop loss −" + DATI.stopPct + "%", fisso(DATI.stop), "#e4572e", [6, 4]));
-    ds.push(linea("Take profit +" + DATI.tpPct + "%", fisso(DATI.tp), "#2a9d4a", [6, 4]));
-  }
-  if (attivi.tr) ds.push(linea("Trailing stop −" + DATI.trailing + "%", scegli(TR), "#c1666b"));
   if (grafico) grafico.destroy();
   grafico = new Chart(document.getElementById("c"), {type: "line",
     data: {labels: lab, datasets: ds},
@@ -786,10 +735,6 @@ RANGE.forEach(function (r) {
   bottone(barra, r.n, function () { return periodo === r; }, function () { periodo = r; });
 });
 const indicatori = [{k: "mm", n: "MM200"}, {k: "bb", n: "Bollinger"}, {k: "rsi", n: "RSI"}];
-if (DATI.pmc !== null) {
-  indicatori.push({k: "sl", n: "Stop · TP"});
-  indicatori.push({k: "tr", n: "Trailing"});
-}
 const barra2 = document.getElementById("b2");
 indicatori.forEach(function (x) {
   bottone(barra2, x.n, function () { return !!attivi[x.k]; }, function () { attivi[x.k] = !attivi[x.k]; });
@@ -822,22 +767,6 @@ function investimenti.grafico(pagina)
   if #serie < 2 then return widget.markdownBlock("_Quotazioni insufficienti per il grafico._") end
   local acq = conAcquisti and investimenti.acquisti(id) or {}
 
-  -- prezzo medio di carico (pesato sulle quote) e livelli di stop loss / take profit
-  local pmc, stop, tp
-  local sl, tpp, tr = 10, 25, 8
-  for _, s in ipairs(investimenti.strumenti()) do
-    if s.id == id then sl, tpp, tr = investimenti.soglie(s) end
-  end
-  local q, v = 0, 0
-  if conAcquisti and id then
-    for _, p in ipairs(investimenti.lotti018("Strumenti/" .. id)) do
-      if p.id == id and p.quote and p.quote > 0 and p.costo then
-        q, v = q + p.quote, v + p.costo
-      end
-    end
-  end
-  if q > 0 then pmc = v / q; stop = pmc * (1 - sl / 100); tp = pmc * (1 + tpp / 100) end
-
   local function coppie(lista)
     local p = {}
     for _, c in ipairs(lista) do table.insert(p, "[" .. investimenti.js(c[1]) .. "," .. c[2] .. "]") end
@@ -846,8 +775,7 @@ function investimenti.grafico(pagina)
   local nome = id or quot
   for _, s in ipairs(investimenti.strumenti()) do if s.id == id then nome = s.nome end end
   local dati = "const DATI = {titolo: " .. investimenti.js(nome) .. ", serie: " .. coppie(serie) ..
-    ", acquisti: " .. coppie(acq) .. ", pmc: " .. (pmc or "null") .. ", stop: " .. (stop or "null") ..
-    ", tp: " .. (tp or "null") .. ", stopPct: " .. sl .. ", tpPct: " .. tpp .. ", trailing: " .. tr .. "};\n"
+    ", acquisti: " .. coppie(acq) .. "};\n"
   return widget.sandbox {
     html = '<div id="b"></div><div id="b2"></div><div style="position:relative;height:300px">' ..
       '<canvas id="c"></canvas></div><div id="rw" style="display:none;position:relative;height:140px;' ..
@@ -858,7 +786,6 @@ function investimenti.grafico(pagina)
   }
 end
 ```
-
 ```space-lua
 command.define {
   name = "Investimenti: Verifica conti e movimenti",
@@ -870,7 +797,6 @@ command.define {
   end
 }
 ```
-
 ```space-lua
 investimenti = investimenti or {}
 
@@ -1150,7 +1076,7 @@ function investimenti.valoreAllaData(pagina, data)
     if valore ~= nil then
       totale.valore = totale.valore + valore
       totale.note = totale.note + 1
-      if stato ~= "PREZZO_DISPONIBILE" and stato ~= "CHIUSA" then totale.stimati = totale.stimati + 1 end
+      if stato ~= "PREZZO_DISPONIBILE" and stato ~= "SNAPSHOT_DISPONIBILE" and stato ~= "CHIUSA" then totale.stimati = totale.stimati + 1 end
     else totale.mancanti = totale.mancanti + 1 end
     totale.posizioni = totale.posizioni + 1
     table.insert(righe, {id = p.id, conto = p.conto, metodo = metodo, quote = p.quote,
@@ -1295,7 +1221,9 @@ function investimenti.coperturaDati(pagina, data)
     local gg = r.dataPrezzo and giorni018(r.dataPrezzo, data)
     r.etaGiorni = gg
     r.sogliaGiorni = limite
-    if r.valore ~= nil and r.stato == "PREZZO_DISPONIBILE" then
+    if r.valore ~= nil and r.stato == "SNAPSHOT_DISPONIBILE" then
+      r.copertura = "SNAPSHOT_UFFICIALE"; report.aggiornati = report.aggiornati + 1
+    elseif r.valore ~= nil and r.stato == "PREZZO_DISPONIBILE" then
       if gg and gg <= limite and gg >= 0 then
         r.copertura = "AGGIORNATO"; report.aggiornati = report.aggiornati + 1
       else r.copertura = "OBSOLETO"; report.obsoleti = report.obsoleti + 1 end
@@ -1328,7 +1256,6 @@ function investimenti.verificaPatrimonio()
   return out
 end
 ```
-
 ```space-lua
 -- Dashboard 0.19. Nessuna nuova dipendenza o scrittura: dati da v0.18.1.
 investimenti = investimenti or {}
@@ -1365,7 +1292,8 @@ function investimenti.dashboardDati(pagina, tipo, periodo)
   local conti = investimenti.lotti018(scope)
   local per = {}
   for _, p in ipairs(conti) do per[(p.conto or "") .. "|" .. p.id] = p end
-  local rows, t = {}, {costo = 0, valore = 0, pl = 0, conteggio = 0, mancanti = 0, indicativi = 0, chiuse = 0}
+  local rows, t = {}, {costo = 0, valore = 0, pl = 0, conteggio = 0, mancanti = 0,
+    indicativi = 0, ufficiali = 0, chiuse = 0, kidSomma = 0, kidPeso = 0, kidSenza = 0}
   for _, r in ipairs(attuali) do
     if ammessi[r.id] then
       local p = per[(r.conto or "") .. "|" .. r.id]
@@ -1374,7 +1302,15 @@ function investimenti.dashboardDati(pagina, tipo, periodo)
         t.conteggio = t.conteggio + 1
         if r.valore == nil then t.mancanti = t.mancanti + 1
         else
-          if r.stato ~= "PREZZO_DISPONIBILE" then t.indicativi = t.indicativi + 1 end
+          if r.stato == "SNAPSHOT_DISPONIBILE" then
+            t.ufficiali = t.ufficiali + 1
+          elseif r.stato ~= "PREZZO_DISPONIBILE" then
+            t.indicativi = t.indicativi + 1
+          end
+          local kid = tonumber(nomi[r.id] and nomi[r.id].rischio)
+          if kid and kid >= 1 and kid <= 7 and r.valore > 0 then
+            t.kidSomma, t.kidPeso = t.kidSomma + kid * r.valore, t.kidPeso + r.valore
+          else t.kidSenza = t.kidSenza + 1 end
           local costo = p and p.costo or 0
           t.costo, t.valore, t.pl = t.costo + costo, t.valore + r.valore, t.pl + r.valore - costo
           table.insert(rows, {id=r.id, nome=(nomi[r.id] and nomi[r.id].nome) or r.id,
@@ -1387,6 +1323,7 @@ function investimenti.dashboardDati(pagina, tipo, periodo)
   end
   table.sort(rows, function(a,b) return a.nome < b.nome end)
   t.completo = t.mancanti == 0 and t.indicativi == 0
+  t.kid = t.kidPeso > 0 and math.floor(t.kidSomma / t.kidPeso + 0.5) or nil
   t.periodo = periodo or "Tutto"
   return rows, t
 end
@@ -1396,38 +1333,38 @@ end
 --- viene applicata al graficoPatrimonio, non al valore attuale.
 function investimenti.dashboard(pagina, tipo, periodo)
   local rows, tot = investimenti.dashboardDati(pagina, tipo, periodo)
-  local function eur(n) return investimenti.formatoNumero(n, 2) .. (n ~= nil and " €" or "") end
+  local function eur(n) return investimenti.formatoNumero(n, 2) end
   local function pct(v, base)
     if not base or base == 0 then return "n.d." end
     local z = 100 * v / base
-    return (z > 0 and "+" or "") .. investimenti.formatoNumero(z, 2) .. " %"
+    return (z > 0 and "+" or "") .. investimenti.formatoNumero(z, 2)
   end
-  -- Ultima data effettivamente utilizzata dalle posizioni visualizzate.
-  -- Non e' il timestamp del download, ne' significa che tutti i prezzi siano recenti.
   local ultima
-  local ndDate = 0
   for _, r in ipairs(rows) do
     if type(r.dataPrezzo) == "string" and string.match(r.dataPrezzo, "^%d%d%d%d%-%d%d%-%d%d$") then
       if not ultima or r.dataPrezzo > ultima then ultima = r.dataPrezzo end
-    else ndDate = ndDate + 1 end
+    end
   end
   local data = ultima and (string.sub(ultima, 9, 10) .. "." ..
     string.sub(ultima, 6, 7) .. "." .. string.sub(ultima, 1, 4)) or "n.d."
-  local out = {"**Patrimonio investito:** " .. eur(tot.valore) .. " · **Costo residuo:** " ..
-    eur(tot.costo) .. " · **P/L latente:** " .. eur(tot.pl) .. " (" ..
-    pct(tot.pl, tot.costo) .. ")",
-    "\n**Ultima valorizzazione disponibile:** " .. data ..
-    (ndDate > 0 and (" · " .. ndDate .. " posizioni senza data del valore") or "") ..
-    " · _la data più recente non certifica l'aggiornamento di tutti gli strumenti_",
-    "\n**Copertura:** " .. (tot.conteggio-tot.mancanti) .. "/" .. tot.conteggio ..
-    " posizioni con valore; " .. tot.indicativi .. " indicative, " .. tot.mancanti ..
-    " mancanti" .. (tot.completo and "." or ". **Patrimonio parziale.**"),
-    "\n| Strumento | Costo residuo | Attuale | P/L latente | % |",
-    "|---|---:|---:|---:|---:|"}
+  local out = {
+    "**Patrimonio:**",
+    "| Investito | Attuale | **P/L latente** | % | In data | KID |",
+    "|---:|---:|---:|---:|:---:|:---:|",
+    "| " .. eur(tot.costo) .. " € | " .. eur(tot.valore) .. " € | **" ..
+      eur(tot.pl) .. " €** | " .. pct(tot.pl, tot.costo) .. " % | " .. data ..
+      " | " .. (tot.kid and tostring(tot.kid) or "n.d.") .. " |",
+    "**Copertura:** " .. (tot.conteggio - tot.mancanti) .. "/" .. tot.conteggio ..
+      " posizioni valorizzate; " .. tot.ufficiali .. " snapshot ufficiali, " ..
+      tot.indicativi .. " indicative, " .. tot.mancanti .. " mancanti" ..
+      (tot.completo and "." or ". **Patrimonio parziale.**"),
+    "| Strumento | Costo residuo | Attuale | P/L latente | % |",
+    "|---|---:|---:|---:|---:|"
+  }
   for _, r in ipairs(rows) do
     table.insert(out, "| [[Strumenti/" .. r.id .. "|" .. r.nome .. "]] | " ..
-      eur(r.costo) .. " | " .. eur(r.valore) .. " | " .. eur(r.pl) ..
-      " | " .. pct(r.pl, r.costo) .. " |")
+      eur(r.costo) .. " € | " .. eur(r.valore) .. " € | " .. eur(r.pl) ..
+      " € | " .. pct(r.pl, r.costo) .. " % |")
   end
   if #rows == 0 then table.insert(out, "| Nessuna posizione valorizzata | | | | |") end
   return widget.markdown(table.concat(out, "\n"))
