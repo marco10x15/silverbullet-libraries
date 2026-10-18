@@ -1,63 +1,38 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.19.8"
-versionDate: 2026-10-17
+version: "0.20"
+versionDate: 2026-10-18
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 ---
 
-Investimenti
-Versione 0.19.8 — Dashboard patrimoniale, classificazione snapshot e indicatori essenziali, SilverBullet v2.11+. Libreria completa, da sostituire integralmente a `Library/MG/investimenti`.
-Modifiche e compatibilità
-v0.19.8: separazione Markdown tra tabella Patrimonio e Copertura, senza altre modifiche funzionali.
-v0.19.7 (consolidamento): dashboard con tabella Patrimonio (investito, attuale, P/L, percentuale, data e KID ponderato sul controvalore), senza avvertimenti sulla data. Gli snapshot `SNAPSHOT_DISPONIBILE` sono valorizzazioni ufficiali nella copertura; i `SNAPSHOT_CON_APPORTI` restano indicativi. Grafico quotazioni limitato a MM200, RSI e Bollinger; invariati grafico patrimoniale, movimenti, P/L e XIRR. Il KID aggregato esclude posizioni prive di KID e arrotonda la media ponderata all’intero più vicino.
-v0.19.6: `Snapshot` è una riga informativa della tabella `## Movimenti` di ogni strumento, con `Data`, `Tipo = Snapshot`, `Valore` (controvalore totale della posizione in EUR) e campi `Quantità`, `Prezzo`, `Commissioni`, `Tasse` vuoti. Non incrementa quote, costo, redditi o flussi XIRR. Per il metodo `snapshot`, l'ultima riga valida prevale su `valoreManuale`/`dataValore` del frontmatter; questi ultimi restano come ripiego di compatibilità quando manca uno snapshot nei movimenti. Dopo l'ultimo snapshot, gli acquisti e le vendite successivi concorrono soltanto al valore contabile indicativo (snapshot + acquisti − vendite), non a una nuova valorizzazione certificata. La data mostrata resta quella del rendiconto. Gli snapshot sono inclusi nelle date candidate del grafico patrimoniale; i grafici non interpolano prezzi né introducono liquidità. Uno snapshot non è un prezzo unitario e non va moltiplicato per le quote. Le valorizzazioni da snapshot sono indicative ai fini di XIRR/TWR, che continuano a rifiutare un valore non di mercato validato.
-Esempio PIR (importi illustrativi):
-Data	Tipo	Quantità	Prezzo	Valore	Commissioni	Tasse
-2026-08-16	Snapshot			15100		
-2026-05-11	Acquisto	15000	1	15000	0	0
-Per PIR Franca/Marco IAZ/I50 ogni pagina `Strumenti/...` ha i propri snapshot; per Helvetia la stessa regola funziona con PAC e snapshot annuale. Valori ipotetici non vanno copiati su posizioni reali. Non inserire più valori nuovi nel frontmatter se si utilizza lo storico `Snapshot`.
-v0.19.5: risultato economico reso compatto con `widget.html(dom.span)`, senza modifiche ai calcoli.
-v0.19.4: sostituito il tag HTML del KID (visualizzato come testo in SilverBullet) con un cerchio emoji Unicode. Nessun cambiamento a calcoli, conti, dashboard o quotazioni.
-v0.19.3: scheda strumento in due righe senza paragrafi vuoti, conti e portafogli sulla stessa riga, un solo quadrato colorato per KID (1 bianco, 2 verdino, 3 verde, 4 arancio, 5 arancio scuro, 6 rosso, 7 viola). Nessun cambiamento ai calcoli.
-v0.19.2: data dell’ultima osservazione disponibile nel perimetro della dashboard (non data di esecuzione del comando), formato numerico italiano con separatore migliaia spazio e decimali a virgola; ripristinata `investimenti.scheda()` con rischio KID e collegamenti distinti a conti e portafogli. Nessuna modifica ai calcoli o ai movimenti.
-Eliminato il vecchio motore `movimentiDati` / `posizioni` / `valorizzazioneDati`, che calcolava gli acquisti storici come costo ancora investito e poteva mostrare posizioni chiuse o PIR senza snapshot. Il calcolo economico autorevole è ora `lotti018` + `valoreAllaData` + `risultatoDati`.
-Eliminate le viste legacy `movimenti`, `valorizzazione`, `valore`, `torta`, `tortaRischio`, `allocazione`, `barraRischio`, `rischio`, `performance`, `barrePL`, `elencoStrumenti`, `elencoConti` e le loro dipendenze di presentazione. La scheda `investimenti.scheda()` è stata ripristinata nella v0.19.2 senza ripristinare il motore legacy. Le pagine che chiamano esplicitamente le altre funzioni eliminate devono usare le nuove API.
-Conservati l'archivio delle quotazioni, gli aggiornamenti sicuri, la diagnostica contabile, i calcoli PMC/P-L/XIRR e il grafico delle quotazioni `investimenti.grafico()` con indicatori e segnali; lo stop/TP usa ora il PMC delle quote residue, non la media degli acquisti storici.
-`investimenti.dashboard()` presenta costo residuo, valore, P/L latente e percentuale. Rimossi dalla tabella `Δ valore` (non è un rendimento) e lo stato tecnico (disponibile in diagnostica).
-`investimenti.graficoPatrimonio()` resta invariato: rendering confermato dall'utente. La selezione del periodo (`1M`, `3M`, `6M`, `YTD`, `1A`, `Tutto`) si applica al grafico patrimoniale. L'eventuale terzo argomento `periodo` di `dashboard()` è accettato per compatibilità, ma non cambia i dati correnti.
-Rimosso l'avviso statico `AUDIT_INBOX_SEPARATO` hardcoded. `diagnosticaVista019()` mostra soltanto anomalie rilevate nei dati presenti; l'audit separato degli switch NEF resta il riferimento documentale, non viene importato automaticamente.
-I widget automatici, se abilitati da `config.set("investimenti.widgetAutomatici", true)`, usano la dashboard e la diagnostica attuali; non chiamano più viste obsolete.
-Nessun conto liquidità. Versamenti PAC/PIC NEF e JPM come apporti; switch come vendite/acquisti dello strumento, con `Causale` e `Riferimento` facoltativi. Solo costi e fiscalità interni agli investimenti; spese del conto corrente escluse.
-Migrazione: su `Index` sostituire `investimenti.valore()` con `investimenti.dashboard("Index")`. Su `Conti/...` usare `investimenti.dashboard("Conti/<nome>")`. Le funzioni `investimenti.risultato()`, `investimenti.rendimento()`, `investimenti.copertura()`, `investimenti.grafico()` e `investimenti.graficoPatrimonio()` restano disponibili. Le tabelle dei movimenti e delle quotazioni non richiedono modifiche.
-API attuali
-Ambito	Funzioni
-Strumenti e conti	`strumenti`, `elenco`, `contiStrumento`, `risolviConto`, `ledger`, `verificaConti`
-Quotazioni	`quotazioni.yahoo`, `quotazioni.cerca`, `quotazioni.verifica`, `quotazioni.crea`, `quotazioni.aggiorna`, `quotazioni.blocco`, `investimenti.quotazioniPerStrumento`
-Motore economico	`metodo`, `metadati018`, `prezzi018`, `lotti018`, `valoreAllaData`, `risultatoDati`, `rendimentoDati`, `coperturaDati`
-Presentazione	`dashboard`, `scheda`, `risultato`, `rendimento`, `copertura`, `grafico` (prezzi), `graficoPatrimonio` (valore)
-Controlli	`verifica`, `verificaPatrimonio`, `switch019`, `flussiEsterni019`, `diagnostica019`, `diagnosticaVista019`
-Serie e dati	`dashboardDati`, `serie`, `acquisti`, `seriePatrimonio019`, `vista`
-Esempi
+# Investimenti
+
+**Versione 0.19.8 — Dashboard patrimoniale, classificazione snapshot e indicatori essenziali, SilverBullet v2.11+.** Libreria completa, da sostituire integralmente a `Library/MG/investimenti`.
+
+## Versione 0.20 — Pulizia del codice e API stabili
+
+La libreria legge strumenti, conti, quotazioni e movimenti direttamente dallo Space SilverBullet. Non gestisce liquidità né spese del conto corrente. Gli snapshot si inseriscono come righe informative `Snapshot` nella tabella `Movimenti`. La dashboard rappresenta il costo residuo, il controvalore e il P/L latente; il grafico patrimoniale usa quantità storiche e rendiconti disponibili.
+
+**Modifiche 0.20:** rimossi parametri `stopLoss`, `takeProfit`, `trailing`, `segnali`; rimossa la compatibilità frontmatter `valoreManuale`/`dataValore`; rimosso il parametro inutilizzato `periodo` dalla dashboard; eliminate `investimenti.nomi()` e `investimenti.flussiEsterni019()`; allineate le diagnostiche alla copertura snapshot; rimossi i suffissi numerici dalle funzioni di supporto. Per l'utente restano i metodi `dashboard`, `grafico`, `graficoPatrimonio`, `scheda`, `risultato`, `rendimento`, `copertura` e la diagnostica.
+
+**Migrazione:** se esistono strumenti con `valoreManuale` e `dataValore` e senza righe `Snapshot`, inserire una riga `Snapshot` nella tabella `Movimenti` prima di installare la 0.20. Le chiamate `dashboard(pagina, tipo, periodo)` vanno convertite in `dashboard(pagina, tipo)`; il periodo rimane un argomento valido per `graficoPatrimonio`. I nomi interni con suffissi `018` e `019` non sono più esposti. I movimenti e le quotazioni non vengono modificati automaticamente.
+
+## Esempi
+
 ```lua
 investimenti.dashboard("Index")
-investimenti.scheda("Strumenti/LU0140696401")
 investimenti.dashboard("Conti/NEF - Famiglia", "Fondo")
-investimenti.dashboard("Conti/Portafoglio - Samuele", "Fondo")
+investimenti.scheda("Strumenti/LU0140696401")
 investimenti.grafico("Strumenti/LU0140696401")
-investimenti.graficoPatrimonio("Conti/NEF - Famiglia", "YTD", "Fondo")
-investimenti.diagnosticaVista019("Conti/NEF - Famiglia")
+investimenti.graficoPatrimonio("Conti/NEF - Famiglia", "YTD")
 investimenti.rendimentoDati("Strumenti/LU0140696401", "xirr")
+investimenti.diagnosticaVista("Conti/NEF - Famiglia")
 ```
-Modello dati
-`Strumenti/<id>` con frontmatter: `displayName`, `isin`, `ticker`, `valuta`, `tipo`, `metodoValorizzazione` (facoltativo), `quoteReali` (facoltativo) e tabella movimenti (`Data`, `Tipo`, `Quantità`, `Prezzo`, `Valore`/`Valore EUR`).
-`Quotazioni/<id>` con attributo `isin` e tabella `Data | Prezzo`. L'ultima quotazione storica disponibile viene utilizzata senza forzare la data NAV a quella odierna.
-`Conti/<nome>` con elenco `strumento` di collegamenti alle pagine `Strumenti/`.
-Gli switch NEF possono usare colonne facoltative `Causale` e `Riferimento`, con lo stesso riferimento nei due lati. Senza identificativi non vengono riconciliati artificialmente; nessuna modifica automatica di `Inbox` o dei movimenti.
-Il rendimento XIRR calcolato per singolo strumento richiede flussi attendibili e valore finale; il TWR non viene stimato se mancano i sottoperiodi. I PIR senza valore ufficiale non sono valorizzati fittiziamente.
-> **Collaudo:** la v0.19.1 è stata collaudata dall’utente; le modifiche alla scheda della v0.19.4 richiedono un test esecutivo in SilverBullet. I movimenti, il motore economico e le tabelle delle quotazioni non sono modificati. Conservare una copia della v0.19.1 prima della sostituzione.
-Codice della libreria
+
+## Codice della libreria
+
 ```space-lua
 investimenti = investimenti or {}
 
@@ -78,13 +53,6 @@ function investimenti.js(x)
   return '"' .. t .. '"'
 end
 
---- Tabella id -> displayName da un elenco di strumenti.
-function investimenti.nomi(strumenti)
-  local out = {}
-  for _, s in ipairs(strumenti) do out[s.id] = s.nome end
-  return out
-end
-
 --- Strumenti: pagine sotto Strumenti/, ordinate per id.
 function investimenti.strumenti()
   local out = {}
@@ -92,16 +60,13 @@ function investimenti.strumenti()
     from p = index.subPages("Strumenti")
     select {name = p.name, nome = p.displayName, isin = p.isin, ticker = p.ticker,
       valuta = p.valuta, tipo = p.tipo, rischio = p.KID,
-      descrizione = p.description, tags = p.tags,
-      stopLoss = p.stopLoss, takeProfit = p.takeProfit, trailing = p.trailing, segnali = p.segnali}
+      descrizione = p.description, tags = p.tags}
   ]]) do
     table.insert(out, {id = string.sub(p.name, 11),  -- "Strumenti/" = 10 caratteri
       nome = str(p.nome) or p.name, isin = str(p.isin), ticker = str(p.ticker),
       valuta = str(p.valuta) or "EUR", tipo = str(p.tipo),
       rischio = type(p.rischio) == "number" and p.rischio or nil,  -- p.rischio = attributo KID
-      descrizione = str(p.descrizione), tags = p.tags,
-      stopLoss = tonumber(p.stopLoss), takeProfit = tonumber(p.takeProfit),
-      trailing = tonumber(p.trailing), segnali = p.segnali ~= false})
+      descrizione = str(p.descrizione), tags = p.tags})
   end
   table.sort(out, function(a, b) return a.id < b.id end)
   return out
@@ -202,6 +167,7 @@ function investimenti.elenco(pagina)
   return ids
 end
 ```
+
 ```space-lua
 quotazioni = quotazioni or {}
 
@@ -260,6 +226,7 @@ function quotazioni.verifica(simbolo, range)
     prezzo = r[#r] and r[#r].prezzo, errore = q.errore}}
 end
 ```
+
 ```space-lua
 quotazioni = quotazioni or {}
 
@@ -387,6 +354,7 @@ function quotazioni.aggiorna(range, ids, pagine)
   return esiti
 end
 ```
+
 ```space-lua
 investimenti = investimenti or {}
 quotazioni = quotazioni or {}
@@ -423,6 +391,7 @@ function investimenti.verifica()
   return anomalie
 end
 ```
+
 ```space-lua
 command.define {
   name = "Quotazioni: Crea pagine e scarica storico",
@@ -432,6 +401,7 @@ command.define {
   end
 }
 ```
+
 ```space-lua
 command.define {
   name = "Quotazioni: Aggiorna",
@@ -440,6 +410,7 @@ command.define {
   end
 }
 ```
+
 ```space-lua
 investimenti = investimenti or {}
 
@@ -574,6 +545,7 @@ end
 --- strumenti: risultato di investimenti.strumenti(); per: risultato di quotazioniPerStrumento,
 --- se già disponibili (evita riletture).
 ```
+
 ```space-lua
 investimenti = investimenti or {}
 
@@ -787,6 +759,7 @@ function investimenti.grafico(pagina)
   }
 end
 ```
+
 ```space-lua
 command.define {
   name = "Investimenti: Verifica conti e movimenti",
@@ -798,21 +771,20 @@ command.define {
   end
 }
 ```
+
 ```space-lua
 investimenti = investimenti or {}
 
--- Metadati aggiuntivi opzionali, letti senza modificare lo schema v0.17.
-function investimenti.metadati018()
+-- Metadati correnti di valorizzazione degli strumenti.
+function investimenti.metadati()
   local out = {}
   for _, p in ipairs(query[[
     from p = index.subPages("Strumenti")
     select {name = p.name, metodo = p.metodoValorizzazione,
-      frequenza = p.frequenzaPrezzoGiorni, quoteReali = p.quoteReali,
-      valoreManuale = p.valoreManuale, dataValore = p.dataValore}
+      frequenza = p.frequenzaPrezzoGiorni, quoteReali = p.quoteReali}
   ]]) do
     out[string.sub(p.name, 11)] = {metodo = p.metodo,
-      frequenza = tonumber(p.frequenza), quoteReali = p.quoteReali,
-      valoreManuale = tonumber(p.valoreManuale), dataValore = p.dataValore}
+      frequenza = tonumber(p.frequenza), quoteReali = p.quoteReali}
   end
   return out
 end
@@ -836,7 +808,7 @@ function investimenti.metodo(s, meta)
 end
 
 -- Restituisce il prezzo noto non successivo alla data richiesta.
-local function prezzoPrima018(serie, data)
+local function prezzoPrima(serie, data)
   local scelta
   for _, r in ipairs(serie or {}) do
     if type(r[1]) == "string" and r[1] <= data and type(r[2]) == "number"
@@ -845,7 +817,7 @@ local function prezzoPrima018(serie, data)
   return scelta
 end
 
-local function giorni018(a, b)
+local function giorniTraDate(a, b)
   local function giorno(x)
     if type(x) ~= "string" then return nil end
     local y, m, d = string.match(x, "^(%d%d%d%d)%-(%d%d)%-(%d%d)$")
@@ -864,18 +836,18 @@ local function giorni018(a, b)
   return x and y and (y - x) or nil
 end
 
-function investimenti.prezzi018(data)
+function investimenti.prezzi(data)
   data = data or os.date("!%Y-%m-%d")
   local strumenti = investimenti.strumenti()
   local per = investimenti.quotazioniPerStrumento(strumenti)
   local px = {}
   for _, s in ipairs(strumenti) do
-    local r = prezzoPrima018(per[s.id], data)
+    local r = prezzoPrima(per[s.id], data)
     if r then
       local eur = r[2]
       local dtCambio
       if s.valuta == "USD" and s.id ~= "EURUSD" then
-        local cambioData = prezzoPrima018(per.EURUSD, r[1])
+        local cambioData = prezzoPrima(per.EURUSD, r[1])
         if cambioData and cambioData[2] > 0 then eur, dtCambio = eur / cambioData[2], cambioData[1]
         else eur = nil end
       end
@@ -886,7 +858,7 @@ function investimenti.prezzi018(data)
 end
 
 -- Posizioni e lotti PMC, calcolati cronologicamente per conto + strumento.
-function investimenti.lotti018(pagina, data)
+function investimenti.lotti(pagina, data)
   data = data or os.date("!%Y-%m-%d")
   local idOk = investimenti.elenco(pagina)
   local ammessi
@@ -1019,13 +991,13 @@ end
 -- I PIR dell'esempio: l'unità sintetica di 1 EUR NON è un numero di quote NAV.
 function investimenti.valoreAllaData(pagina, data)
   data = data or os.date("!%Y-%m-%d")
-  local metadati = investimenti.metadati018()
+  local metadati = investimenti.metadati()
   local strumenti = {}; for _, s in ipairs(investimenti.strumenti()) do strumenti[s.id] = s end
-  local prezzi = investimenti.prezzi018(data)
+  local prezzi = investimenti.prezzi(data)
   local snapshots = investimenti.snapshotDati(pagina, data)
   local operazioni = investimenti.ledger(investimenti.elenco(pagina))
   local righe, totale = {}, {valore = 0, note = 0, mancanti = 0, stimati = 0, posizioni = 0}
-  for _, p in ipairs(investimenti.lotti018(pagina, data)) do
+  for _, p in ipairs(investimenti.lotti(pagina, data)) do
     local s = strumenti[p.id] or {id = p.id, tipo = ""}
     local meta = metadati[p.id] or {}
     local metodo = investimenti.metodo(s, meta)
@@ -1044,12 +1016,6 @@ function investimenti.valoreAllaData(pagina, data)
       local key = (p.conto or "NON_ASSEGNATO") .. "|" .. p.id
       local serie = snapshots[key] or {}
       local ultimo = serie[#serie]
-      -- Frontmatter precedente: ripiego quando non ci sono righe Snapshot.
-      if not ultimo and meta.valoreManuale and type(meta.dataValore) == "string" and
-        meta.dataValore <= data then
-        ultimo = {data=meta.dataValore, valore=meta.valoreManuale}
-        fonte = "frontmatter"
-      end
       if ultimo then
         local flussi = investimenti.movimentiDopoSnapshot(p.id,p.conto,ultimo.data,data,operazioni)
         valore, dt = ultimo.valore + flussi, ultimo.data
@@ -1092,7 +1058,7 @@ function investimenti.risultatoDati(pagina, data)
   local per = {}
   for _, r in ipairs(valori) do per[(r.conto or "NON_ASSEGNATO") .. "|" .. r.id] = r end
   local out, tot = {}, {realizzato = 0, latente = 0, redditi = 0, complessivo = 0, indisponibili = 0}
-  for _, p in ipairs(investimenti.lotti018(pagina, data)) do
+  for _, p in ipairs(investimenti.lotti(pagina, data)) do
     local v = per[(p.conto or "NON_ASSEGNATO") .. "|" .. p.id]
     local latente = v and v.valore and (v.valore - p.costo) or nil
     local risultato = latente and (p.realizzato + latente + p.redditi) or nil
@@ -1126,7 +1092,7 @@ function investimenti.risultato(pagina)
   })
 end
 
-local function xirr018(flussi)
+local function xirr(flussi)
   if #flussi < 2 then return nil, "FLUSSI_INSUFFICIENTI" end
   local d0 = flussi[1].data
   local neg, pos = false, false
@@ -1138,7 +1104,7 @@ local function xirr018(flussi)
   local function npv(r)
     local somma = 0
     for _, f in ipairs(flussi) do
-      local delta = giorni018(d0, f.data)
+      local delta = giorniTraDate(d0, f.data)
       if not delta then return nil end
       somma = somma + f.valore / ((1 + r) ^ (delta / 365))
     end
@@ -1171,7 +1137,7 @@ function investimenti.rendimentoDati(pagina, metodo)
   if metodo ~= "xirr" and metodo ~= "twr" then return {errore = "METODO_SCONOSCIUTO"} end
   local id = type(pagina) == "string" and string.startsWith(pagina, "Strumenti/") and string.sub(pagina, 11)
   if not id then return {errore = "PERIMETRO_NON_RICONCILIATO", dettaglio = "Richiesto singolo strumento: mancano liquidita e flussi esterni del conto"} end
-  local parti = investimenti.lotti018(pagina)
+  local parti = investimenti.lotti(pagina)
   if #parti ~= 1 then return {errore = "POSIZIONI_MULTIPLE", dettaglio = "Serve una posizione univoca per conto"} end
   local p = parti[1]
   if #p.errori > 0 then return {errore = "MOVIMENTI_INVALIDI"} end
@@ -1197,7 +1163,7 @@ function investimenti.rendimentoDati(pagina, metodo)
   for _, f in ipairs(p.flussi) do table.insert(flussi, {data = f.data, valore = f.valore}) end
   if p.quote ~= 0 then table.insert(flussi, {data = data, valore = v.valore}) end
   table.sort(flussi, function(a,b) return a.data < b.data end)
-  local rendimento, errore = xirr018(flussi)
+  local rendimento, errore = xirr(flussi)
   return {metodo = metodo, percentuale = rendimento, errore = errore,
     nota = "XIRR annualizzato; flussi della singola posizione"}
 end
@@ -1212,14 +1178,14 @@ end
 function investimenti.coperturaDati(pagina, data)
   data = data or os.date("!%Y-%m-%d")
   local righe, tot = investimenti.valoreAllaData(pagina, data)
-  local meta = investimenti.metadati018()
+  local meta = investimenti.metadati()
   local report = {aggiornati = 0, obsoleti = 0, mancanti = tot.mancanti,
     stimati = tot.stimati, totalePosizioni = tot.posizioni, valoreParziale = tot.valore}
   for _, r in ipairs(righe) do
     local m = meta[r.id] or {}
     local limite = m.frequenza or
       ((r.metodo == "snapshot" or r.metodo == "contrattuale") and 365 or 7)
-    local gg = r.dataPrezzo and giorni018(r.dataPrezzo, data)
+    local gg = r.dataPrezzo and giorniTraDate(r.dataPrezzo, data)
     r.etaGiorni = gg
     r.sogliaGiorni = limite
     if r.valore ~= nil and r.stato == "SNAPSHOT_DISPONIBILE" then
@@ -1249,7 +1215,7 @@ function investimenti.verificaPatrimonio()
   local righe = investimenti.coperturaDati("Index")
   local out = {}
   for _, r in ipairs(righe) do
-    if r.copertura ~= "AGGIORNATO" and r.stato ~= "CHIUSA" then
+    if r.copertura ~= "AGGIORNATO" and r.copertura ~= "SNAPSHOT_UFFICIALE" and r.stato ~= "CHIUSA" then
       table.insert(out, {pagina = "Strumenti/" .. r.id, conto = r.conto,
         problema = r.copertura, dettaglio = r.stato, data = r.dataPrezzo})
     end
@@ -1257,11 +1223,12 @@ function investimenti.verificaPatrimonio()
   return out
 end
 ```
+
 ```space-lua
--- Dashboard 0.19. Nessuna nuova dipendenza o scrittura: dati da v0.18.1.
+-- Dashboard: nessuna scrittura, lettura del motore patrimoniale corrente.
 investimenti = investimenti or {}
 
-local function ambito019(pagina, tipo)
+local function ambito(pagina, tipo)
   pagina = pagina or "Index"
   local ids = investimenti.elenco(pagina)
   local ammessi = {}
@@ -1275,7 +1242,7 @@ local function ambito019(pagina, tipo)
   return pagina, ammessi, nomi
 end
 
-local function inizio019(periodo, fine)
+local function inizioPeriodo(periodo, fine)
   if periodo == nil or periodo == "Tutto" then return nil end
   if periodo == "YTD" then return string.sub(fine, 1, 4) .. "-01-01" end
   local giorni = ({["1M"] = 30, ["3M"] = 90, ["6M"] = 180, ["1A"] = 365})[periodo]
@@ -1286,11 +1253,11 @@ local function inizio019(periodo, fine)
 end
 
 --- Valori del perimetro selezionato (solo posizioni aperte e valorizzate).
---- Il periodo filtra le variazioni di patrimonio e non taglia la storia contabile del PMC.
-function investimenti.dashboardDati(pagina, tipo, periodo)
-  local scope, ammessi, nomi = ambito019(pagina, tipo)
+--- Il riepilogo considera le posizioni aperte alla data di consultazione.
+function investimenti.dashboardDati(pagina, tipo)
+  local scope, ammessi, nomi = ambito(pagina, tipo)
   local attuali = investimenti.valoreAllaData(scope)
-  local conti = investimenti.lotti018(scope)
+  local conti = investimenti.lotti(scope)
   local per = {}
   for _, p in ipairs(conti) do per[(p.conto or "") .. "|" .. p.id] = p end
   local rows, t = {}, {costo = 0, valore = 0, pl = 0, conteggio = 0, mancanti = 0,
@@ -1325,15 +1292,12 @@ function investimenti.dashboardDati(pagina, tipo, periodo)
   table.sort(rows, function(a,b) return a.nome < b.nome end)
   t.completo = t.mancanti == 0 and t.indicativi == 0
   t.kid = t.kidPeso > 0 and math.floor(t.kidSomma / t.kidPeso + 0.5) or nil
-  t.periodo = periodo or "Tutto"
   return rows, t
 end
 
 --- Dashboard compatta: posizioni aperte valorizzate, costo residuo e P/L latente.
---- Il parametro periodo è conservato per compatibilità: la selezione temporale
---- viene applicata al graficoPatrimonio, non al valore attuale.
-function investimenti.dashboard(pagina, tipo, periodo)
-  local rows, tot = investimenti.dashboardDati(pagina, tipo, periodo)
+function investimenti.dashboard(pagina, tipo)
+  local rows, tot = investimenti.dashboardDati(pagina, tipo)
   local function eur(n) return investimenti.formatoNumero(n, 2) end
   local function pct(v, base)
     if not base or base == 0 then return "n.d." end
@@ -1373,8 +1337,8 @@ function investimenti.dashboard(pagina, tipo, periodo)
 end
 
 --- Metadati switch FACOLTATIVI: nessun abbinamento automatico dalla sola data.
-function investimenti.switch019(pagina)
-  local _, ids = ambito019(pagina, nil)
+function investimenti.switch(pagina)
+  local _, ids = ambito(pagina, nil)
   local out, gruppi = {}, {}
   for _, r in ipairs(query[[
     from t = index.tables()
@@ -1413,41 +1377,15 @@ function investimenti.switch019(pagina)
   return out, problemi
 end
 
---- Apporti da PAC/PIC e rimborsi esterni. I movimenti marcati Switch sono esclusi.
---- Non si ricostruiscono implicitamente gli switch storici non annotati.
-function investimenti.flussiEsterni019(pagina)
-  local scope,ids = ambito019(pagina,nil)
-  local switch = {}
-  for _, r in ipairs(investimenti.switch019(scope)) do
-    local key = r.id .. "|" .. tostring(r.data) .. "|" .. tostring(r.tipo) .. "|" .. tostring(r.valore)
-    switch[key] = (switch[key] or 0) + 1
-  end
-  local flussi, daVerificare = {}, {}
-  for _, r in ipairs(investimenti.ledger()) do
-    if ids[r.id] and (r.tipo == "Acquisto" or r.tipo == "Vendita") then
-      local v = tonumber(r.valore)
-      local key = r.id .. "|" .. tostring(r.data) .. "|" .. tostring(r.tipo) .. "|" .. tostring(v)
-      if (switch[key] or 0) > 0 then switch[key] = switch[key] - 1
-      elseif v then
-        table.insert(flussi,{id=r.id, conto=r.conto, data=r.data,
-          tipo=r.tipo, importo=(r.tipo == "Acquisto" and -v or v),
-          stato="CAUSALE_NON_CONFERMATA"})
-        table.insert(daVerificare,{id=r.id,data=r.data,problema="FLUSSO_NON_CLASSIFICATO"})
-      end
-    end
-  end
-  return flussi, daVerificare
-end
-
-function investimenti.diagnostica019(pagina)
+function investimenti.diagnosticaDati(pagina)
   local out = {}
-  local scope, ids = ambito019(pagina,nil)
+  local scope, ids = ambito(pagina,nil)
   for _, r in ipairs(investimenti.coperturaDati(scope)) do
-    if ids[r.id] and r.copertura ~= "AGGIORNATO" and r.stato ~= "CHIUSA" then
+    if ids[r.id] and r.copertura ~= "AGGIORNATO" and r.copertura ~= "SNAPSHOT_UFFICIALE" and r.stato ~= "CHIUSA" then
       table.insert(out,{strumento=r.id, problema=r.copertura, dettaglio=r.stato})
     end
   end
-  local _, problemi = investimenti.switch019(scope)
+  local _, problemi = investimenti.switch(scope)
   for _, p in ipairs(problemi) do
     table.insert(out,{strumento=p.id or p.riferimento,
       problema=p.problema,dettaglio=p.data or p.dettaglio})
@@ -1457,8 +1395,8 @@ end
 
 
 --- Resoconto diagnostico leggibile direttamente nelle pagine SilverBullet.
-function investimenti.diagnosticaVista019(pagina)
-  local problemi = investimenti.diagnostica019(pagina)
+function investimenti.diagnosticaVista(pagina)
+  local problemi = investimenti.diagnosticaDati(pagina)
   if #problemi == 0 then
     return widget.markdown("**Diagnostica:** nessuna anomalia rilevata dai controlli disponibili.")
   end
@@ -1473,10 +1411,10 @@ end
 
 --- Campionamento della serie patrimoniale basato sulle date di quotazione.
 --- Ogni punto ricalcola le quantità storiche: non usa le quote detenute oggi.
-function investimenti.seriePatrimonio019(pagina, periodo, tipo)
-  local scope, ids, nomi = ambito019(pagina, tipo)
+function investimenti.seriePatrimonio(pagina, periodo, tipo)
+  local scope, ids, nomi = ambito(pagina, tipo)
   local fine = os.date("!%Y-%m-%d")
-  local inizio = inizio019(periodo or "1A", fine)
+  local inizio = inizioPeriodo(periodo or "1A", fine)
   local serie, date = investimenti.quotazioniPerStrumento(investimenti.strumenti()) , {}
   -- Oltre ai NAV, i rendiconti Snapshot definiscono date reali del patrimonio.
   for _, r in ipairs(investimenti.ledger()) do
@@ -1514,7 +1452,7 @@ function investimenti.seriePatrimonio019(pagina, periodo, tipo)
 end
 
 function investimenti.graficoPatrimonio(pagina, periodo, tipo)
-  local serie = investimenti.seriePatrimonio019(pagina, periodo, tipo)
+  local serie = investimenti.seriePatrimonio(pagina, periodo, tipo)
   if #serie < 2 then return widget.markdown("_Dati insufficienti per il grafico patrimoniale._") end
   local etichette, valori, note = {}, {}, {}
   for _, r in ipairs(serie) do
@@ -1536,9 +1474,9 @@ function investimenti.vista(pagina)
   if type(pagina) ~= "string" then return {} end
   local function v(f, p) return function() return f(p) end end
   if pagina == (config.get("investimenti.paginaIndice") or "Index") then
-    return {v(investimenti.dashboard, pagina), v(investimenti.diagnosticaVista019, pagina)}
+    return {v(investimenti.dashboard, pagina), v(investimenti.diagnosticaVista, pagina)}
   elseif string.startsWith(pagina, "Conti/") then
-    return {v(investimenti.dashboard, pagina), v(investimenti.diagnosticaVista019, pagina)}
+    return {v(investimenti.dashboard, pagina), v(investimenti.diagnosticaVista, pagina)}
   elseif string.startsWith(pagina, "Strumenti/") then
     return {v(investimenti.scheda, pagina), v(investimenti.risultato, pagina), v(investimenti.grafico, pagina)}
   elseif string.startsWith(pagina, "Quotazioni/") then
