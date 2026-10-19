@@ -774,19 +774,47 @@ function date.diff(a, b)
   return {anni = mesi // 12, mesi = mesi % 12, giorni = giorni}
 end
 
--- Versione testuale: "6 anni, 7 mesi, 4 giorni"
-function date.diffText(a, b)
+-- Differenza in testo leggibile; le parti a zero vengono omesse.
+-- Formato omesso o sconosciuto: forma compatta "6a 7m 4g".
+function date.diffText(a, b, formato)
   local r = date.diff(a, b)
-  if not r then return "no data" end
-  local function n(v, s, p) return v .. " " .. (v == 1 and s or p) end
-  return table.concat({
-    n(r.anni, "anno", "anni"),
-    n(r.mesi, "mese", "mesi"),
-    n(r.giorni, "giorno", "giorni"),
-  }, ", ")
+  local giorni = date.days(a, b)
+  if not r or not giorni then return "no data" end
+
+  local chiavi = diffFormati[formato or ""]
+
+  -- Forma compatta
+  if not chiavi then
+    local parti = {}
+    for _, p in ipairs({{r.anni, "a"}, {r.mesi, "m"}, {r.giorni, "g"}}) do
+      if p[1] ~= 0 then table.insert(parti, p[1] .. p[2]) end
+    end
+    return #parti == 0 and "0g" or table.concat(parti, " ")
+  end
+
+  -- Forma estesa
+  giorni = math.abs(giorni)
+  local v = {
+    a = r.anni, m = r.mesi, g = r.giorni,
+    M = r.anni * 12 + r.mesi,
+    G = giorni,
+    W = math.floor(giorni / 7),
+    r = giorni % 7,
+  }
+
+  local parti = {}
+  for _, k in ipairs(chiavi) do
+    if v[k] ~= 0 then
+      table.insert(parti, v[k] .. " " .. (v[k] == 1 and diffUnita[k][1] or diffUnita[k][2]))
+    end
+  end
+
+  if #parti == 0 then return "0 " .. diffUnita[chiavi[#chiavi]][2] end
+  if #parti == 1 then return parti[1] end
+
+  local ultima = table.remove(parti)
+  return table.concat(parti, ", ") .. " e " .. ultima
 end
-
-
 ```
 
 ## Esempi
