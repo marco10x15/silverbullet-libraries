@@ -5,8 +5,6 @@ version: "0.22"
 versionDate: 2026-10-19
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
-share.hash: a5553b26
-share.mode: pull
 ---
 
 # Investimenti
@@ -15,13 +13,9 @@ share.mode: pull
 
 La libreria legge strumenti, conti, quotazioni e movimenti direttamente dallo Space. Non gestisce liquidità né spese del conto corrente. Gli snapshot sono righe `Snapshot` nella tabella `Movimenti`. La dashboard mostra costo residuo, controvalore e P/L latente; il grafico patrimoniale usa le quantità storiche e i rendiconti disponibili.
 
-**Modifiche 0.22:** strumenti valorizzati a rendiconto (metodo `snapshot`/`manuale`): `rendimentoDati()` calcola lo XIRR alla data dell'ultimo rendiconto (prima restituiva `VALORE_INDICATIVO`); `grafico()` su `Strumenti/`, se mancano le quotazioni, mostra il nuovo `graficoSnapshot()` (valore dei rendiconti e versato netto). Comportamento invariato per gli strumenti con quotazioni.
+**Modifiche 0.22 (semplificazione):** quattro metodi di valorizzazione (`prezzo`, `snapshot`, `contrattuale`, `costo`; i nomi `mercato`, `nav`, `obbligazione`, `manuale`, `nominale` restano sinonimi); la deduzione dall'id `CD-` è sostituita da `metodoValorizzazione: contrattuale` nello strumento; rimosso l'attributo `quoteReali`; stato e copertura sono calcolati insieme in `valoreAllaData` (rimosse `coperturaDati` e `copertura`); snapshot e apporti successivi sono calcolati da `lotti` (rimosse `snapshotDati` e `movimentiDopoSnapshot`); ogni riga di movimento è validata una sola volta nel contesto; `verifica()` controlla solo gli isin delle pagine Quotazioni; rimossi `switch` (e i codici `SWITCH_*`), `CONTO_INESISTENTE`, il rendimento TWR e i campi non usati.
 
-**Migrazione dalla 0.21:** nessuna modifica ai dati né alle chiamate esistenti.
-
-**Modifiche 0.21:** contesto unico (`investimenti.contesto()`): strumenti, conti, movimenti e quotazioni sono letti una sola volta per widget e riusati da tutte le funzioni, anche per i punti di `graficoPatrimonio`; `investimenti.numero()` accetta la virgola decimale (`14942,92`); XIRR corretto per rendimento 0 %; soglia di età applicata anche agli snapshot; il ledger scarta le tabelle senza colonna `Tipo`; nuove diagnostiche `SNAPSHOT_NON_VALIDO`, `REDDITO_NON_VALIDO`, `DATA_NON_VALIDA`; `verifica()` ammette più strumenti con lo stesso isin (NAV condiviso); valute diverse da EUR/USD danno `CAMBIO_MANCANTE`; rimossi `metadati`, `verificaPatrimonio`, `contiStrumento` e il codice non usato. Il metodo di valorizzazione dichiarato è ora un campo di `strumenti()`.
-
-**Migrazione dalla 0.20:** nessuna modifica ai dati. Le funzioni accettano un ultimo argomento facoltativo `ctx` (risultato di `investimenti.contesto()`); le chiamate esistenti restano valide. `investimenti.metodo(s)` non riceve più i metadati.
+**Migrazione dalla 0.21:** aggiungere `metodoValorizzazione: contrattuale` a `Strumenti/CD-20261001-2A-3` (altrimenti il certificato è valorizzato come un normale prezzo). Le righe `Causale`/`Riferimento` e `quoteReali` non hanno più effetto. `valoreAllaData` restituisce solo le righe (non più i totali). `rendimentoDati(pagina)` accetta solo lo XIRR.
 
 ## Esempi
 
@@ -32,8 +26,6 @@ investimenti.scheda("Strumenti/LU0140696401")
 investimenti.grafico("Strumenti/LU0140696401")
 investimenti.graficoPatrimonio("Conti/NEF - Famiglia", "YTD")
 investimenti.rendimentoDati("Strumenti/LU0140696401", "xirr")
-investimenti.rendimento("Strumenti/<id>")
-investimenti.graficoSnapshot("Strumenti/<id>")
 investimenti.diagnosticaVista("Conti/NEF - Famiglia")
 ```
 
@@ -74,24 +66,20 @@ function investimenti.numero(x)
 end
 
 --- Strumenti: pagine sotto Strumenti/, ordinate per id. Include i metadati di valorizzazione
---- (metodoValorizzazione, frequenzaPrezzoGiorni, quoteReali), letti nella stessa scansione.
+--- (metodoValorizzazione, frequenzaPrezzoGiorni), letti nella stessa scansione.
 function investimenti.strumenti()
   local out = {}
   for _, p in ipairs(query[[
     from p = index.subPages("Strumenti")
     select {name = p.name, nome = p.displayName, isin = p.isin, ticker = p.ticker,
       valuta = p.valuta, tipo = p.tipo, rischio = p.KID,
-      descrizione = p.description, tags = p.tags,
-      metodo = p.metodoValorizzazione, frequenza = p.frequenzaPrezzoGiorni,
-      quoteReali = p.quoteReali}
+      metodo = p.metodoValorizzazione, frequenza = p.frequenzaPrezzoGiorni}
   ]]) do
     table.insert(out, {id = string.sub(p.name, 11),  -- "Strumenti/" = 10 caratteri
       nome = str(p.nome) or p.name, isin = str(p.isin), ticker = str(p.ticker),
       valuta = str(p.valuta) or "EUR", tipo = str(p.tipo),
       rischio = type(p.rischio) == "number" and p.rischio or nil,  -- p.rischio = attributo KID
-      descrizione = str(p.descrizione), tags = p.tags,
-      metodoDichiarato = str(p.metodo), frequenza = investimenti.numero(p.frequenza),
-      quoteReali = p.quoteReali == true})
+      metodoDichiarato = str(p.metodo), frequenza = investimenti.numero(p.frequenza)})
   end
   table.sort(out, function(a, b) return a.id < b.id end)
   return out
@@ -365,39 +353,20 @@ end
 
 ```space-lua
 investimenti = investimenti or {}
-quotazioni = quotazioni or {}
 
---- Anomalie delle pagine Quotazioni e del loro collegamento agli strumenti (isin).
---- Più strumenti con lo stesso isin sono ammessi (NAV condiviso). La tabella Data | Prezzo
---- è obbligatoria solo per le pagine collegate a uno strumento con ticker (aggiornabile da Yahoo).
+--- Anomalie del collegamento tra strumenti e pagine Quotazioni: isin mancante o presente in più
+--- pagine (in tal caso nessuna delle pagine è usata). Più strumenti con lo stesso isin sono ammessi
+--- (NAV condiviso). Prezzi mancanti e tabelle illeggibili emergono dalla copertura e da aggiorna().
 function investimenti.verifica()
+  local _, perPagina, duplicati, senzaIsin = investimenti.pagineQuotazioni()
   local anomalie = {}
-  local function avvisa(pagina, problema, dettaglio)
-    table.insert(anomalie, {pagina = pagina, problema = problema, dettaglio = dettaglio})
-  end
-  local perIsin, perPagina, duplicati, senzaIsin = investimenti.pagineQuotazioni()
-  local conTicker = {}  -- isin -> true se almeno uno strumento collegato ha un ticker
-  local strumenti = investimenti.strumenti()
-  for _, s in ipairs(strumenti) do
-    if s.isin and s.ticker then conTicker[s.isin] = true end
-  end
   for pagina, isin in pairs(perPagina) do
-    if duplicati[isin] then avvisa(pagina, "ISIN_DUPLICATO", isin) end
-    if conTicker[isin] then
-      local _, errore = quotazioni.blocco(space.readPage(pagina))
-      if errore then avvisa(pagina, "TABELLA_NON_VALIDA", errore) end
-    end
+    if duplicati[isin] then table.insert(anomalie, {pagina = pagina, problema = "ISIN_DUPLICATO", dettaglio = isin}) end
   end
-  for _, nome in ipairs(senzaIsin) do avvisa(nome, "ISIN_MANCANTE", "Frontmatter senza isin") end
-  for _, s in ipairs(strumenti) do
-    if s.ticker and (not s.isin or not perIsin[s.isin]) then
-      avvisa("Strumenti/" .. s.id, "QUOTAZIONI_MANCANTI", "Ticker senza pagina quotazioni collegata")
-    end
+  for _, pagina in ipairs(senzaIsin) do
+    table.insert(anomalie, {pagina = pagina, problema = "ISIN_MANCANTE", dettaglio = "Frontmatter senza isin"})
   end
-  table.sort(anomalie, function(a, b)
-    if a.pagina ~= b.pagina then return a.pagina < b.pagina end
-    return a.problema < b.problema
-  end)
+  table.sort(anomalie, function(a, b) return a.pagina < b.pagina end)
   return anomalie
 end
 ```
@@ -436,10 +405,10 @@ end
 
 --- Conti: una sola lettura di Conti/. Restituisce
 --- ids[conto] = id degli strumenti dell'attributo `strumento` ("[[Strumenti/X|alias]]" -> "X"),
---- aggregati[conto] = true per i portafogli logici (tag Portafoglio), noti[conto] = true,
+--- aggregati[conto] = true per i portafogli logici (tag Portafoglio),
 --- fisici[id] / portafogli[id] = conti che contengono lo strumento.
 function investimenti.conti()
-  local c = {ids = {}, aggregati = {}, noti = {}, fisici = {}, portafogli = {}}
+  local c = {ids = {}, aggregati = {}, fisici = {}, portafogli = {}}
   for _, p in ipairs(query[[
     from p = index.subPages("Conti")
     select {name = p.name, tags = p.tags, strumento = p.strumento}
@@ -453,7 +422,7 @@ function investimenti.conti()
         if t and string.startsWith(t, "Strumenti/") then table.insert(ids, string.sub(t, 11)) end
       end
     end
-    c.noti[p.name], c.ids[p.name], c.aggregati[p.name] = true, ids, aggregato
+    c.ids[p.name], c.aggregati[p.name] = ids, aggregato
     local dest = aggregato and c.portafogli or c.fisici
     for _, id in ipairs(ids) do
       dest[id] = dest[id] or {}
@@ -481,18 +450,33 @@ end
 -- A parità di data: acquisti, altri movimenti, vendite (una vendita non precede mai l'acquisto).
 local ORDINE = {Acquisto = 1, Vendita = 3}
 
+-- Validità di una riga di movimento, controllata una sola volta: nil se valida.
+local function erroreRiga(tipo, data, q, v)
+  if not data then return "DATA_NON_VALIDA" end
+  if tipo == "Acquisto" then
+    if not q or q <= 0 or not v or v <= 0 then return "MOVIMENTO_NON_VALIDO" end
+  elseif tipo == "Vendita" then
+    if not q or q <= 0 or not v or v < 0 then return "MOVIMENTO_NON_VALIDO" end
+  elseif tipo == "Dividendo" or tipo == "Cedola" then
+    if not v or v < 0 then return "REDDITO_NON_VALIDO" end
+  elseif tipo == "Snapshot" then
+    if not v or v < 0 then return "SNAPSHOT_NON_VALIDO" end
+  end
+end
+
 -- "acquisto", "ACQUISTO" -> "Acquisto": il tipo non dipende da maiuscole e minuscole.
 local function canonico(t) return string.upper(string.sub(t, 1, 1)) .. string.lower(string.sub(t, 2)) end
 
---- Contesto: tutto ciò che serve ai calcoli, letto UNA volta (2 scansioni di pagine, 1 di tabelle)
+--- Contesto: tutto ciò che serve ai calcoli, letto UNA volta (3 scansioni di pagine, 1 di tabelle)
 --- e passato come ultimo argomento facoltativo alle funzioni. Campi:
 ---   strumenti (lista ordinata) e perId (id -> strumento, con metodoDichiarato/frequenza/quoteReali);
 ---   conti (vedi investimenti.conti);
 ---   serie: id -> lista {data, prezzo} ordinata, dalla pagina Quotazioni con lo stesso isin
 ---          (pagine con isin duplicato escluse);
 ---   ledger: solo le righe di movimento (tabelle di Strumenti/ con colonna Tipo), con il conto
----          risolto, i valori numerici (virgola decimale ammessa) e la data (nil se non nel
----          formato AAAA-MM-GG), in ordine cronologico.
+---          risolto, i valori numerici (virgola decimale ammessa), la data (nil se non nel
+---          formato AAAA-MM-GG) e `errore` (nil se la riga è valida: unica validazione), in
+---          ordine cronologico.
 --- Un contesto è un'istantanea: va ricreato a ogni calcolo/widget, non conservato.
 function investimenti.contesto()
   local c = {conti = investimenti.conti(), strumenti = investimenti.strumenti(),
@@ -510,8 +494,7 @@ function investimenti.contesto()
     from t = index.tables()
     where string.startsWith(t.page, "Strumenti/") or string.startsWith(t.page, "Quotazioni/")
     select {page = t.page, ref = t.ref, giorno = t.data, tipo = t.tipo, quote = t.quantit_,
-      valore = t.valore_eur or t.valore, conto = t.conto, px = t.prezzo,
-      causale = t.causale, riferimento = t.riferimento}
+      valore = t.valore_eur or t.valore, conto = t.conto, px = t.prezzo}
   ]]) do
     if string.startsWith(r.page, "Quotazioni/") then
       local pr = investimenti.numero(r.px)
@@ -524,12 +507,13 @@ function investimenti.contesto()
       end
     elseif type(r.tipo) == "string" then  -- le tabelle senza Tipo non sono movimenti
       local id = string.sub(r.page, 11)
+      local tipo = canonico(r.tipo)
+      local data = type(r.giorno) == "string" and string.match(r.giorno, "^%d%d%d%d%-%d%d%-%d%d$") and r.giorno or nil
+      local q, v = investimenti.numero(r.quote), investimenti.numero(r.valore)
       table.insert(c.ledger, {id = id,
         conto = investimenti.risolviConto(id, r.conto, c.conti.fisici, c.conti.portafogli),
-        contoEsplicito = str(r.conto), tipo = canonico(r.tipo), dataGrezza = tostring(r.giorno),
-        data = type(r.giorno) == "string" and string.match(r.giorno, "^%d%d%d%d%-%d%d%-%d%d$") and r.giorno or nil,
-        quote = investimenti.numero(r.quote), valore = investimenti.numero(r.valore),
-        causale = str(r.causale), riferimento = str(r.riferimento), ref = r.ref})
+        tipo = tipo, dataGrezza = tostring(r.giorno), data = data, quote = q, valore = v,
+        errore = erroreRiga(tipo, data, q, v), ref = r.ref})
     end
   end
   for _, lista in pairs(c.serie) do table.sort(lista, function(a, b) return a[1] < b[1] end) end
@@ -555,32 +539,22 @@ function investimenti.perimetro(pagina, ctx)
   return ammessi, conto, conto ~= nil and ctx.conti.aggregati[conto] == true
 end
 
---- Anomalie contabili: strumenti/conti inesistenti, conto non assegnato, date, importi e quantità
---- non validi nei movimenti (acquisti, vendite, redditi, snapshot). ctx facoltativo.
+--- Anomalie contabili: strumenti inesistenti nei conti, movimenti non assegnati a un conto e
+--- righe non valide (data, acquisti, vendite, redditi, snapshot). ctx facoltativo.
 function investimenti.verificaConti(ctx)
   ctx = ctx or investimenti.contesto()
-  local out, c = {}, ctx.conti
+  local out = {}
   local function errore(id, tipo, dettaglio)
     table.insert(out, {pagina = "Strumenti/" .. id, id = id, problema = tipo, dettaglio = dettaglio})
   end
-  for _, lista in ipairs({c.fisici, c.portafogli}) do
+  for _, lista in ipairs({ctx.conti.fisici, ctx.conti.portafogli}) do
     for id, pp in pairs(lista) do
       if not ctx.perId[id] then errore(id, "STRUMENTO_INESISTENTE", table.concat(pp, ", ")) end
     end
   end
   for _, r in ipairs(ctx.ledger) do
-    local giorno, tipo = r.dataGrezza, r.tipo
-    if r.contoEsplicito and not c.noti[r.conto] then errore(r.id, "CONTO_INESISTENTE", r.conto) end
-    if not r.conto then errore(r.id, "CONTO_NON_ASSEGNATO", giorno) end
-    if not r.data then
-      errore(r.id, "DATA_NON_VALIDA", giorno)
-    elseif (tipo == "Acquisto" or tipo == "Vendita") and (not r.quote or not r.valore) then
-      errore(r.id, "MOVIMENTO_NON_VALIDO", giorno)
-    elseif tipo == "Snapshot" and (not r.valore or r.valore < 0) then
-      errore(r.id, "SNAPSHOT_NON_VALIDO", giorno)
-    elseif (tipo == "Dividendo" or tipo == "Cedola") and (not r.valore or r.valore < 0) then
-      errore(r.id, "REDDITO_NON_VALIDO", giorno)
-    end
+    if r.errore then errore(r.id, r.errore, r.dataGrezza) end
+    if not r.conto then errore(r.id, "CONTO_NON_ASSEGNATO", r.dataGrezza) end
   end
   return out
 end
@@ -761,7 +735,7 @@ function investimenti.grafico(pagina)
   pagina = pagina or editor.getCurrentPage()
   if type(pagina) ~= "string" then return nil end
   local perIsin, perPagina, duplicati = investimenti.pagineQuotazioni()
-  local id, quot, conAcquisti, nome, strumento
+  local id, quot, conAcquisti, nome
   if string.startsWith(pagina, "Quotazioni/") then
     quot = pagina
     for _, s in ipairs(investimenti.strumenti()) do
@@ -771,24 +745,17 @@ function investimenti.grafico(pagina)
     id, conAcquisti = string.sub(pagina, 11), true
     for _, s in ipairs(investimenti.strumenti()) do
       if s.id == id then
-        nome, strumento = s.nome, s
+        nome = s.nome
         quot = s.isin and not duplicati[s.isin] and perIsin[s.isin] or nil
       end
     end
   else return widget.markdownBlock("_Il grafico vale per pagine Quotazioni/ e Strumenti/._") end
-
-  -- Senza quotazioni, uno strumento a rendiconto usa il grafico dei rendiconti.
-  local function senzaQuotazioni(messaggio)
-    local m = strumento and investimenti.metodo(strumento)
-    if m == "snapshot" or m == "manuale" then return investimenti.graficoSnapshot(pagina) end
-    return widget.markdownBlock(messaggio)
-  end
   if not quot then
-    return senzaQuotazioni("_Nessuna pagina Quotazioni univoca con l'isin dello strumento._")
+    return widget.markdownBlock("_Nessuna pagina Quotazioni univoca con l'isin dello strumento._")
   end
 
   local serie = investimenti.serie(quot)
-  if #serie < 2 then return senzaQuotazioni("_Quotazioni insufficienti per il grafico._") end
+  if #serie < 2 then return widget.markdownBlock("_Quotazioni insufficienti per il grafico._") end
   local acq = conAcquisti and investimenti.acquisti(id) or {}
 
   local function coppie(lista)
@@ -827,20 +794,18 @@ investimenti = investimenti or {}
 
 local function oggi() return os.date("!%Y-%m-%d") end
 
---- Metodo di valorizzazione: quello dichiarato nello strumento (attributo metodoValorizzazione)
---- se valido, altrimenti dedotto dal tipo.
+-- Nomi dei metodi: i quattro canonici e i sinonimi delle versioni precedenti.
+local METODI = {prezzo = "prezzo", mercato = "prezzo", nav = "prezzo", obbligazione = "prezzo",
+  snapshot = "snapshot", manuale = "snapshot",
+  contrattuale = "contrattuale", nominale = "contrattuale", costo = "costo"}
+
+--- Metodo di valorizzazione di uno strumento di strumenti(): l'attributo metodoValorizzazione
+--- se valido, altrimenti PIR -> snapshot e tutto il resto -> prezzo.
+--- prezzo: quote x ultimo prezzo; snapshot: ultimo rendiconto + apporti successivi;
+--- contrattuale: prezzo manuale o costo; costo: costo residuo.
 function investimenti.metodo(s)
-  if type(s) ~= "table" then return "manuale" end
-  local ammessi = {mercato = true, nav = true, obbligazione = true,
-    contrattuale = true, snapshot = true, manuale = true, nominale = true, costo = true}
-  if s.metodoDichiarato and ammessi[s.metodoDichiarato] then return s.metodoDichiarato end
-  if s.tipo == "PIR" then return "snapshot" end
-  if s.tipo == "Fondo" then return "nav" end
-  if s.tipo == "Obbligazione" then
-    if string.startsWith(s.id, "CD-") then return "contrattuale" end
-    return "obbligazione"
-  end
-  return "mercato"  -- Cambio, Cripto e tutto il resto
+  if type(s) ~= "table" then return "snapshot" end
+  return METODI[s.metodoDichiarato] or (s.tipo == "PIR" and "snapshot" or "prezzo")
 end
 
 -- Ultimo prezzo non successivo alla data: ricerca binaria sulla serie ordinata per data.
@@ -872,7 +837,7 @@ local function giorniTraDate(a, b)
   return x and y and (y - x) or nil
 end
 
---- Ultimo prezzo di ogni strumento alla data, convertito in EUR: id -> {data, prezzo, eur, dataCambio}.
+--- Ultimo prezzo di ogni strumento alla data, convertito in EUR: id -> {data, prezzo, eur}.
 --- Valute diverse da EUR e USD non sono convertibili: eur = nil (stato CAMBIO_MANCANTE).
 function investimenti.prezzi(data, ctx)
   data = data or oggi()
@@ -881,18 +846,21 @@ function investimenti.prezzi(data, ctx)
   for _, s in ipairs(ctx.strumenti) do
     local r = prezzoPrima(ctx.serie[s.id], data)
     if r then
-      local eur, dtCambio = r[2], nil
+      local eur = r[2]
       if s.valuta == "USD" and s.id ~= "EURUSD" then
         local cambio = prezzoPrima(ctx.serie.EURUSD, r[1])
-        if cambio then eur, dtCambio = eur / cambio[2], cambio[1] else eur = nil end
+        eur = cambio and eur / cambio[2] or nil
       elseif s.valuta ~= "EUR" and s.valuta ~= "USD" then eur = nil end
-      px[s.id] = {data = r[1], prezzo = r[2], eur = eur, dataCambio = dtCambio}
+      px[s.id] = {data = r[1], prezzo = r[2], eur = eur}
     end
   end
   return px
 end
 
--- Posizioni e lotti PMC, calcolati cronologicamente per conto + strumento.
+--- Posizioni PMC per conto + strumento, calcolate cronologicamente sul ledger del contesto.
+--- Ogni posizione porta anche l'ultimo snapshot valido (snapshot = {data, valore}) e gli apporti
+--- netti (acquisti meno vendite) successivi alla data dello snapshot: PROXY contabile,
+--- non una variazione di mercato certificata.
 function investimenti.lotti(pagina, data, ctx)
   data = data or oggi()
   ctx = ctx or investimenti.contesto()
@@ -905,36 +873,37 @@ function investimenti.lotti(pagina, data, ctx)
     end
     if include then
       local key = (r.conto or "NON_ASSEGNATO") .. "|" .. r.id
-      if not per[key] then
-        per[key] = {id = r.id, conto = r.conto, quote = 0, costo = 0,
-          realizzato = 0, redditi = 0, acquisti = 0, vendite = 0,
-          errori = {}, flussi = {}, primo = nil}
+      local p = per[key]
+      if not p then
+        p = {id = r.id, conto = r.conto, quote = 0, costo = 0, realizzato = 0, redditi = 0,
+          errori = {}, flussi = {}, snapshot = nil, apporti = 0}
+        per[key] = p
         table.insert(chiavi, key)
       end
-      local v, q, p = r.valore, r.quote, per[key]
-      if r.tipo == "Acquisto" then
-        if not q or q <= 0 or not v or v <= 0 then
-          table.insert(p.errori, "ACQUISTO_NON_VALIDO " .. r.data)
-        else
-          p.quote, p.costo, p.acquisti = p.quote + q, p.costo + v, p.acquisti + v
-          if not p.primo then p.primo = r.data end
-          table.insert(p.flussi, {data = r.data, valore = -v})
-        end
+      local v, q = r.valore, r.quote
+      if r.tipo == "Snapshot" then
+        -- Un snapshot non valido non è usato e non invalida la posizione.
+        if not r.errore then p.snapshot, p.apporti = {data = r.data, valore = v}, 0 end
+      elseif r.errore then
+        table.insert(p.errori, r.errore .. " " .. r.data)
+      elseif r.tipo == "Acquisto" then
+        p.quote, p.costo = p.quote + q, p.costo + v
+        table.insert(p.flussi, {data = r.data, valore = -v})
+        if p.snapshot and r.data > p.snapshot.data then p.apporti = p.apporti + v end
       elseif r.tipo == "Vendita" then
-        if not q or q <= 0 or not v or v < 0 or q > p.quote + 1e-7 then
-          table.insert(p.errori, "VENDITA_NON_VALIDA " .. r.data)
+        if q > p.quote + 1e-7 then
+          table.insert(p.errori, "VENDITA_ECCEDENTE " .. r.data)
         else
           local costoVenduto = p.quote > 0 and p.costo * q / p.quote or 0
           p.realizzato = p.realizzato + v - costoVenduto
-          p.quote, p.costo, p.vendite = p.quote - q, p.costo - costoVenduto, p.vendite + v
+          p.quote, p.costo = p.quote - q, p.costo - costoVenduto
           if math.abs(p.quote) < 1e-7 then p.quote, p.costo = 0, 0 end
           table.insert(p.flussi, {data = r.data, valore = v})
+          if p.snapshot and r.data > p.snapshot.data then p.apporti = p.apporti - v end
         end
       elseif r.tipo == "Dividendo" or r.tipo == "Cedola" then
-        if v and v >= 0 then
-          p.redditi = p.redditi + v
-          table.insert(p.flussi, {data = r.data, valore = v})
-        else table.insert(p.errori, "REDDITO_NON_VALIDO " .. r.data) end
+        p.redditi = p.redditi + v
+        table.insert(p.flussi, {data = r.data, valore = v})
       end
     end
   end
@@ -944,105 +913,54 @@ function investimenti.lotti(pagina, data, ctx)
   return out
 end
 
--- Snapshot informativi: un controvalore in EUR per posizione e data (chiave "conto|id").
--- Non contribuiscono ai lotti o ai flussi finanziari. Il conto viene risolto
--- dal ledger esistente, così gli snapshot rimangono nella stessa posizione.
--- Le serie sono in ordine cronologico (il ledger è già ordinato).
-function investimenti.snapshotDati(pagina, data, ctx)
-  data = data or oggi()
-  ctx = ctx or investimenti.contesto()
-  local ammessi, conto, aggregato = investimenti.perimetro(pagina, ctx)
-  local out = {}
-  for _, r in ipairs(ctx.ledger) do
-    if r.tipo == "Snapshot" and (not ammessi or ammessi[r.id]) and r.valore and r.valore >= 0 and
-      r.data and r.data <= data and (not conto or r.conto == conto or aggregato) then
-      local key = (r.conto or "NON_ASSEGNATO") .. "|" .. r.id
-      out[key] = out[key] or {}
-      table.insert(out[key], {data = r.data, valore = r.valore})
-    end
-  end
-  return out
-end
-
--- Apporti e rimborsi posteriori all'ultimo rendiconto: una PROXY
--- contabile, non una quotazione o una variazione certificata di mercato.
--- ledger: ctx.ledger.
-function investimenti.movimentiDopoSnapshot(id, conto, dataSnapshot, dataFine, ledger)
-  local netto = 0
-  for _, r in ipairs(ledger) do
-    if r.id == id and (r.conto or "NON_ASSEGNATO") == (conto or "NON_ASSEGNATO") and
-      r.data and r.data > dataSnapshot and r.data <= dataFine and r.valore then
-      if r.tipo == "Acquisto" then netto = netto + r.valore
-      elseif r.tipo == "Vendita" then netto = netto - r.valore end
-    end
-  end
-  return netto
-end
-
--- Valorizzazione datata: NAV e mercato su quotazioni; contrattuale/nominale su
--- capitale effettivo; snapshot/manuale solo con valore di posizione esplicito.
--- I PIR dell'esempio: l'unità sintetica di 1 EUR NON è un numero di quote NAV.
--- Ogni riga porta con sé il lotto (campo lotto) da cui deriva.
+--- Valorizza le posizioni del perimetro alla data (oggi se omessa). Ogni riga:
+--- {id, conto, metodo, quote, costo, valore, stato, copertura, dataPrezzo, lotto}.
+--- stato: come è stato ottenuto il valore; copertura: quanto è affidabile e recente
+--- (AGGIORNATO, SNAPSHOT_UFFICIALE, OBSOLETO, INDICATIVO, MANCANTE, CHIUSA).
+--- Soglia di età: frequenzaPrezzoGiorni dello strumento, altrimenti 365 giorni per snapshot
+--- e contrattuali, 7 per gli altri. Vale per prezzi e snapshot.
 function investimenti.valoreAllaData(pagina, data, ctx)
   data = data or oggi()
   ctx = ctx or investimenti.contesto()
   local prezzi = investimenti.prezzi(data, ctx)
-  local snapshots = investimenti.snapshotDati(pagina, data, ctx)
-  local righe, totale = {}, {valore = 0, note = 0, mancanti = 0, stimati = 0, posizioni = 0}
+  local righe = {}
   for _, p in ipairs(investimenti.lotti(pagina, data, ctx)) do
     local s = ctx.perId[p.id] or {id = p.id, tipo = ""}
     local metodo = investimenti.metodo(s)
     local px = prezzi[p.id]
-    local valore, stato, dt, fonte
+    local valore, stato, dt
     if p.quote == 0 then valore, stato = 0, "CHIUSA"
     elseif #p.errori > 0 then stato = "MOVIMENTI_INVALIDI"
-    elseif (metodo == "mercato" or metodo == "nav" or metodo == "obbligazione") then
-      if metodo == "nav" and s.tipo == "PIR" and not s.quoteReali then
-        stato = "QUOTE_NAV_NON_VERIFICATE"
-      elseif px and px.eur then
-        valore, dt, fonte = p.quote * px.eur, px.data, "quotazione"
-        stato = "PREZZO_DISPONIBILE"
+    elseif metodo == "prezzo" then
+      if px and px.eur then valore, dt, stato = p.quote * px.eur, px.data, "PREZZO_DISPONIBILE"
       else stato = px and "CAMBIO_MANCANTE" or "PREZZO_MANCANTE" end
-    elseif metodo == "snapshot" or metodo == "manuale" then
-      local serie = snapshots[(p.conto or "NON_ASSEGNATO") .. "|" .. p.id] or {}
-      local ultimo = serie[#serie]
-      if ultimo then
-        local flussi = investimenti.movimentiDopoSnapshot(p.id, p.conto, ultimo.data, data, ctx.ledger)
-        valore, dt = ultimo.valore + flussi, ultimo.data
-        if math.abs(flussi) > 0.000001 then
-          stato, fonte = "SNAPSHOT_CON_APPORTI", "snapshot_piu_movimenti_indicativo"
-        else
-          stato, fonte = "SNAPSHOT_DISPONIBILE", "snapshot_movimenti"
-        end
-      elseif px and px.eur and s.quoteReali then
-        valore, dt, fonte = p.quote * px.eur, px.data, "nav_confermato"
-        stato = "PREZZO_DISPONIBILE"
+    elseif metodo == "snapshot" then
+      if p.snapshot then
+        valore, dt = p.snapshot.valore + p.apporti, p.snapshot.data
+        stato = math.abs(p.apporti) > 0.000001 and "SNAPSHOT_CON_APPORTI" or "SNAPSHOT_DISPONIBILE"
       else stato = "SNAPSHOT_MANCANTE" end
-    elseif metodo == "nominale" or metodo == "contrattuale" then
-      -- Se esiste una quotazione manuale datata, mostra il nominale comunicato;
-      -- il prezzo resta indicativo, quindi non abilita XIRR come dato realizzato.
-      if px and px.eur then
-        valore, dt, stato, fonte = p.quote * px.eur, px.data,
-          "PREZZO_MANUALE_CONTRATTUALE", "quotazione_manualizzata"
-      else
-        valore, stato, fonte = p.costo, "COSTO_PROXY_CONTRATTUALE", "costo_residuo"
-      end
-    elseif metodo == "costo" then
-      valore, stato, fonte = p.costo, "COSTO_NON_MERCATO", "costo_residuo"
-    end
-    if valore ~= nil then
-      totale.valore = totale.valore + valore
-      totale.note = totale.note + 1
-      if stato ~= "PREZZO_DISPONIBILE" and stato ~= "SNAPSHOT_DISPONIBILE" and stato ~= "CHIUSA" then
-        totale.stimati = totale.stimati + 1
-      end
-    else totale.mancanti = totale.mancanti + 1 end
-    totale.posizioni = totale.posizioni + 1
+    elseif metodo == "contrattuale" then
+      -- Prezzo manuale datato se esiste, altrimenti costo: mai un prezzo di mercato.
+      if px and px.eur then valore, dt, stato = p.quote * px.eur, px.data, "PREZZO_MANUALE_CONTRATTUALE"
+      else valore, stato = p.costo, "COSTO_PROXY_CONTRATTUALE" end
+    else valore, stato = p.costo, "COSTO_NON_MERCATO" end
+
+    local copertura
+    if stato == "CHIUSA" then copertura = "CHIUSA"
+    elseif valore == nil then copertura = "MANCANTE"
+    elseif stato == "PREZZO_DISPONIBILE" or stato == "SNAPSHOT_DISPONIBILE" then
+      local limite = s.frequenza or ((metodo == "snapshot" or metodo == "contrattuale") and 365 or 7)
+      local eta = giorniTraDate(dt, data)
+      if eta and eta >= 0 and eta <= limite then
+        copertura = stato == "PREZZO_DISPONIBILE" and "AGGIORNATO" or "SNAPSHOT_UFFICIALE"
+      else copertura = "OBSOLETO" end
+    else copertura = "INDICATIVO" end
+
     table.insert(righe, {id = p.id, conto = p.conto, metodo = metodo, quote = p.quote,
-      valore = valore, stato = stato, fonte = fonte, dataPrezzo = dt,
-      prezzo = px and px.prezzo, dataCambio = px and px.dataCambio, costo = p.costo, lotto = p})
+      costo = p.costo, valore = valore, stato = stato, copertura = copertura,
+      dataPrezzo = dt, lotto = p})
   end
-  return righe, totale
+  return righe
 end
 
 function investimenti.risultatoDati(pagina, data, ctx)
@@ -1129,94 +1047,35 @@ local function xirr(flussi)
   return ((x + y) / 2) * 100
 end
 
-function investimenti.rendimentoDati(pagina, metodo)
+--- Rendimento XIRR della singola posizione di uno strumento (pagina Strumenti/<id>).
+--- Restituisce {metodo, percentuale, nota} oppure {errore, dettaglio}.
+function investimenti.rendimentoDati(pagina)
   pagina = pagina or editor.getCurrentPage()
-  metodo = metodo or "xirr"
-  if metodo ~= "xirr" and metodo ~= "twr" then return {errore = "METODO_SCONOSCIUTO"} end
   local id = type(pagina) == "string" and string.startsWith(pagina, "Strumenti/") and string.sub(pagina, 11)
   if not id then return {errore = "PERIMETRO_NON_RICONCILIATO", dettaglio = "Richiesto singolo strumento: mancano liquidita e flussi esterni del conto"} end
-  local data, ctx = oggi(), investimenti.contesto()
-  local valori = investimenti.valoreAllaData(pagina, data, ctx)
+  local data = oggi()
+  local valori = investimenti.valoreAllaData(pagina, data)
   if #valori ~= 1 then return {errore = "POSIZIONI_MULTIPLE", dettaglio = "Serve una posizione univoca per conto"} end
   local v = valori[1]
-  -- Strumento a rendiconto: il valore è certificato solo alla data dell'ultimo snapshot,
-  -- quindi il rendimento si calcola a quella data (flussi successivi esclusi).
-  if (v.stato == "SNAPSHOT_DISPONIBILE" or v.stato == "SNAPSHOT_CON_APPORTI") and
-    v.dataPrezzo and v.dataPrezzo < data then
-    data = v.dataPrezzo
-    valori = investimenti.valoreAllaData(pagina, data, ctx)
-    if #valori ~= 1 then return {errore = "POSIZIONI_MULTIPLE", dettaglio = "Serve una posizione univoca per conto"} end
-    v = valori[1]
-  end
   local p = v.lotto
-  if #p.errori > 0 then return {errore = "MOVIMENTI_INVALIDI"} end
-  if v.valore == nil then return {errore = v.stato or "VALORE_MANCANTE"} end
-  if v.stato ~= "PREZZO_DISPONIBILE" and v.stato ~= "SNAPSHOT_DISPONIBILE" and v.stato ~= "CHIUSA" then
+  if #p.errori > 0 then return {errore = "MOVIMENTI_INVALIDI", dettaglio = table.concat(p.errori, "; ")} end
+  if v.valore == nil then return {errore = v.stato} end
+  if v.stato ~= "PREZZO_DISPONIBILE" and v.stato ~= "CHIUSA" then
     return {errore = "VALORE_INDICATIVO", dettaglio = v.stato}
-  end
-  if metodo == "twr" then
-    -- Evita di dichiarare esatto un TWR con versamenti intermedi o dividendi.
-    local acquisti, altri = 0, 0
-    for _, f in ipairs(p.flussi) do
-      if f.valore < 0 then acquisti = acquisti + 1 else altri = altri + 1 end
-    end
-    if acquisti ~= 1 or altri > 0 then return {errore = "SOTTOPERIODI_MANCANTI"} end
-    if p.acquisti <= 0 then return {errore = "CAPITALE_MANCANTE"} end
-    return {metodo = metodo, percentuale = (v.valore / p.acquisti - 1) * 100,
-      nota = "Rendimento dal solo acquisto iniziale, non annualizzato"}
   end
   local flussi = {}
   for _, f in ipairs(p.flussi) do table.insert(flussi, {data = f.data, valore = f.valore}) end
   if p.quote ~= 0 then table.insert(flussi, {data = data, valore = v.valore}) end
   table.sort(flussi, function(a, b) return a.data < b.data end)
   local rendimento, errore = xirr(flussi)
-  local nota = "XIRR annualizzato; flussi della singola posizione"
-  if data ~= oggi() then nota = nota .. "; al rendiconto del " .. data end
-  return {metodo = metodo, percentuale = rendimento, errore = errore, data = data, nota = nota}
+  return {metodo = "xirr", percentuale = rendimento, errore = errore,
+    nota = "XIRR annualizzato; flussi della singola posizione"}
 end
 
-function investimenti.rendimento(pagina, metodo)
-  local r = investimenti.rendimentoDati(pagina, metodo)
+function investimenti.rendimento(pagina)
+  local r = investimenti.rendimentoDati(pagina)
   if r.errore then return widget.markdown("**Rendimento n.d.**: " .. r.errore) end
-  return widget.markdown("**" .. string.upper(r.metodo) .. "**: " ..
-    investimenti.formatoNumero(r.percentuale, 2) .. " %" .. " — " .. r.nota)
-end
-
---- Valorizzazione con stato di copertura per riga: AGGIORNATO / SNAPSHOT_UFFICIALE (prezzo o
---- snapshot entro la soglia di età), OBSOLETO (oltre la soglia), INDICATIVO, MANCANTE.
---- Soglia in giorni: frequenzaPrezzoGiorni dello strumento, altrimenti 365 per snapshot e
---- contrattuali, 7 per gli altri.
-function investimenti.coperturaDati(pagina, data, ctx)
-  data = data or oggi()
-  ctx = ctx or investimenti.contesto()
-  local righe, tot = investimenti.valoreAllaData(pagina, data, ctx)
-  local report = {aggiornati = 0, obsoleti = 0, mancanti = tot.mancanti,
-    stimati = tot.stimati, totalePosizioni = tot.posizioni, valoreParziale = tot.valore}
-  for _, r in ipairs(righe) do
-    local s = ctx.perId[r.id] or {}
-    local limite = s.frequenza or ((r.metodo == "snapshot" or r.metodo == "contrattuale") and 365 or 7)
-    local gg = r.dataPrezzo and giorniTraDate(r.dataPrezzo, data)
-    r.etaGiorni, r.sogliaGiorni = gg, limite
-    if r.valore == nil then r.copertura = "MANCANTE"
-    elseif r.stato == "SNAPSHOT_DISPONIBILE" or r.stato == "PREZZO_DISPONIBILE" then
-      if gg and gg >= 0 and gg <= limite then
-        r.copertura = r.stato == "PREZZO_DISPONIBILE" and "AGGIORNATO" or "SNAPSHOT_UFFICIALE"
-        report.aggiornati = report.aggiornati + 1
-      else r.copertura = "OBSOLETO"; report.obsoleti = report.obsoleti + 1 end
-    else r.copertura = "INDICATIVO" end
-  end
-  report.completo = report.mancanti == 0 and report.obsoleti == 0 and report.stimati == 0
-  return righe, report
-end
-
-function investimenti.copertura(pagina)
-  local _, r = investimenti.coperturaDati(pagina)
-  return widget.markdown("**Copertura patrimonio**: " .. r.totalePosizioni ..
-    " posizioni; " .. r.aggiornati .. " aggiornate, " ..
-    r.obsoleti .. " obsolete, " .. r.stimati .. " indicative, " ..
-    r.mancanti .. " mancanti. **Valore parziale:** " ..
-    investimenti.formatoNumero(r.valoreParziale, 2) .. " €" ..
-    (r.completo and "" or " (NON rappresenta il patrimonio completo)"))
+  return widget.markdown("**XIRR**: " .. investimenti.formatoNumero(r.percentuale, 2) .. " % — " .. r.nota)
 end
 ```
 
@@ -1255,13 +1114,13 @@ end
 
 --- Valori del perimetro selezionato (solo posizioni aperte e valorizzate).
 --- Il riepilogo considera le posizioni aperte alla data di consultazione.
---- Copertura per posizione: ufficiali (snapshot entro soglia), indicativi, obsoleti, mancanti.
+--- Copertura: ufficiali (snapshot entro soglia), indicativi, obsoleti, mancanti.
 function investimenti.dashboardDati(pagina, tipo, ctx)
   ctx = ctx or investimenti.contesto()
   local scope, ammessi = ambito(pagina, tipo, ctx)
   local rows, t = {}, {costo = 0, valore = 0, pl = 0, conteggio = 0, mancanti = 0,
     indicativi = 0, ufficiali = 0, obsoleti = 0, kidSomma = 0, kidPeso = 0}
-  for _, r in ipairs((investimenti.coperturaDati(scope, nil, ctx))) do
+  for _, r in ipairs(investimenti.valoreAllaData(scope, nil, ctx)) do
     if ammessi[r.id] and r.quote > 0.0000001 then
       t.conteggio = t.conteggio + 1
       if r.valore == nil then t.mancanti = t.mancanti + 1
@@ -1328,60 +1187,22 @@ function investimenti.dashboard(pagina, tipo)
   return widget.markdown(table.concat(out, "\n"))
 end
 
---- Metadati switch FACOLTATIVI: nessun abbinamento automatico dalla sola data.
-function investimenti.switch(pagina, ctx)
-  ctx = ctx or investimenti.contesto()
-  local _, ids = ambito(pagina, nil, ctx)
-  local out, gruppi = {}, {}
-  for _, r in ipairs(ctx.ledger) do
-    if ids[r.id] and r.causale and string.lower(r.causale) == "switch" then
-      local x = {id = r.id, data = r.data, tipo = r.tipo, riferimento = r.riferimento, valore = r.valore}
-      table.insert(out, x)
-      if r.riferimento and r.riferimento ~= "" then
-        gruppi[r.riferimento] = gruppi[r.riferimento] or {}
-        table.insert(gruppi[r.riferimento], x)
-      end
-    end
-  end
-  local problemi = {}
-  for _, r in ipairs(out) do
-    if not r.riferimento or r.riferimento == "" then
-      table.insert(problemi,{problema="SWITCH_SENZA_RIFERIMENTO",id=r.id,data=r.data})
-    end
-  end
-  for ref, righe in pairs(gruppi) do
-    local nA,nV = 0,0
-    for _, r in ipairs(righe) do
-      if r.tipo == "Acquisto" then nA=nA+1 elseif r.tipo == "Vendita" then nV=nV+1 end
-    end
-    if nA == 0 or nV == 0 then
-      table.insert(problemi,{problema="SWITCH_NON_ABBINATO",riferimento=ref,
-        dettaglio="acquisti=" .. nA .. ", vendite=" .. nV})
-    end
-  end
-  return out, problemi
-end
-
---- Segnalazioni del perimetro: copertura (obsoleti, indicativi, mancanti), anomalie dei movimenti
---- (verificaConti) e switch incompleti. Lista di {strumento, problema, dettaglio}.
+--- Segnalazioni del perimetro: posizioni non aggiornate (obsolete, indicative, mancanti, con
+--- la causa) e anomalie contabili di verificaConti. Lista di {strumento, problema, dettaglio}.
 function investimenti.diagnosticaDati(pagina, ctx)
   ctx = ctx or investimenti.contesto()
   local out = {}
   local scope, ids = ambito(pagina, nil, ctx)
-  for _, r in ipairs((investimenti.coperturaDati(scope, nil, ctx))) do
-    if r.copertura ~= "AGGIORNATO" and r.copertura ~= "SNAPSHOT_UFFICIALE" and r.stato ~= "CHIUSA" then
-      table.insert(out, {strumento = r.id, problema = r.copertura, dettaglio = r.stato})
+  for _, r in ipairs(investimenti.valoreAllaData(scope, nil, ctx)) do
+    if r.copertura ~= "AGGIORNATO" and r.copertura ~= "SNAPSHOT_UFFICIALE" and r.copertura ~= "CHIUSA" then
+      table.insert(out, {strumento = r.id, problema = r.copertura,
+        dettaglio = r.stato == "MOVIMENTI_INVALIDI" and table.concat(r.lotto.errori, "; ") or r.stato})
     end
   end
   for _, p in ipairs(investimenti.verificaConti(ctx)) do
     if ids[p.id] then
       table.insert(out, {strumento = p.id, problema = p.problema, dettaglio = p.dettaglio})
     end
-  end
-  local _, problemi = investimenti.switch(scope, ctx)
-  for _, p in ipairs(problemi) do
-    table.insert(out, {strumento = p.id or p.riferimento,
-      problema = p.problema, dettaglio = p.data or p.dettaglio})
   end
   return out
 end
@@ -1456,42 +1277,6 @@ function investimenti.graficoPatrimonio(pagina, periodo, tipo)
   return widget.sandbox{html='<div style="height:300px;position:relative"><canvas id="c"></canvas></div>',
     script=script, markdown="Grafico patrimonio: " .. (pagina or "Index") ..
       ". Punti mancanti = serie non sufficientemente coperta."}
-end
-
---- Grafico di uno strumento valorizzato a rendiconto (metodo snapshot/manuale): valore dei
---- rendiconti Snapshot e versato netto cumulato (acquisti − vendite), su tutti i conti.
-function investimenti.graficoSnapshot(pagina)
-  pagina = pagina or editor.getCurrentPage()
-  if type(pagina) ~= "string" or not string.startsWith(pagina, "Strumenti/") then return nil end
-  local id = string.sub(pagina, 11)
-  local valore, versato, giorni, netto = {}, {}, {}, 0
-  -- Il ledger è in ordine cronologico; a parità di data gli acquisti precedono lo snapshot.
-  for _, r in ipairs(investimenti.contesto().ledger) do
-    if r.id == id and r.data and r.valore and
-      (r.tipo == "Snapshot" or r.tipo == "Acquisto" or r.tipo == "Vendita") then
-      if r.tipo == "Snapshot" then valore[r.data] = (valore[r.data] or 0) + r.valore
-      elseif r.tipo == "Acquisto" then netto = netto + r.valore
-      else netto = netto - r.valore end
-      if versato[r.data] == nil then table.insert(giorni, r.data) end
-      versato[r.data] = netto
-    end
-  end
-  if next(valore) == nil then return widget.markdownBlock("_Nessun rendiconto Snapshot per il grafico._") end
-  local etichette, valori, versati = {}, {}, {}
-  for _, d in ipairs(giorni) do
-    table.insert(etichette, investimenti.js(d))
-    table.insert(valori, valore[d] and string.format("%.2f", valore[d]) or "null")
-    table.insert(versati, string.format("%.2f", versato[d]))
-  end
-  local dati = "const labels=[" .. table.concat(etichette, ",") .. "];const valori=[" ..
-    table.concat(valori, ",") .. "];const versato=[" .. table.concat(versati, ",") .. "];"
-  local script = 'loadJsByUrl("' .. investimenti.chartjs .. '").then(function(){' .. dati ..
-    'new Chart(document.getElementById("c"),{type:"line",data:{labels:labels,datasets:[' ..
-    '{label:"Valore (rendiconti)",data:valori,borderColor:"#487da3",spanGaps:true,pointRadius:3},' ..
-    '{label:"Versato netto",data:versato,borderColor:"#d9822b",borderDash:[4,3],stepped:true,pointRadius:0}]},' ..
-    'options:{responsive:true,maintainAspectRatio:false,animation:false,scales:{y:{beginAtZero:false}}}});});'
-  return widget.sandbox{html = '<div style="height:300px;position:relative"><canvas id="c"></canvas></div>',
-    script = script, markdown = "Grafico rendiconti: " .. pagina}
 end
 
 --- Widget automatici, solo se configurati (investimenti.widgetAutomatici = true): elenco di funzioni
