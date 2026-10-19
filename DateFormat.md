@@ -774,6 +774,28 @@ function date.diff(a, b)
   return {anni = mesi // 12, mesi = mesi % 12, giorni = giorni}
 end
 
+-- Numero seriale del giorno (calendario gregoriano), senza os.time/timezone.
+local function giorno_seriale(dataISO)
+  if type(dataISO) ~= "string" then return nil end
+  local y, m, d = string.match(dataISO, "^(%d%d%d%d)%-(%d%d)%-(%d%d)$")
+  if not y then return nil end
+  y, m, d = tonumber(y), tonumber(m), tonumber(d)
+  if m < 1 or m > 12 or d < 1 or d > 31 then return nil end
+  if m <= 2 then y = y - 1 end
+  local era = math.floor(y / 400)
+  local yo = y - era * 400
+  local mp = m + (m > 2 and -3 or 9)
+  local doy = math.floor((153 * mp + 2) / 5) + d - 1
+  return era * 146097 + yo * 365 + math.floor(yo / 4) - math.floor(yo / 100) + doy
+end
+
+-- Giorni tra due date ISO (con segno: positivo se b è successiva ad a).
+function date.days(a, b)
+  local x, y = giorno_seriale(a), giorno_seriale(b)
+  return x and y and (y - x) or nil
+end
+
+
 -- Differenza in testo leggibile; le parti a zero vengono omesse.
 -- Formato omesso o sconosciuto: forma compatta "6a 7m 4g".
 function date.diffText(a, b, formato)
