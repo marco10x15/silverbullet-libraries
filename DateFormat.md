@@ -2,8 +2,8 @@
 name: "Library/MG/DateFormat"
 tags: meta/library
 pageDecoration.prefix: "⏳ "
+version: 0.5
 share.uri: "github:marco10x15/silverbullet-libraries/DateFormat.md"
----
 ---
 
 # date.format(dataISO, formato)
@@ -120,6 +120,30 @@ Mese non valido, giorno `00` o input non conforme a `YYYY-MM-DD` restituiscono:
 ```
 no data
 ```
+
+# date.diff(dataA, dataB)
+
+`date.diff()` calcola la differenza tra due date ISO `YYYY-MM-DD` e la restituisce come tabella con i campi `anni`, `mesi` e `giorni`. L'ordine dei parametri è indifferente: le date vengono ordinate automaticamente. Il calcolo non usa `os.time` e quindi non dipende da fuso orario o ora legale. Se una delle due date non è conforme a `YYYY-MM-DD`, restituisce `nil`.
+
+Si usano prima i mesi interi, poi i giorni residui. Se il giorno iniziale non esiste nel mese di riferimento, viene limitato all'ultimo giorno di quel mese.
+
+Esempi:
+
+`date.diff("2020-03-15", "2026-10-19")` restituisce: `{anni = 6, mesi = 7, giorni = 4}`
+
+`date.diff("2026-01-31", "2026-03-01")` restituisce: `{anni = 0, mesi = 1, giorni = 1}`
+
+# date.diffText(dataA, dataB)
+
+`date.diffText()` restituisce il risultato di `date.diff()` come testo leggibile, con singolare e plurale gestiti automaticamente. Con date non valide restituisce `no data`, coerentemente con `date.format()`.
+
+Esempi:
+
+`date.diffText("2020-03-15", "2026-10-19")` restituisce: `6 anni, 7 mesi, 4 giorni`
+
+`date.diffText("2025-10-19", os.date("%Y-%m-%d"))` restituisce, al 19.10.2026: `1 anno, 0 mesi, 0 giorni`
+
+
 
 ## Implementation
 
@@ -722,6 +746,47 @@ function date.format(
 
   return risultato
 end
+
+-- Differenza tra due date ISO YYYY-MM-DD → {anni, mesi, giorni}, oppure nil.
+-- Convenzione: 31 gen → 1 mar = 1 mese e 1 giorno.
+function date.diff(a, b)
+  if type(a) ~= "string" or type(b) ~= "string" then return nil end
+  if a > b then a, b = b, a end
+
+  local y1, m1, d1 = string.match(a, "^(%d%d%d%d)%-(%d%d)%-(%d%d)$")
+  local y2, m2, d2 = string.match(b, "^(%d%d%d%d)%-(%d%d)%-(%d%d)$")
+  if not y1 or not y2 then return nil end
+  y1, m1, d1 = tonumber(y1), tonumber(m1), tonumber(d1)
+  y2, m2, d2 = tonumber(y2), tonumber(m2), tonumber(d2)
+
+  local mesi = (y2 - y1) * 12 + (m2 - m1)
+  local giorni = d2 - d1
+
+  if giorni < 0 then
+    mesi = mesi - 1
+    -- mese precedente a quello della data finale
+    local py, pm = y2, m2 - 1
+    if pm == 0 then py, pm = y2 - 1, 12 end
+    local max = giorni_del_mese(py, pm)
+    giorni = max - math.min(d1, max) + d2
+  end
+
+  return {anni = mesi // 12, mesi = mesi % 12, giorni = giorni}
+end
+
+-- Versione testuale: "6 anni, 7 mesi, 4 giorni"
+function date.diffText(a, b)
+  local r = date.diff(a, b)
+  if not r then return "no data" end
+  local function n(v, s, p) return v .. " " .. (v == 1 and s or p) end
+  return table.concat({
+    n(r.anni, "anno", "anni"),
+    n(r.mesi, "mese", "mesi"),
+    n(r.giorni, "giorno", "giorni"),
+  }, ", ")
+end
+
+
 ```
 
 ## Esempi
