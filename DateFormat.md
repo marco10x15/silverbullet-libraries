@@ -2,7 +2,7 @@
 name: "Library/MG/DateFormat"
 tags: meta/library
 pageDecoration.prefix: "⏳ "
-version: 0.5
+version: 0.6
 share.uri: "github:marco10x15/silverbullet-libraries/DateFormat.md"
 ---
 
@@ -123,7 +123,7 @@ no data
 
 # date.diff(dataA, dataB)
 
-`date.diff()` calcola la differenza tra due date ISO `YYYY-MM-DD` e la restituisce come tabella con i campi `anni`, `mesi` e `giorni`. L'ordine dei parametri è indifferente: le date vengono ordinate automaticamente. Il calcolo non usa `os.time` e quindi non dipende da fuso orario o ora legale. Se una delle due date non è conforme a `YYYY-MM-DD`, restituisce `nil`.
+`date.diff()` calcola la differenza tra due date ISO `YYYY-MM-DD` e la restituisce come tabella con i campi `anni`, `mesi` e `giorni`. L'ordine dei parametri è indifferente: le date vengono ordinate automaticamente. Se `dataB` è omessa viene utilizzata la data odierna. Il calcolo non usa `os.time` e quindi non dipende da fuso orario o ora legale. Se una delle due date non è conforme a `YYYY-MM-DD`, restituisce `nil`.
 
 Si usano prima i mesi interi, poi i giorni residui. Se il giorno iniziale non esiste nel mese di riferimento, viene limitato all'ultimo giorno di quel mese.
 
@@ -135,7 +135,7 @@ Esempi:
 
 # date.days(dataA, dataB)
 
-`date.days()` restituisce il numero di giorni tra due date ISO `YYYY-MM-DD`, con segno: positivo se `dataB` è successiva a `dataA`, negativo altrimenti. Non usa `os.time`. Con date non valide restituisce `nil`.
+`date.days()` restituisce il numero di giorni tra due date ISO `YYYY-MM-DD`, con segno: positivo se `dataB` è successiva a `dataA`, negativo altrimenti. Se `dataB` è omessa viene utilizzata la data odierna. Non usa `os.time`. Con date non valide restituisce `nil`.
 
 Esempi:
 
@@ -143,45 +143,71 @@ Esempi:
 
 `date.days("2026-10-19", "2026-10-12")` restituisce: `-7`
 
-# date.diffText(dataA, dataB, formato)
+# date.diffText(dataA, dataB, formato, compatta)
 
 `date.diffText()` restituisce la differenza tra due date ISO come testo leggibile. L'ordine delle date è indifferente. Le parti uguali a zero vengono omesse.
 
+## Utilizzo
+
+```
+date.diffText(dataA)
+date.diffText(dataA, dataB)
+date.diffText(dataA, dataB, formato)
+date.diffText(dataA, dataB, formato, compatta)
+```
+
 Parametri:
 
-*   `dataA`, `dataB`: obbligatori, date nel formato ISO `YYYY-MM-DD`;
-*   `formato`: opzionale; se omesso o non riconosciuto viene utilizzata la forma compatta.
+*   `dataA`: obbligatorio, data nel formato ISO `YYYY-MM-DD`;
+*   `dataB`: opzionale; se omessa (o `nil`) viene utilizzata la data odierna;
+*   `formato`: opzionale; se omesso o non riconosciuto viene utilizzato `amg`;
+*   `compatta`: opzionale; `1` restituisce la forma compatta, `0` la forma estesa. Se omesso, la forma è compatta quando `dataB` è omessa (differenza rispetto a oggi), estesa altrimenti.
+
+Per indicare `formato` o `compatta` con la data odierna, passare `nil` come `dataB`:
+
+```
+date.diffText("1965-12-18", nil, "a")
+date.diffText("1965-12-18", nil, "amg", 0)
+```
+
+restituiscono, al 19.10.2026: `60a` e `60 anni, 10 mesi e 1 giorno`.
 
 ## Formati
 
 Esempi calcolati tra `2020-03-15` e `2026-10-19`:
 
-| Formato | Risultato | Descrizione |
-| --- | --- | --- |
-| *(omesso)* | `6a 7m 4g` | Forma compatta |
-| `amg` | `6 anni, 7 mesi e 4 giorni` | Anni, mesi e giorni |
-| `am` | `6 anni e 7 mesi` | Anni e mesi |
-| `a` | `6 anni` | Solo anni |
-| `mg` | `79 mesi e 4 giorni` | Mesi totali e giorni |
-| `m` | `79 mesi` | Solo mesi totali |
-| `g` | `2409 giorni` | Giorni totali |
-| `wg` | `344 settimane e 1 giorno` | Settimane totali e giorni |
-| `w` | `344 settimane` | Solo settimane totali |
+| Formato | Forma estesa | Forma compatta | Descrizione |
+| --- | --- | --- | --- |
+| `amg` | `6 anni, 7 mesi e 4 giorni` | `6a 7m 4g` | Anni, mesi e giorni (default) |
+| `am` | `6 anni e 7 mesi` | `6a 7m` | Anni e mesi |
+| `a` | `6 anni` | `6a` | Solo anni |
+| `mg` | `79 mesi e 4 giorni` | `79m 4g` | Mesi totali e giorni |
+| `m` | `79 mesi` | `79m` | Solo mesi totali |
+| `g` | `2409 giorni` | `2409g` | Giorni totali |
+| `wg` | `344 settimane e 1 giorno` | `344s 1g` | Settimane totali e giorni |
+| `w` | `344 settimane` | `344s` | Solo settimane totali |
 
 I formati ridotti troncano senza arrotondare: con `am`, 6 anni, 7 mesi e 29 giorni diventano `6 anni e 7 mesi`.
 
-Un formato non riconosciuto restituisce la forma compatta: un errore di battitura non genera errori ma un output diverso da quello atteso.
+Un formato non riconosciuto viene trattato come `amg`: un errore di battitura non genera errori ma un output diverso da quello atteso.
 
 Esempi:
 
-`date.diffText("2026-04-17", "2026-10-19")` restituisce: `6m 2g`
+`date.diffText("1965-12-18", "2026-10-19")` restituisce: `60 anni, 10 mesi e 1 giorno`
 
-`date.diffText("2025-10-19", os.date("%Y-%m-%d"), "amg")` restituisce, al 19.10.2026: `1 anno`
+`date.diffText("1965-12-18", "2026-10-19", "amg", 1)` restituisce: `60a 10m 1g`
+
+`date.diffText("1965-12-18")` restituisce, al 19.10.2026: `60a 10m 1g`
+
+`date.diffText("2020-03-15", "2026-03-19")` restituisce: `6 anni e 4 giorni`
 
 ## Casi particolari
 
-*   Date uguali: `0g` nella forma compatta, altrimenti `0` con l'unità più piccola del formato (es. `0 giorni` con `amg`).
+*   Date uguali: `0` con l'unità più piccola del formato (es. `0 giorni`, o `0g` in forma compatta, con `amg`).
+*   Dal 29 febbraio a un 28 febbraio di un anno non bisestile: `11 mesi e 30 giorni`, non `1 anno`.
+*   Le date vengono ordinate: una data futura restituisce lo stesso testo di una passata, senza segno. Per conoscere il verso usare `date.days()`.
 *   Date non conformi a `YYYY-MM-DD`: `no data`, come `date.format()`.
+*   La data odierna è quella locale del dispositivo su cui viene eseguito il codice.
 
 
 ## Implementation
@@ -790,6 +816,11 @@ end
 -- DIFFERENZA TRA DATE
 -- ============================================================
 
+-- Data odierna ISO, usata quando la seconda data è omessa.
+local function oggi()
+  return os.date("%Y-%m-%d")
+end
+
 -- Numero seriale del giorno (calendario gregoriano), senza os.time/timezone.
 local function giorno_seriale(dataISO)
   if type(dataISO) ~= "string" then return nil end
@@ -805,16 +836,17 @@ local function giorno_seriale(dataISO)
   return era * 146097 + yo * 365 + math.floor(yo / 4) - math.floor(yo / 100) + doy
 end
 
--- Unità: a/m/g = parti di date.diff; M = mesi totali; G = giorni totali;
+-- Unità: {singolare, plurale, abbreviazione}.
+-- a/m/g = parti di date.diff; M = mesi totali; G = giorni totali;
 -- W = settimane totali; r = giorni residui dopo le settimane.
 local diffUnita = {
-  a = {"anno", "anni"},
-  m = {"mese", "mesi"},
-  g = {"giorno", "giorni"},
-  M = {"mese", "mesi"},
-  G = {"giorno", "giorni"},
-  W = {"settimana", "settimane"},
-  r = {"giorno", "giorni"},
+  a = {"anno", "anni", "a"},
+  m = {"mese", "mesi", "m"},
+  g = {"giorno", "giorni", "g"},
+  M = {"mese", "mesi", "m"},
+  G = {"giorno", "giorni", "g"},
+  W = {"settimana", "settimane", "s"},
+  r = {"giorno", "giorni", "g"},
 }
 
 local diffFormati = {
@@ -829,14 +861,16 @@ local diffFormati = {
 }
 
 -- Giorni tra due date ISO (con segno: positivo se b è successiva ad a).
+-- b omessa: data odierna.
 function date.days(a, b)
-  local x, y = giorno_seriale(a), giorno_seriale(b)
+  local x, y = giorno_seriale(a), giorno_seriale(b or oggi())
   return x and y and (y - x) or nil
 end
 
 -- Differenza tra due date ISO → {anni, mesi, giorni}, oppure nil.
--- Convenzione: 31 gen → 1 mar = 1 mese e 1 giorno.
+-- b omessa: data odierna. Convenzione: 31 gen → 1 mar = 1 mese e 1 giorno.
 function date.diff(a, b)
+  b = b or oggi()
   if type(a) ~= "string" or type(b) ~= "string" then return nil end
   if a > b then a, b = b, a end
 
@@ -861,25 +895,20 @@ function date.diff(a, b)
   return {anni = math.floor(mesi / 12), mesi = mesi % 12, giorni = giorni}
 end
 
--- Differenza in testo leggibile; le parti a zero vengono omesse.
--- Formato omesso o sconosciuto: forma compatta "6a 7m 4g".
-function date.diffText(a, b, formato)
+-- Differenza in testo; le parti a zero vengono omesse.
+-- b omessa: data odierna. formato omesso o sconosciuto: "amg".
+-- compatta = 1: "6a 7m 4g"; 0: "6 anni, 7 mesi e 4 giorni".
+-- compatta omessa: compatta se b è omessa, estesa altrimenti.
+function date.diffText(a, b, formato, compatta)
+  if compatta == nil then compatta = b == nil and 1 or 0 end
+  b = b or oggi()
   local r = date.diff(a, b)
   local giorni = date.days(a, b)
   if not r or not giorni then return "no data" end
 
-  local chiavi = diffFormati[formato or ""]
+  local chiavi = diffFormati[formato or "amg"] or diffFormati.amg
+  compatta = compatta == 1 or compatta == true
 
-  -- Forma compatta
-  if not chiavi then
-    local parti = {}
-    for _, p in ipairs({{r.anni, "a"}, {r.mesi, "m"}, {r.giorni, "g"}}) do
-      if p[1] ~= 0 then table.insert(parti, p[1] .. p[2]) end
-    end
-    return #parti == 0 and "0g" or table.concat(parti, " ")
-  end
-
-  -- Forma estesa
   giorni = math.abs(giorni)
   local v = {
     a = r.anni, m = r.mesi, g = r.giorni,
@@ -891,12 +920,19 @@ function date.diffText(a, b, formato)
 
   local parti = {}
   for _, k in ipairs(chiavi) do
-    if v[k] ~= 0 then
-      table.insert(parti, v[k] .. " " .. (v[k] == 1 and diffUnita[k][1] or diffUnita[k][2]))
+    local n, u = v[k], diffUnita[k]
+    if n ~= 0 then
+      table.insert(parti, compatta and (n .. u[3]) or (n .. " " .. (n == 1 and u[1] or u[2])))
     end
   end
 
-  if #parti == 0 then return "0 " .. diffUnita[chiavi[#chiavi]][2] end
+  -- Tutto a zero: unità più piccola del formato
+  if #parti == 0 then
+    local u = diffUnita[chiavi[#chiavi]]
+    return compatta and ("0" .. u[3]) or ("0 " .. u[2])
+  end
+
+  if compatta then return table.concat(parti, " ") end
   if #parti == 1 then return parti[1] end
 
   local ultima = table.remove(parti)
