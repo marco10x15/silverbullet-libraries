@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.21"
+version: "0.22"
 versionDate: 2026-10-19
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -11,9 +11,13 @@ share.mode: pull
 
 # Investimenti
 
-**Versione 0.21 — Dashboard patrimoniale, snapshot e indicatori essenziali, SilverBullet v2.11+.** Libreria completa, da sostituire integralmente a `Library/MG/investimenti`. Documentazione: pagine `manuale/`.
+**Versione 0.22 — Dashboard patrimoniale, snapshot e indicatori essenziali, SilverBullet v2.11+.** Libreria completa, da sostituire integralmente a `Library/MG/investimenti`. Documentazione: pagine `manuale/`.
 
 La libreria legge strumenti, conti, quotazioni e movimenti direttamente dallo Space. Non gestisce liquidità né spese del conto corrente. Gli snapshot sono righe `Snapshot` nella tabella `Movimenti`. La dashboard mostra costo residuo, controvalore e P/L latente; il grafico patrimoniale usa le quantità storiche e i rendiconti disponibili.
+
+**Modifiche 0.22:** strumenti valorizzati a rendiconto (metodo `snapshot`/`manuale`): `rendimentoDati()` calcola lo XIRR alla data dell'ultimo rendiconto (prima restituiva `VALORE_INDICATIVO`); `grafico()` su `Strumenti/`, se mancano le quotazioni, mostra il nuovo `graficoSnapshot()` (valore dei rendiconti e versato netto). Comportamento invariato per gli strumenti con quotazioni.
+
+**Migrazione dalla 0.21:** nessuna modifica ai dati né alle chiamate esistenti.
 
 **Modifiche 0.21:** contesto unico (`investimenti.contesto()`): strumenti, conti, movimenti e quotazioni sono letti una sola volta per widget e riusati da tutte le funzioni, anche per i punti di `graficoPatrimonio`; `investimenti.numero()` accetta la virgola decimale (`14942,92`); XIRR corretto per rendimento 0 %; soglia di età applicata anche agli snapshot; il ledger scarta le tabelle senza colonna `Tipo`; nuove diagnostiche `SNAPSHOT_NON_VALIDO`, `REDDITO_NON_VALIDO`, `DATA_NON_VALIDA`; `verifica()` ammette più strumenti con lo stesso isin (NAV condiviso); valute diverse da EUR/USD danno `CAMBIO_MANCANTE`; rimossi `metadati`, `verificaPatrimonio`, `contiStrumento` e il codice non usato. Il metodo di valorizzazione dichiarato è ora un campo di `strumenti()`.
 
@@ -28,6 +32,8 @@ investimenti.scheda("Strumenti/LU0140696401")
 investimenti.grafico("Strumenti/LU0140696401")
 investimenti.graficoPatrimonio("Conti/NEF - Famiglia", "YTD")
 investimenti.rendimentoDati("Strumenti/LU0140696401", "xirr")
+investimenti.rendimento("Strumenti/<id>")
+investimenti.graficoSnapshot("Strumenti/<id>")
 investimenti.diagnosticaVista("Conti/NEF - Famiglia")
 ```
 
@@ -755,7 +761,7 @@ function investimenti.grafico(pagina)
   pagina = pagina or editor.getCurrentPage()
   if type(pagina) ~= "string" then return nil end
   local perIsin, perPagina, duplicati = investimenti.pagineQuotazioni()
-  local id, quot, conAcquisti, nome
+  local id, quot, conAcquisti, nome, strumento
   if string.startsWith(pagina, "Quotazioni/") then
     quot = pagina
     for _, s in ipairs(investimenti.strumenti()) do
@@ -765,17 +771,24 @@ function investimenti.grafico(pagina)
     id, conAcquisti = string.sub(pagina, 11), true
     for _, s in ipairs(investimenti.strumenti()) do
       if s.id == id then
-        nome = s.nome
+        nome, strumento = s.nome, s
         quot = s.isin and not duplicati[s.isin] and perIsin[s.isin] or nil
       end
     end
   else return widget.markdownBlock("_Il grafico vale per pagine Quotazioni/ e Strumenti/._") end
+
+  -- Senza quotazioni, uno strumento a rendiconto usa il grafico dei rendiconti.
+  local function senzaQuotazioni(messaggio)
+    local m = strumento and investimenti.metodo(strumento)
+    if m == "snapshot" or m == "manuale" then return investimenti.graficoSnapshot(pagina) end
+    return widget.markdownBlock(messaggio)
+  end
   if not quot then
-    return widget.markdownBlock("_Nessuna pagina Quotazioni univoca con l'isin dello strumento._")
+    return senzaQuotazioni("_Nessuna pagina Quotazioni univoca con l'isin dello strumento._")
   end
 
   local serie = investimenti.serie(quot)
-  if #serie < 2 then return widget.markdownBlock("_Quotazioni insufficienti per il grafico._") end
+  if #serie < 2 then return senzaQuotazioni("_Quotazioni insufficienti per il grafico._") end
   local acq = conAcquisti and investimenti.acquisti(id) or {}
 
   local function coppie(lista)
@@ -1122,14 +1135,23 @@ function investimenti.rendimentoDati(pagina, metodo)
   if metodo ~= "xirr" and metodo ~= "twr" then return {errore = "METODO_SCONOSCIUTO"} end
   local id = type(pagina) == "string" and string.startsWith(pagina, "Strumenti/") and string.sub(pagina, 11)
   if not id then return {errore = "PERIMETRO_NON_RICONCILIATO", dettaglio = "Richiesto singolo strumento: mancano liquidita e flussi esterni del conto"} end
-  local data = oggi()
-  local valori = investimenti.valoreAllaData(pagina, data)
+  local data, ctx = oggi(), investimenti.contesto()
+  local valori = investimenti.valoreAllaData(pagina, data, ctx)
   if #valori ~= 1 then return {errore = "POSIZIONI_MULTIPLE", dettaglio = "Serve una posizione univoca per conto"} end
   local v = valori[1]
+  -- Strumento a rendiconto: il valore è certificato solo alla data dell'ultimo snapshot,
+  -- quindi il rendimento si calcola a quella data (flussi successivi esclusi).
+  if (v.stato == "SNAPSHOT_DISPONIBILE" or v.stato == "SNAPSHOT_CON_APPORTI") and
+    v.dataPrezzo and v.dataPrezzo < data then
+    data = v.dataPrezzo
+    valori = investimenti.valoreAllaData(pagina, data, ctx)
+    if #valori ~= 1 then return {errore = "POSIZIONI_MULTIPLE", dettaglio = "Serve una posizione univoca per conto"} end
+    v = valori[1]
+  end
   local p = v.lotto
   if #p.errori > 0 then return {errore = "MOVIMENTI_INVALIDI"} end
   if v.valore == nil then return {errore = v.stato or "VALORE_MANCANTE"} end
-  if v.stato ~= "PREZZO_DISPONIBILE" and v.stato ~= "CHIUSA" then
+  if v.stato ~= "PREZZO_DISPONIBILE" and v.stato ~= "SNAPSHOT_DISPONIBILE" and v.stato ~= "CHIUSA" then
     return {errore = "VALORE_INDICATIVO", dettaglio = v.stato}
   end
   if metodo == "twr" then
@@ -1148,8 +1170,9 @@ function investimenti.rendimentoDati(pagina, metodo)
   if p.quote ~= 0 then table.insert(flussi, {data = data, valore = v.valore}) end
   table.sort(flussi, function(a, b) return a.data < b.data end)
   local rendimento, errore = xirr(flussi)
-  return {metodo = metodo, percentuale = rendimento, errore = errore,
-    nota = "XIRR annualizzato; flussi della singola posizione"}
+  local nota = "XIRR annualizzato; flussi della singola posizione"
+  if data ~= oggi() then nota = nota .. "; al rendiconto del " .. data end
+  return {metodo = metodo, percentuale = rendimento, errore = errore, data = data, nota = nota}
 end
 
 function investimenti.rendimento(pagina, metodo)
@@ -1433,6 +1456,42 @@ function investimenti.graficoPatrimonio(pagina, periodo, tipo)
   return widget.sandbox{html='<div style="height:300px;position:relative"><canvas id="c"></canvas></div>',
     script=script, markdown="Grafico patrimonio: " .. (pagina or "Index") ..
       ". Punti mancanti = serie non sufficientemente coperta."}
+end
+
+--- Grafico di uno strumento valorizzato a rendiconto (metodo snapshot/manuale): valore dei
+--- rendiconti Snapshot e versato netto cumulato (acquisti − vendite), su tutti i conti.
+function investimenti.graficoSnapshot(pagina)
+  pagina = pagina or editor.getCurrentPage()
+  if type(pagina) ~= "string" or not string.startsWith(pagina, "Strumenti/") then return nil end
+  local id = string.sub(pagina, 11)
+  local valore, versato, giorni, netto = {}, {}, {}, 0
+  -- Il ledger è in ordine cronologico; a parità di data gli acquisti precedono lo snapshot.
+  for _, r in ipairs(investimenti.contesto().ledger) do
+    if r.id == id and r.data and r.valore and
+      (r.tipo == "Snapshot" or r.tipo == "Acquisto" or r.tipo == "Vendita") then
+      if r.tipo == "Snapshot" then valore[r.data] = (valore[r.data] or 0) + r.valore
+      elseif r.tipo == "Acquisto" then netto = netto + r.valore
+      else netto = netto - r.valore end
+      if versato[r.data] == nil then table.insert(giorni, r.data) end
+      versato[r.data] = netto
+    end
+  end
+  if next(valore) == nil then return widget.markdownBlock("_Nessun rendiconto Snapshot per il grafico._") end
+  local etichette, valori, versati = {}, {}, {}
+  for _, d in ipairs(giorni) do
+    table.insert(etichette, investimenti.js(d))
+    table.insert(valori, valore[d] and string.format("%.2f", valore[d]) or "null")
+    table.insert(versati, string.format("%.2f", versato[d]))
+  end
+  local dati = "const labels=[" .. table.concat(etichette, ",") .. "];const valori=[" ..
+    table.concat(valori, ",") .. "];const versato=[" .. table.concat(versati, ",") .. "];"
+  local script = 'loadJsByUrl("' .. investimenti.chartjs .. '").then(function(){' .. dati ..
+    'new Chart(document.getElementById("c"),{type:"line",data:{labels:labels,datasets:[' ..
+    '{label:"Valore (rendiconti)",data:valori,borderColor:"#487da3",spanGaps:true,pointRadius:3},' ..
+    '{label:"Versato netto",data:versato,borderColor:"#d9822b",borderDash:[4,3],stepped:true,pointRadius:0}]},' ..
+    'options:{responsive:true,maintainAspectRatio:false,animation:false,scales:{y:{beginAtZero:false}}}});});'
+  return widget.sandbox{html = '<div style="height:300px;position:relative"><canvas id="c"></canvas></div>',
+    script = script, markdown = "Grafico rendiconti: " .. pagina}
 end
 
 --- Widget automatici, solo se configurati (investimenti.widgetAutomatici = true): elenco di funzioni
