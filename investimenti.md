@@ -1,7 +1,7 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.23"
+version: "0.23.a"
 versionDate: 2026-10-20
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
@@ -132,13 +132,14 @@ function investimenti.scheda(pagina)
   pagina = pagina or editor.getCurrentPage()
   if type(pagina) ~= "string" or not string.startsWith(pagina, "Strumenti/") then return nil end
   local id = string.sub(pagina, 11)
-  local p = query[[
+  local p
+  for _, x in ipairs(query[[
     from p = index.subPages("Strumenti")
     where p.name == pagina
     select {nome = p.displayName, desc = p.description, tipo = p.tipo, valuta = p.valuta, kid = p.KID,
       url = p.url, orizzonte = p.orizzonte, omin = p["orizzonte.min"], omax = p["orizzonte.max"],
       oscade = p["orizzonte.scade"]}
-  ]][1]
+  ]]) do p = x end
   if not p then return widget.markdown("_Strumento non trovato._") end
 
   -- Emoji Unicode: nessun tag HTML/CSS, per il rendering Markdown di SilverBullet.
