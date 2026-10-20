@@ -1,21 +1,21 @@
 ---
 name: "Library/MG/investimenti"
 tags: meta/library
-version: "0.22"
-versionDate: 2026-10-19
+version: "0.23"
+versionDate: 2026-10-20
 pageDecoration.prefix: "💸 "
 share.uri: "github:marco10x15/silverbullet-libraries/investimenti.md"
 ---
 
 # Investimenti
 
-**Versione 0.22 — Dashboard patrimoniale, snapshot e indicatori essenziali, SilverBullet v2.11+.** Libreria completa, da sostituire integralmente a `Library/MG/investimenti`. Documentazione: pagine `manuale/`.
+**Versione 0.23 — Dashboard patrimoniale, snapshot e indicatori essenziali, SilverBullet v2.11+.** Libreria completa, da sostituire integralmente a `Library/MG/investimenti`. Documentazione: pagine `manuale/`.
 
-La libreria legge strumenti, conti, quotazioni e movimenti direttamente dallo Space. Non gestisce liquidità né spese del conto corrente. Gli snapshot sono righe `Snapshot` nella tabella `Movimenti`. La dashboard mostra costo residuo, controvalore e P/L latente; il grafico patrimoniale usa le quantità storiche e i rendiconti disponibili.
+La libreria legge strumenti, conti, quotazioni e movimenti direttamente dallo Space. Non gestisce liquidità né spese del conto corrente. Gli snapshot sono righe `Snapshot` nella tabella `Movimenti`. La dashboard mostra costo residuo, controvalore e P/L latente; i grafici patrimoniali usano le quantità storiche e i rendiconti disponibili.
 
-**Modifiche 0.22 (semplificazione):** quattro metodi di valorizzazione (`prezzo`, `snapshot`, `contrattuale`, `costo`; i nomi `mercato`, `nav`, `obbligazione`, `manuale`, `nominale` restano sinonimi); la deduzione dall'id `CD-` è sostituita da `metodoValorizzazione: contrattuale` nello strumento; rimosso l'attributo `quoteReali`; stato e copertura sono calcolati insieme in `valoreAllaData` (rimosse `coperturaDati` e `copertura`); snapshot e apporti successivi sono calcolati da `lotti` (rimosse `snapshotDati` e `movimentiDopoSnapshot`); ogni riga di movimento è validata una sola volta nel contesto; `verifica()` controlla solo gli isin delle pagine Quotazioni; rimossi `switch` (e i codici `SWITCH_*`), `CONTO_INESISTENTE`, il rendimento TWR e i campi non usati.
+**Modifiche 0.23 (schermate nel corpo della pagina):** `scheda` mostra titolo, descrizione, url, orizzonte (`orizzonte.min`/`max` in anni e/o `orizzonte.scade`) e conti, leggendo solo la pagina dello strumento; `dashboard` omette copertura ed elenco quando c'è una sola posizione completa; nuova `serieMensile` (valore di fine mese per strumento, un solo contesto); nuove `graficiConto` (torte valore e rischio KID con «Oggi», barre mensili impilate con 6M/YTD/1A/5A/Tutto) e `graficoPosizione` (linea del valore della posizione); il periodo si sceglie nel browser. Rimossi `seriePatrimonio`, `graficoPatrimonio` e il campionamento a 48 punti.
 
-**Migrazione dalla 0.21:** aggiungere `metodoValorizzazione: contrattuale` a `Strumenti/CD-20261001-2A-3` (altrimenti il certificato è valorizzato come un normale prezzo). Le righe `Causale`/`Riferimento` e `quoteReali` non hanno più effetto. `valoreAllaData` restituisce solo le righe (non più i totali). `rendimentoDati(pagina)` accetta solo lo XIRR.
+**Migrazione dalla 0.22:** sostituire `graficoPatrimonio(...)` con `graficiConto(editor.getCurrentPage())` nelle pagine `Conti/` e Index e con `graficoPosizione(editor.getCurrentPage())` nelle pagine `Strumenti/`. `seriePatrimonio(pagina, periodo, tipo)` diventa `serieMensile(pagina, tipo)`, con struttura diversa. Nel frontmatter degli strumenti si possono aggiungere `url` (lista di link Markdown) e `orizzonte`.
 
 ## Esempi
 
@@ -24,7 +24,8 @@ investimenti.dashboard("Index")
 investimenti.dashboard("Conti/NEF - Famiglia", "Fondo")
 investimenti.scheda("Strumenti/LU0140696401")
 investimenti.grafico("Strumenti/LU0140696401")
-investimenti.graficoPatrimonio("Conti/NEF - Famiglia", "YTD")
+investimenti.graficiConto("Conti/NEF - Famiglia")
+investimenti.graficoPosizione("Strumenti/LU0140696401")
 investimenti.rendimentoDati("Strumenti/LU0140696401", "xirr")
 investimenti.diagnosticaVista("Conti/NEF - Famiglia")
 ```
@@ -104,21 +105,46 @@ function investimenti.formatoNumero(x, decimali)
   return z
 end
 
--- La scheda usa solo metadati e relazioni già presenti (nessun calcolo patrimoniale).
+-- Scheda dello strumento: solo metadati della pagina e relazioni con i conti (nessun contesto).
+local function dataIt(d) return string.sub(d, 9, 10) .. "." .. string.sub(d, 6, 7) .. "." .. string.sub(d, 1, 4) end
+
+-- Mesi interi tra due date AAAA-MM-GG (negativo se la seconda precede la prima).
+local function mesiTra(da, a)
+  local y1, m1, d1 = string.match(da, "^(%d+)%-(%d+)%-(%d+)")
+  local y2, m2, d2 = string.match(a, "^(%d+)%-(%d+)%-(%d+)")
+  if not (y1 and y2) then return nil end
+  local n = (tonumber(y2) - tonumber(y1)) * 12 + (tonumber(m2) - tonumber(m1))
+  if tonumber(d2) < tonumber(d1) then n = n - 1 end
+  return n
+end
+
+local function durata(mesi)
+  local a, m = math.floor(mesi / 12), mesi % 12
+  local t = {}
+  if a > 0 then table.insert(t, a .. "a") end
+  if m > 0 then table.insert(t, m .. "m") end
+  return #t > 0 and table.concat(t, " ") or "meno di un mese"
+end
+
+local function anni(x) return x == math.floor(x) and string.format("%d", x) or tostring(x) end
+
 function investimenti.scheda(pagina)
   pagina = pagina or editor.getCurrentPage()
   if type(pagina) ~= "string" or not string.startsWith(pagina, "Strumenti/") then return nil end
   local id = string.sub(pagina, 11)
-  local s
-  for _, x in ipairs(investimenti.strumenti()) do
-    if x.id == id then s = x; break end
-  end
-  if not s then return widget.markdown("_Strumento non trovato._") end
+  local p = query[[
+    from p = index.subPages("Strumenti")
+    where p.name == pagina
+    select {nome = p.displayName, desc = p.description, tipo = p.tipo, valuta = p.valuta, kid = p.KID,
+      url = p.url, orizzonte = p.orizzonte, omin = p["orizzonte.min"], omax = p["orizzonte.max"],
+      oscade = p["orizzonte.scade"]}
+  ]][1]
+  if not p then return widget.markdown("_Strumento non trovato._") end
 
   -- Emoji Unicode: nessun tag HTML/CSS, per il rendering Markdown di SilverBullet.
   -- Il livello numerico KID resta sempre visibile; 2 e 3 condividono il verde.
   local colori = {"⚪", "🟢", "🟢", "🟠", "🟤", "🔴", "🟣"}
-  local kid = s.rischio
+  local kid = type(p.kid) == "number" and p.kid or nil
   local rischio = "Rischio KID n.d."
   if kid and kid == math.floor(kid) and kid >= 1 and kid <= 7 then
     rischio = "Rischio KID " .. tostring(kid) .. "/7 " .. colori[kid]
@@ -131,11 +157,46 @@ function investimenti.scheda(pagina)
     table.sort(a)
     return #a > 0 and table.concat(a, ", ") or "nessuno"
   end
-  -- Due righe compatte: nessun paragrafo vuoto; link wiki attivi anche nella seconda riga.
-  local riga1 = "**" .. (s.tipo or "Strumento") .. " · " .. (s.valuta or "EUR") ..
+
+  -- url: lista (o stringa) di link Markdown già pronti nel frontmatter.
+  local urls = {}
+  if type(p.url) == "table" then
+    for _, u in ipairs(p.url) do if type(u) == "string" then table.insert(urls, u) end end
+  elseif type(p.url) == "string" then
+    table.insert(urls, p.url)
+  end
+
+  -- Orizzonte: orizzonte.min/max (anni) e/o orizzonte.scade (AAAA-MM-GG); forma annidata o con il punto.
+  local o = type(p.orizzonte) == "table" and p.orizzonte or {}
+  local omin = investimenti.numero(o.min) or investimenti.numero(p.omin)
+  local omax = investimenti.numero(o.max) or investimenti.numero(p.omax)
+  local scade = str(o.scade) or str(p.oscade)
+  local orizz = {}
+  if omin and omax then table.insert(orizz, "da " .. anni(omin) .. " a " .. anni(omax) .. " anni")
+  elseif omin then table.insert(orizz, "almeno " .. anni(omin) .. " anni")
+  elseif omax then table.insert(orizz, "fino a " .. anni(omax) .. " anni") end
+  if scade and string.match(scade, "^%d%d%d%d%-%d%d%-%d%d") then
+    scade = string.sub(scade, 1, 10)
+    local oggi = os.date("!%Y-%m-%d")
+    if scade == oggi then table.insert(orizz, "scade oggi")
+    elseif scade > oggi then
+      table.insert(orizz, "scade il " .. dataIt(scade) .. ", tra " .. durata(mesiTra(oggi, scade)))
+    else
+      table.insert(orizz, "scaduto il " .. dataIt(scade) .. ", da " .. durata(mesiTra(scade, oggi)))
+    end
+  end
+
+  local nome = str(p.nome) or id
+  local riga1 = "**" .. (str(p.tipo) or "Strumento") .. " · " .. (str(p.valuta) or "EUR") ..
     " · " .. rischio .. "**"
+  for _, u in ipairs(urls) do riga1 = riga1 .. " · " .. u end
+  if #orizz > 0 then riga1 = riga1 .. " · Orizzonte: " .. table.concat(orizz, ", ") end
   local riga2 = "**Conti:** " .. links(conti.fisici[id]) .. " · **Portafogli:** " .. links(conti.portafogli[id])
-  return widget.markdown(riga1 .. "  \n" .. riga2)
+  local blocchi = {"# " .. nome}
+  local desc = str(p.desc)
+  if desc and desc ~= nome then table.insert(blocchi, desc) end
+  table.insert(blocchi, riga1 .. "  \n" .. riga2)
+  return widget.markdown(table.concat(blocchi, "\n\n"))
 end
 
 --- Pagine Quotazioni/...: restituisce isin -> pagina, pagina -> isin, isin -> true per gli isin
@@ -1102,16 +1163,6 @@ local function ambito(pagina, tipo, ctx)
   return pagina, out
 end
 
-local function inizioPeriodo(periodo, fine)
-  if periodo == nil or periodo == "Tutto" then return nil end
-  if periodo == "YTD" then return string.sub(fine, 1, 4) .. "-01-01" end
-  local giorni = ({["1M"] = 30, ["3M"] = 90, ["6M"] = 180, ["1A"] = 365})[periodo]
-  if not giorni then return nil end
-  local y,m,d = string.match(fine, "^(%d%d%d%d)%-(%d%d)%-(%d%d)$")
-  if not y then return nil end
-  return os.date("!%Y-%m-%d", os.time({year=tonumber(y), month=tonumber(m), day=tonumber(d), hour=12}) - giorni*86400)
-end
-
 --- Valori del perimetro selezionato (solo posizioni aperte e valorizzate).
 --- Il riepilogo considera le posizioni aperte alla data di consultazione.
 --- Copertura: ufficiali (snapshot entro soglia), indicativi, obsoleti, mancanti.
@@ -1170,20 +1221,25 @@ function investimenti.dashboard(pagina, tipo)
     "| " .. eur(tot.costo) .. " € | " .. eur(tot.valore) .. " € | **" ..
       eur(tot.pl) .. " €** | " .. pct(tot.pl, tot.costo) .. " % | " .. data ..
       " | " .. (tot.kid and tostring(tot.kid) or "n.d.") .. " |",
-    "",
-    "**Copertura:** " .. (tot.conteggio - tot.mancanti) .. "/" .. tot.conteggio ..
+  }
+  -- Con una sola posizione completa il totale coincide con l'elenco: copertura ed elenco sono omessi.
+  if tot.conteggio ~= 1 or not tot.completo then
+    table.insert(out, "")
+    table.insert(out, "**Copertura:** " .. (tot.conteggio - tot.mancanti) .. "/" .. tot.conteggio ..
       " posizioni valorizzate; " .. tot.ufficiali .. " snapshot ufficiali, " ..
       tot.indicativi .. " indicative, " .. tot.obsoleti .. " obsolete, " .. tot.mancanti .. " mancanti" ..
-      (tot.completo and "." or ". **Patrimonio parziale.**"),
-    "| Strumento | Costo residuo | Attuale | P/L latente | % |",
-    "|---|---:|---:|---:|---:|"
-  }
-  for _, r in ipairs(rows) do
-    table.insert(out, "| [[Strumenti/" .. r.id .. "|" .. r.nome .. "]] | " ..
-      eur(r.costo) .. " € | " .. eur(r.valore) .. " € | " .. eur(r.pl) ..
-      " € | " .. pct(r.pl, r.costo) .. " % |")
+      (tot.completo and "." or ". **Patrimonio parziale.**"))
   end
-  if #rows == 0 then table.insert(out, "| Nessuna posizione valorizzata | | | | |") end
+  if tot.conteggio ~= 1 then
+    table.insert(out, "| Strumento | Costo residuo | Attuale | P/L latente | % |")
+    table.insert(out, "|---|---:|---:|---:|---:|")
+    for _, r in ipairs(rows) do
+      table.insert(out, "| [[Strumenti/" .. r.id .. "|" .. r.nome .. "]] | " ..
+        eur(r.costo) .. " € | " .. eur(r.valore) .. " € | " .. eur(r.pl) ..
+        " € | " .. pct(r.pl, r.costo) .. " % |")
+    end
+    if #rows == 0 then table.insert(out, "| Nessuna posizione valorizzata | | | | |") end
+  end
   return widget.markdown(table.concat(out, "\n"))
 end
 
@@ -1222,61 +1278,226 @@ function investimenti.diagnosticaVista(pagina)
   return widget.markdown(table.concat(out, "\n"))
 end
 
---- Campionamento della serie patrimoniale basato sulle date di quotazione e sugli snapshot.
---- Ogni punto ricalcola le quantità storiche (non usa le quote detenute oggi), ma tutti i punti
---- (al massimo 48) condividono lo stesso contesto: nessuna rilettura dello Space per data.
-function investimenti.seriePatrimonio(pagina, periodo, tipo)
-  local ctx = investimenti.contesto()
-  local scope, ids = ambito(pagina, tipo, ctx)
-  local fine = os.date("!%Y-%m-%d")
-  local inizio = inizioPeriodo(periodo or "1A", fine)
-  local date = {}
-  local function aggiungi(d)
-    if type(d) == "string" and d <= fine and (not inizio or d >= inizio) then date[d] = true end
-  end
-  -- Oltre ai NAV, i rendiconti Snapshot definiscono date reali del patrimonio.
-  for _, r in ipairs(ctx.ledger) do
-    if ids[r.id] and r.tipo == "Snapshot" and r.valore and r.valore >= 0 then aggiungi(r.data) end
-  end
-  for id in pairs(ids) do
-    for _, r in ipairs(ctx.serie[id] or {}) do aggiungi(r[1]) end
-  end
-  local giorni = {}
-  for d in pairs(date) do table.insert(giorni, d) end
-  table.sort(giorni)
-  local campioni, salta = {}, math.max(1, math.ceil(#giorni / 48))
-  for i, d in ipairs(giorni) do
-    if i == 1 or i == #giorni or i % salta == 0 then
-      local totale, incompleto, attivi = 0, 0, 0
-      for _, r in ipairs((investimenti.valoreAllaData(scope, d, ctx))) do
-        if ids[r.id] and r.quote and r.quote > 0.0000001 then
-          attivi = attivi + 1
-          if r.valore ~= nil then totale = totale + r.valore else incompleto = incompleto + 1 end
-        end
-      end
-      table.insert(campioni, {data = d, valore = (incompleto == 0 and attivi > 0) and totale or nil,
-        mancanti = incompleto, attivi = attivi})
-    end
-  end
-  return campioni
+local function giorniMese(y, m)
+  if m == 2 then return (y % 4 == 0 and (y % 100 ~= 0 or y % 400 == 0)) and 29 or 28 end
+  return ({31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31})[m]
 end
 
-function investimenti.graficoPatrimonio(pagina, periodo, tipo)
-  local serie = investimenti.seriePatrimonio(pagina, periodo, tipo)
-  if #serie < 2 then return widget.markdown("_Dati insufficienti per il grafico patrimoniale._") end
-  local etichette, valori, note = {}, {}, {}
-  for _, r in ipairs(serie) do
-    table.insert(etichette,investimenti.js(r.data))
-    table.insert(valori,r.valore and string.format("%.6f",r.valore) or "null")
-    table.insert(note,r.mancanti > 0 and "Copertura incompleta" or "")
+--- Valore di fine mese di ogni posizione del perimetro, dal primo movimento a oggi (l'ultimo punto
+--- è oggi). Restituisce {date, righe = {{id, nome, kid, valori}}, mancanti}: valori[i] è nil se lo
+--- strumento non è posseduto o non è valorizzabile nel mese i; mancanti[i] conta le posizioni
+--- possedute senza valore. Un solo contesto per tutti i mesi; gli strumenti ceduti restano nei mesi
+--- in cui avevano quote.
+function investimenti.serieMensile(pagina, tipo, ctx)
+  ctx = ctx or investimenti.contesto()
+  local scope, ids = ambito(pagina, tipo, ctx)
+  local fine = os.date("!%Y-%m-%d")
+  local primo
+  for _, r in ipairs(ctx.ledger) do
+    if ids[r.id] and r.data and (not primo or r.data < primo) then primo = r.data end
   end
-  local dati = "const labels=[" .. table.concat(etichette,",") .. "];const values=[" ..
-    table.concat(valori,",") .. "];"
-  local script = 'loadJsByUrl("' .. investimenti.chartjs .. '").then(function(){' .. dati ..
-    'new Chart(document.getElementById("c"),{type:"line",data:{labels:labels,datasets:[{label:"Patrimonio EUR (quote storiche)",data:values,borderColor:"#487da3",spanGaps:false,pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false,animation:false,scales:{y:{beginAtZero:false}}}});});'
-  return widget.sandbox{html='<div style="height:300px;position:relative"><canvas id="c"></canvas></div>',
-    script=script, markdown="Grafico patrimonio: " .. (pagina or "Index") ..
-      ". Punti mancanti = serie non sufficientemente coperta."}
+  local out = {date = {}, righe = {}, mancanti = {}}
+  if not primo or primo > fine then return out end
+  local y, m = tonumber(string.sub(primo, 1, 4)), tonumber(string.sub(primo, 6, 7))
+  local ye, me = tonumber(string.sub(fine, 1, 4)), tonumber(string.sub(fine, 6, 7))
+  local perId = {}
+  while y < ye or (y == ye and m <= me) do
+    local d = (y == ye and m == me) and fine or string.format("%04d-%02d-%02d", y, m, giorniMese(y, m))
+    table.insert(out.date, d)
+    local i, manca = #out.date, 0
+    for _, r in ipairs((investimenti.valoreAllaData(scope, d, ctx))) do
+      if ids[r.id] and r.quote and r.quote > 0.0000001 then
+        local x = perId[r.id]
+        if not x then
+          local s = ctx.perId[r.id] or {}
+          x = {id = r.id, nome = s.nome or r.id, kid = s.rischio, valori = {}}
+          perId[r.id] = x
+          table.insert(out.righe, x)
+        end
+        if r.valore ~= nil then x.valori[i] = (x.valori[i] or 0) + r.valore else manca = manca + 1 end
+      end
+    end
+    out.mancanti[i] = manca
+    m = m + 1
+    if m > 12 then y, m = y + 1, 1 end
+  end
+  table.sort(out.righe, function(a, b) return a.nome < b.nome end)
+  return out
+end
+
+-- Parte comune dei grafici con pulsanti di periodo (calcolati nel browser sulla serie completa).
+local JS_PERIODI = [[
+const dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+const txt = dark ? "#ddd" : "#333", grid = "rgba(128,128,128,.25)";
+const PAL = ["#2f6fdb", "#d9822b", "#2a9d4a", "#9b5de5", "#e4572e", "#1fa2b8", "#c2185b", "#7d8597", "#8d6e63", "#b5a300"];
+function col(k) { return PAL[k % PAL.length]; }
+const RANGE = [{n: "6M", m: 6}, {n: "YTD", m: -1}, {n: "1A", m: 12}, {n: "5A", m: 60}, {n: "Tutto", m: 0}];
+const D = DATI.date, N = D.length;
+function indici(r) {
+  let da = 0;
+  if (r.m === -1) {
+    const inizio = D[N - 1].slice(0, 4) + "-01-01";
+    da = D.findIndex(function (d) { return d >= inizio; });
+    if (da < 0) da = 0;
+  } else if (r.m > 0) da = Math.max(0, N - r.m);
+  const ix = [];
+  for (let i = da; i < N; i++) ix.push(i);
+  return ix;
+}
+const bottoni = [];
+function stile() {
+  bottoni.forEach(function (b) {
+    b.el.style.fontWeight = b.attivo() ? "bold" : "normal";
+    b.el.style.background = b.attivo() ? "rgba(47,111,219,.25)" : "";
+  });
+}
+function bottone(riga, nome, attivo, azione) {
+  const el = document.createElement("button");
+  el.textContent = nome;
+  el.style.cssText = "margin:0 4px 6px 0;padding:2px 10px;cursor:pointer";
+  el.onclick = function () { azione(); stile(); disegna(); };
+  bottoni.push({el: el, attivo: attivo});
+  riga.appendChild(el);
+}
+function assi(stacked) {
+  return {x: {stacked: stacked, ticks: {color: txt, maxTicksLimit: 12}, grid: {color: grid}},
+    y: {stacked: stacked, ticks: {color: txt}, grid: {color: grid}}};
+}
+]]
+
+-- Torte (Oggi) e barre mensili impilate per strumento (periodi).
+local JS_CONTO = [[
+let periodo = null, grafici = [];
+function torta(id, titolo, fette) {
+  const tot = fette.reduce(function (a, f) { return a + f.valore; }, 0);
+  grafici.push(new Chart(document.getElementById(id), {type: "pie",
+    data: {labels: fette.map(function (f) { return f.nome + " " + (100 * f.valore / tot).toFixed(1) + " %"; }),
+      datasets: [{data: fette.map(function (f) { return f.valore; }),
+        backgroundColor: fette.map(function (f) { return col(f.k); })}]},
+    options: {responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {legend: {position: "bottom", labels: {color: txt, boxWidth: 12}},
+        title: {display: true, text: titolo, color: txt}}}}));
+}
+function disegna() {
+  grafici.forEach(function (g) { g.destroy(); });
+  grafici = [];
+  const oggi = periodo === null;
+  document.getElementById("p").style.display = oggi ? "flex" : "none";
+  document.getElementById("s").style.display = oggi ? "none" : "block";
+  const nota = document.getElementById("n");
+  if (oggi) {
+    const u = N - 1, fv = [], fk = [];
+    DATI.righe.forEach(function (r, k) {
+      const v = r.v[u] || 0;
+      if (v > 0) fv.push({nome: r.nome, valore: v, k: k});
+      if (v > 0 && r.kid) fk.push({nome: r.nome, valore: v * r.kid, k: k});
+    });
+    torta("c1", "Valore per posizione", fv);
+    torta("c2", "Rischio KID (KID × valore)", fk);
+    nota.textContent = DATI.mancanti[u] ? DATI.mancanti[u] + " posizioni senza valore escluse." : "";
+    return;
+  }
+  const ix = indici(periodo), ds = [];
+  DATI.righe.forEach(function (r, k) {
+    const dati = ix.map(function (i) { return r.v[i] || 0; });
+    if (dati.some(function (v) { return v > 0; })) {
+      ds.push({label: r.nome, data: dati, backgroundColor: col(k), stack: "s"});
+    }
+  });
+  grafici.push(new Chart(document.getElementById("c3"), {type: "bar",
+    data: {labels: ix.map(function (i) { return D[i].slice(0, 7) + (DATI.mancanti[i] ? "*" : ""); }), datasets: ds},
+    options: {responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: {mode: "index", intersect: false},
+      plugins: {legend: {labels: {color: txt, boxWidth: 12}}}, scales: assi(true)}}));
+  nota.textContent = ix.some(function (i) { return DATI.mancanti[i]; })
+    ? "* Mese con posizioni senza valore: il totale è parziale." : "";
+}
+const barra = document.getElementById("b");
+bottone(barra, "Oggi", function () { return periodo === null; }, function () { periodo = null; });
+RANGE.forEach(function (r) {
+  bottone(barra, r.n, function () { return periodo === r; }, function () { periodo = r; });
+});
+stile();
+disegna();
+]]
+
+-- Linea del valore della posizione a fine mese.
+local JS_POSIZIONE = [[
+let periodo = RANGE[2], g = null;
+function disegna() {
+  if (g) g.destroy();
+  const ix = indici(periodo);
+  g = new Chart(document.getElementById("c"), {type: "line",
+    data: {labels: ix.map(function (i) { return D[i]; }),
+      datasets: [{label: DATI.titolo, data: ix.map(function (i) { return DATI.v[i]; }),
+        borderColor: "#2f6fdb", borderWidth: 1.5, pointRadius: 2, spanGaps: false, tension: 0}]},
+    options: {responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: {mode: "nearest", axis: "x", intersect: false},
+      plugins: {legend: {labels: {color: txt}}}, scales: assi(false)}});
+}
+const barra = document.getElementById("b");
+RANGE.forEach(function (r) {
+  bottone(barra, r.n, function () { return periodo === r; }, function () { periodo = r; });
+});
+stile();
+disegna();
+]]
+
+local function listaJs(t, f)
+  local a = {}
+  for i, x in ipairs(t) do a[i] = f(x, i) end
+  return "[" .. table.concat(a, ",") .. "]"
+end
+
+local function numeriJs(valori, n)
+  local a = {}
+  for i = 1, n do a[i] = valori[i] and string.format("%.2f", valori[i]) or "null" end
+  return "[" .. table.concat(a, ",") .. "]"
+end
+
+--- Pagine Conti/, portafogli e Index: torte (valore e rischio KID) con il pulsante Oggi, barre
+--- mensili impilate per strumento con 6M/YTD/1A/5A/Tutto. Il periodo è scelto nel browser.
+function investimenti.graficiConto(pagina, tipo)
+  pagina = pagina or editor.getCurrentPage()
+  local s = investimenti.serieMensile(pagina, tipo)
+  if #s.date < 2 or #s.righe == 0 then return widget.markdown("_Dati insufficienti per i grafici._") end
+  local n = #s.date
+  local dati = "const DATI = {date: " .. listaJs(s.date, investimenti.js) .. ", mancanti: " ..
+    numeriJs(s.mancanti, n) .. ", righe: " .. listaJs(s.righe, function(r)
+      return "{nome: " .. investimenti.js(r.nome) .. ", kid: " .. (r.kid and tostring(r.kid) or "null") ..
+        ", v: " .. numeriJs(r.valori, n) .. "}"
+    end) .. "};\n"
+  return widget.sandbox {
+    html = '<div id="b"></div><div id="p" style="display:flex;gap:12px"><div style="position:relative;' ..
+      'height:320px;flex:1"><canvas id="c1"></canvas></div><div style="position:relative;height:320px;' ..
+      'flex:1"><canvas id="c2"></canvas></div></div><div id="s" style="display:none;position:relative;' ..
+      'height:320px"><canvas id="c3"></canvas></div><div id="n" style="font-size:.85em"></div>',
+    script = 'loadJsByUrl("' .. investimenti.chartjs .. '").then(function () {\n' .. dati ..
+      JS_PERIODI .. JS_CONTO .. "\n});",
+    markdown = "Grafici patrimonio: " .. pagina,
+  }
+end
+
+--- Pagine Strumenti/: valore della posizione a fine mese, con pulsanti 6M/YTD/1A/5A/Tutto.
+function investimenti.graficoPosizione(pagina)
+  pagina = pagina or editor.getCurrentPage()
+  local s = investimenti.serieMensile(pagina)
+  if #s.date < 2 or #s.righe == 0 then return widget.markdown("_Dati insufficienti per il grafico._") end
+  local n, v = #s.date, {}
+  for i = 1, n do
+    for _, r in ipairs(s.righe) do
+      if r.valori[i] then v[i] = (v[i] or 0) + r.valori[i] end
+    end
+  end
+  local titolo = s.righe[1].nome
+  local dati = "const DATI = {titolo: " .. investimenti.js("Posizione " .. titolo .. " (EUR, fine mese)") ..
+    ", date: " .. listaJs(s.date, investimenti.js) .. ", v: " .. numeriJs(v, n) .. "};\n"
+  return widget.sandbox {
+    html = '<div id="b"></div><div style="position:relative;height:300px"><canvas id="c"></canvas></div>',
+    script = 'loadJsByUrl("' .. investimenti.chartjs .. '").then(function () {\n' .. dati ..
+      JS_PERIODI .. JS_POSIZIONE .. "\n});",
+    markdown = "Grafico posizione " .. titolo,
+  }
 end
 
 --- Widget automatici, solo se configurati (investimenti.widgetAutomatici = true): elenco di funzioni
