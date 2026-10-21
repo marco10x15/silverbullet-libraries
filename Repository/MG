@@ -6,6 +6,11 @@ pageDecoration.prefix: "📚 "
 
 ## Tools
 ```#meta/library/remote
+name: "📃 Stampa"
+uri: github:marco10x15/silverbullet-libraries/stampa.md
+website: https://github.com/marco10x15/silverbullet-libraries/blob/main/stampa.md
+description: "Libreria per la stampa in A4 passando dall'anteprima del browser"
+---
 name: "📃 Page Navigation"
 uri: github:marco10x15/silverbullet-libraries/PageNavigation.md
 website: https://github.com/marco10x15/silverbullet-libraries/blob/main/PageNavigation.md
