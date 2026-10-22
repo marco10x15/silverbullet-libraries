@@ -1,21 +1,22 @@
 ---
 name: Library/MG/stampa
-version: 0.06
-versionDate: 2026-10-21
+version: 0.08.2
+versionDate: 2026-10-22
 tags: meta/library
 ---
 
 # Stampa — HTML e PDF da Markdown
 
-Libreria Space Lua per **SilverBullet 2.12.x**. Genera un'anteprima HTML A4 della pagina corrente e consente di stampare su carta o di salvare in PDF tramite il browser. Il Markdown nello Space **non viene modificato**.
+Libreria Space Lua per **SilverBullet 2.12.x**. Genera un'anteprima HTML A4/A3 della pagina corrente e consente di stampare su carta o di salvare in PDF tramite il browser. Il Markdown nello Space **non viene modificato**.
 
-**Versione:** 0.06 (consolidamento della versione sperimentale validata). Sviluppata con significativo supporto di AI e validazione funzionale nell'istanza SilverBullet 2.12.1.
+**Versione:** 0.08.2 (scelta del formato A4/A3 e orientamento; mantiene invariata la pipeline 0.08.1). Sviluppata con significativo supporto di AI; da validare nell'istanza SilverBullet 2.12.1.
 
 ## Installazione e dipendenze
 
 - Pubblicare questo file nel repository `marco10x15/silverbullet-libraries` come `stampa.md` (radice del repository), con nome interno `Library/MG/stampa`.
 - Installarlo con il Library Manager di SilverBullet e verificare che la libreria sia attiva nello Space desiderato.
 - Per stampare i diagrammi Mermaid in SVG, installare la libreria [`silverbulletmd/silverbullet-diagram/Mermaid.md`](https://github.com/silverbulletmd/silverbullet-diagram/blob/main/Mermaid.md), aggiungendo la funzione `mermaid.toSVG()` verificata durante i test. La versione upstream ordinaria potrebbe non esporre tale funzione.
+- Per stampare formule `$...$` e `$$...$$` installare `Library/mrmugame/Silverbullet-Math` e i suoi file KaTeX associati. La libreria stampa riutilizza `latex.katex.renderToString()` e carica il CSS locale di KaTeX.
 - Non sono richiesti Paged.js, un servizio Docker o Chart.js per le funzionalità attuali.
 
 Se la pagina contiene un blocco Mermaid ma `mermaid.toSVG()` non è disponibile, il convertitore inserisce un messaggio d'errore al posto del diagramma: la libreria continua a usare il browser per la stampa.
@@ -24,9 +25,10 @@ Se la pagina contiene un blocco Mermaid ma `mermaid.toSVG()` non è disponibile,
 
 1. Aprire la pagina che si desidera stampare.
 2. Avviare il comando **`Stampa: Anteprima Markdown`** dalla palette.
-3. Selezionare la modalità di esportazione del frontmatter; in modalità **Standard + selezione** attivare o disattivare i campi nel menu `☐/☑`, poi scegliere **Conferma selezione**.
-4. Se i tag sono selezionati, scegliere come presentarli.
-5. Si apre una nuova scheda HTML: controllare il documento e usare **Ctrl+P** per stampare o salvare in PDF.
+3. Selezionare il formato di stampa (A4 verticale predefinito, A4 orizzontale, A3 verticale oppure A3 orizzontale).
+4. Selezionare la modalità di esportazione del frontmatter; in modalità **Standard + selezione** attivare o disattivare i campi nel menu `☐/☑`, poi scegliere **Conferma selezione**.
+5. Se i tag sono selezionati, scegliere come presentarli.
+6. Si apre una nuova scheda HTML: controllare il documento e usare **Ctrl+P** per stampare o salvare in PDF.
 
 L'operazione può essere annullata dai menu. Se il browser blocca i popup, occorre autorizzare l'apertura della scheda per lo Space SilverBullet.
 
@@ -49,17 +51,24 @@ I campi selezionabili derivano dalle **chiavi top-level effettivamente scritte n
 - **Tag:** quattro formati: separati da virgola (consigliato), `#hashtag`, etichette grafiche oppure campo metadati. Per stringhe YAML scalari, i tag sono conservati come un unico valore; per array vengono separati correttamente.
 - **Altri valori:** stringhe, liste, booleani e oggetti YAML vengono convertiti in testo HTML leggibile; i wiki-link vengono mostrati tramite etichetta leggibile.
 
-## Formattazione A4
+## Formattazione A4/A3
 
-Formato A4 verticale, **20 mm** per lato; Arial/Helvetica **11 pt**, interlinea **1,25**; titoli blu ardesia `#243c56`, interlinea **1,5** e maggiore spazio sopra i titoli. Anteprima browser su foglio bianco centrato e sfondo grigio; ombre e sfondo non compaiono sulla stampa. Il CSS è incorporato nella libreria.
+Formato selezionabile a ogni stampa: **A4 verticale** (predefinito), **A4 orizzontale**, **A3 verticale**, **A3 orizzontale**. Margini **20 mm** per lato;  Arial/Helvetica **11 pt**, interlinea **1,25**; titoli blu ardesia `#243c56`, interlinea **1,5** e maggiore spazio sopra i titoli. Anteprima browser su foglio bianco centrato e sfondo grigio; ombre e sfondo non compaiono sulla stampa. Il CSS è incorporato nella libreria.
 
-Nel dialogo di Firefox utilizzare carta A4, scala 100%, intestazioni/piè di pagina del browser disattivati e margini del browser disattivati, perché i margini sono gestiti da `@page`.
+Nel dialogo di stampa del browser scegliere anche il medesimo formato carta e orientamento selezionati in SilverBullet; utilizzare scala 100%, intestazioni/piè di pagina del browser disattivati e margini del browser disattivati, perché i margini sono gestiti da `@page`.
 
 ## Pipeline e contenuti supportati
 
-`editor.getText()` → `index.extractFrontmatter()` → scelta frontmatter → `markdown.bakeSections()` → `markdown.expandMarkdown()` → conversione fence Mermaid con `mermaid.toSVG()` → `markdown.markdownToHtml()` → HTML con CSS A4 → finestra browser.
+`editor.getText()` → scelta formato pagina → `index.extractFrontmatter()` → scelta frontmatter → `markdown.bakeSections()` → `markdown.expandMarkdown()` → conversione fence Mermaid con `mermaid.toSVG()` e formule KaTeX → `markdown.markdownToHtml()` → HTML con CSS A4 → finestra browser.
 
 Supportati nei test: Markdown ordinario e multipagina, tabelle lunghe, immagini locali, risultati Lua che generano Markdown (incluse sezioni baked), blocchi di codice e diagrammi Mermaid statici in SVG. Per i diagrammi vengono riconosciuti i blocchi fenced a tre backtick con linguaggio `mermaid`, sulla propria riga; sono possibili limiti con varianti di fence o annidamenti.
+
+## Evidenziazioni e attributi inline (v0.07)
+
+- `==testo==`: stile giallo tenue `#fff2b3` per i tag HTML `mark` e per le classi di evidenziazione emesse dal convertitore.
+- `[campo: valore]`: stile giallo chiarissimo `#fff7d6` quando l'HTML generato include `.sb-attribute`; viene enfatizzato anche il nome del campo, se il renderer lo marca separatamente.
+- Gli stili non interpretano né modificano il Markdown sorgente. Se il convertitore HTML emette soltanto testo semplice senza tag dedicati, il CSS non può ricostruire l'evidenziazione: in tal caso occorre controllare l'HTML concreto e aggiungere una conversione mirata. Il contenuto dentro i blocchi di codice non viene trasformato.
+- Per Firefox, abilitare **Stampa sfondi** nel dialogo di stampa, se lo sfondo giallo non compare nel PDF.
 
 ## Limiti conosciuti
 
@@ -77,6 +86,9 @@ Supportati nei test: Markdown ordinario e multipagina, tabelle lunghe, immagini 
 
 ## Cronologia
 
+- **0.08.2 — 22.10.2026:** scelta A4/A3 verticale/orizzontale prima delle opzioni frontmatter, adeguamento CSS `@page` e dimensioni di anteprima; nessuna modifica alla conversione Markdown, Mermaid o KaTeX.
+
+- **0.07 — 22.10.2026:** aggiunto CSS per evidenziazioni `==...==` e attributi inline `[campo: valore]`, senza modificare la pipeline già validata.
 - **0.06 — 21.10.2026:** consolidamento; rimozione delle funzioni e dei comandi di test, mantenendo selezione multipla dei campi YAML, conversione Mermaid e CSS A4 validati. Namespace pubblico `stampa`.
 
 ## Implementazione Space Lua
@@ -115,6 +127,32 @@ p { margin: 0 0 0.65em; orphans: 3; widows: 3; }
 /* SilverBullet può emettere span.p intervallati da <br>. */
 span.p { line-height: inherit; }
 strong { font-weight: 700; }
+/* Evidenziazione Markdown ==testo== e HTML <mark>. */
+mark, .sb-highlight, .sb-mark {
+  background-color: #fff2b3;
+  color: #242b34;
+  padding: .05em .12em;
+  border-radius: 2px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+/* Attributi inline [campo: valore] riconosciuti dal renderer HTML. */
+.sb-attribute {
+  background-color: #fff7d6;
+  color: #3e3930;
+  border: 1px solid #f1e4a6;
+  border-radius: 3px;
+  padding: .05em .2em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.sb-attribute-name, .sb-attribute .sb-atom {
+  font-weight: 600;
+  color: #68521b;
+}
+/* Evita che un eventuale stile dell'editor colori l'attributo interno. */
+.sb-attribute .sb-meta { color: inherit; }
+
 a { color: #245a88; text-decoration: underline; text-decoration-color: #a4b4c5; }
 ul, ol { margin: 0.4em 0 0.8em; padding-left: 1.45em; }
 li { margin: 0.2em 0; }
@@ -203,6 +241,105 @@ local function convertiMermaid(testo)
     html = html:gsub(token, function() return svg end)
   end
   return html, trovati, errori
+end
+
+-- v0.08: converte formule KaTeX in HTML statico, senza widget live.
+-- Non valuta formule nei fence o nel codice inline.
+local function convertiMatematica(testo)
+  local segnaposti, nErrori = {}, 0
+  local prefisso = "SBPRINTKATEXTOKEN"
+  while testo:find(prefisso, 1, true) do prefisso = prefisso .. "X" end
+
+  local function crea(formula, display)
+    local indice = #segnaposti + 1
+    local token = prefisso .. indice .. "END"
+    local ok, result = pcall(function()
+      if not latex or not latex.katex then
+        error("Silverbullet-Math / KaTeX non disponibile")
+      end
+      return latex.katex.renderToString(formula, {
+        trust = false,
+        throwOnError = true,
+        displayMode = display,
+      })
+    end)
+    if ok and type(result) == "string" then
+      segnaposti[indice] = display and
+        ('<div class="sb-print-math-block">' .. result .. '</div>') or
+        ('<span class="sb-print-math-inline">' .. result .. '</span>')
+    else
+      nErrori = nErrori + 1
+      segnaposti[indice] = '<span class="errore">Formula KaTeX: ' ..
+        escapeHtml(tostring(result)) .. '</span>'
+    end
+    return token
+  end
+
+  -- Protegge i blocchi fenced (qualsiasi linguaggio) e il codice inline.
+  local protected, protectedPrefix = {}, "SBPRINTCODETOKEN"
+  while testo:find(protectedPrefix, 1, true) do protectedPrefix = protectedPrefix .. "X" end
+  local fence, fenceLen, fenceChar, mermaidFence = nil, 0, nil, false
+  local lines = {}
+  testo = testo:gsub("\r\n", "\n")
+  for line in (testo .. "\n"):gmatch("([^\n]*)\n") do
+    local indent, marker = line:match("^(%s*)([`~]+)")
+    if fence then
+      if marker and marker:sub(1,1) == fenceChar and #marker >= fenceLen and
+        line:match("^%s*[`~]+%s*$") then
+        fence = nil
+      end
+      if mermaidFence then
+        lines[#lines+1] = line
+      else
+        protected[#protected + 1] = line
+        lines[#lines+1] = protectedPrefix .. #protected .. "END"
+      end
+    elseif marker and #indent <= 3 and #marker >= 3 and
+      (marker:match("^`+$") or marker:match("^~+$")) then
+      fence = true; fenceChar = marker:sub(1,1); fenceLen = #marker
+      mermaidFence = line:match("^%s*```%s*mermaid%s*$") ~= nil
+      if mermaidFence then
+        lines[#lines+1] = line
+      else
+        protected[#protected + 1] = line
+        lines[#lines+1] = protectedPrefix .. #protected .. "END"
+      end
+    else
+      -- Blocchi inline `...` sulla stessa riga.
+      local processed = line:gsub("(`+)(.-)%1", function(ticks, content)
+        protected[#protected+1] = ticks .. content .. ticks
+        return protectedPrefix .. #protected .. "END"
+      end)
+      lines[#lines+1] = processed
+    end
+  end
+  local unprotected = table.concat(lines, "\n")
+
+  -- Blocco $$ multilinea o nella stessa riga.
+  unprotected = unprotected:gsub("%$%$(.-)%$%$", function(formula)
+    return "\n\n" .. crea(formula, true) .. "\n\n"
+  end)
+  -- Inline $...$; evita il caso dei delimitatori $$ residui.
+  unprotected = unprotected:gsub("%$([^$\n]+)%$", function(formula)
+    if formula:match("^%s*$") then return "$" .. formula .. "$" end
+    return crea(formula, false)
+  end)
+
+  for i, value in ipairs(protected) do
+    local token = protectedPrefix .. i .. "END"
+    unprotected = unprotected:gsub(token, function() return value end)
+  end
+  return unprotected, segnaposti, prefisso, nErrori
+end
+
+local function inserisciMatematica(html, segnaposti, prefisso)
+  for i, result in ipairs(segnaposti) do
+    local token = prefisso .. i .. "END"
+    html = html:gsub('<span class="p">' .. token .. '</span>', function() return result end)
+    html = html:gsub('<p>' .. token .. '</p>', function() return result end)
+    html = html:gsub(token, function() return result end)
+  end
+  return html
 end
 
 -- v0.06: selezione non persistente dei metadati YAML originali.
@@ -441,7 +578,27 @@ local function sistemaTitoli(html, title)
   return html
 end
 
+-- Formato e orientamento: scelta a ogni stampa, senza salvataggio.
+local function scegliFormatoPagina()
+  local scelta = editor.filterBox("Stampa: formato pagina", {
+    {name="A4 verticale (predefinito)", value="a4v"},
+    {name="A4 orizzontale", value="a4o"},
+    {name="A3 verticale", value="a3v"},
+    {name="A3 orizzontale", value="a3o"},
+  })
+  if not scelta then return nil end
+  local formati = {
+    a4v = {css="A4 portrait", width=210, height=297},
+    a4o = {css="A4 landscape", width=297, height=210},
+    a3v = {css="A3 portrait", width=297, height=420},
+    a3o = {css="A3 landscape", width=420, height=297},
+  }
+  return formati[scelta.value]
+end
+
 function stampa.anteprima()
+  local formato = scegliFormatoPagina()
+  if not formato then return end
   local pagina = editor.getCurrentPage()
   local testo = editor.getText()
   local estratto = index.extractFrontmatter(testo, {removeFrontMatterSection=true})
@@ -453,7 +610,9 @@ function stampa.anteprima()
   local intestazione, haTitolo = frontmatterHTML(fm, opts)
   local baked = markdown.bakeSections(corpo, pagina)
   local espanso = markdown.expandMarkdown(baked)
-  local html, numeroMermaid, erroriMermaid = convertiMermaid(espanso)
+  local withMath, mathTags, mathPrefix, erroriMath = convertiMatematica(espanso)
+  local html, numeroMermaid, erroriMermaid = convertiMermaid(withMath)
+  html = inserisciMatematica(html, mathTags, mathPrefix)
   if haTitolo then html = sistemaTitoli(html, stringa(fm.displayName)) end
 
   local CSS_FM = [[
@@ -469,12 +628,40 @@ function stampa.anteprima()
 .fm-tags { color: #50677c; padding: 3px 0; }
 .fm-tag { display: inline-block; border: 1px solid #d6e1ea; background: #eef3f7; padding: 1px 6px; margin: 2px 3px 2px 0; border-radius: 4px; font-size: 9pt; }
 ]]
+  -- CSS KaTeX con URL assoluto: i font restano relativi al CSS.
+  local urlPrefix = tostring(system.getURLPrefix() or "/")
+  local origin = tostring(js.window.location.origin)
+  local katexBase
+  if urlPrefix:match("^https?://") then
+    katexBase = urlPrefix
+  else
+    if urlPrefix:sub(1, 1) ~= "/" then
+      urlPrefix = "/" .. urlPrefix
+    end
+    katexBase = origin .. urlPrefix
+  end
+  if katexBase:sub(-1) ~= "/" then
+    katexBase = katexBase .. "/"
+  end
+  local katexCss = katexBase .. ".fs/Library/mrmugame/Silverbullet-Math/katex.min.css"
+  -- Regole dinamiche successive al CSS originale: prevalgono sui valori A4.
+  local CSS_PAGINA = string.format([[
+@page { size: %s; margin: 20mm; }
+@media screen {
+  body.preview-page { width: %dmm; min-height: %dmm; }
+}
+]], formato.css, formato.width, formato.height)
   local documento = table.concat({
     '<!DOCTYPE html>',
     '<html lang="it" class="preview"><head><meta charset="utf-8">',
     '<title>Stampa - ' .. escapeHtml(pagina) .. '</title>',
     '<base href="' .. escapeHtml(js.window.document.baseURI) .. '">',
-    '<style>', CSS_STAMPA, CSS_FM, '</style>',
+    '<link rel="stylesheet" href="' .. escapeHtml(katexCss) .. '">',
+    '<style>', CSS_STAMPA, CSS_PAGINA, CSS_FM,
+    '.sb-print-math-block { margin: .8em 0; overflow: visible; break-inside: avoid; text-align: center; }',
+    '.sb-print-math-inline { white-space: nowrap; }',
+    '.sb-print-math-block .katex-display { margin: 0; }',
+    '</style>',
     '</head><body class="preview-page">', intestazione, html, '</body></html>'
   }, "\n")
   local finestra = js.window.open("", "_blank")
@@ -485,7 +672,7 @@ function stampa.anteprima()
   finestra.document.open()
   finestra.document.write(documento)
   finestra.document.close()
-  editor.flashNotification("Mermaid: " .. numeroMermaid .. " diagrammi, " .. erroriMermaid .. " errori")
+  editor.flashNotification("Mermaid: " .. numeroMermaid .. " diagrammi, " .. erroriMermaid .. " errori; KaTeX: " .. #mathTags .. " formule, " .. erroriMath .. " errori")
 end
 
 command.define {
