@@ -2,7 +2,7 @@
 name: "Library/MG/DateFormat"
 tags: meta/library
 pageDecoration.prefix: "⏳ "
-version: 0.6
+version: 0.7
 share.uri: "github:marco10x15/silverbullet-libraries/DateFormat.md"
 ---
 
@@ -209,6 +209,15 @@ Esempi:
 *   Date non conformi a `YYYY-MM-DD`: `no data`, come `date.format()`.
 *   La data odierna è quella locale del dispositivo su cui viene eseguito il codice.
 
+
+# date.addMonths(dataISO, n)
+`date.addMonths()` somma `n` mesi (anche negativi) a una data ISO `YYYY-MM-DD` e restituisce la nuova data ISO. Se il giorno non esiste nel mese risultante viene limitato all'ultimo giorno del mese. Non usa `os.time`. Con date non valide o `n` non numerico restituisce `nil`.
+
+Esempi:
+`date.addMonths("2026-08-31", 6)` restituisce: `2027-02-28`
+`date.addMonths("2027-11-30", 3)` restituisce: `2028-02-29`
+`date.addMonths("2026-10-15", 48)` restituisce: `2030-10-15`
+`date.addMonths("2026-03-31", -1)` restituisce: `2026-02-28`
 
 ## Implementation
 
@@ -893,6 +902,20 @@ function date.diff(a, b)
   end
 
   return {anni = math.floor(mesi / 12), mesi = mesi % 12, giorni = giorni}
+end
+
+-- Somma n mesi (anche negativi) a una data ISO; il giorno viene limitato
+-- all'ultimo giorno del mese risultante. nil se la data non è valida.
+function date.addMonths(dataISO, n)
+  if type(dataISO) ~= "string" or type(n) ~= "number" then return nil end
+  local anno, mese, giorno = string.match(dataISO, "^(%d%d%d%d)%-(%d%d)%-(%d%d)$")
+  if not anno then return nil end
+  anno, mese, giorno = tonumber(anno), tonumber(mese), tonumber(giorno)
+  if mese < 1 or mese > 12 or giorno < 1 then return nil end
+  local totale = anno * 12 + (mese - 1) + n
+  anno, mese = math.floor(totale / 12), totale % 12 + 1
+  return string.format("%04d-%02d-%02d", anno, mese,
+    math.min(giorno, giorni_del_mese(anno, mese)))
 end
 
 -- Differenza in testo; le parti a zero vengono omesse.
