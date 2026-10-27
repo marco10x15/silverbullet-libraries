@@ -1,11 +1,10 @@
 ---
 name: "Library/MG/Mio_Diario"
 tags: meta/library
-description: "Libreria consolidata Markdown-first per Diario, Luoghi, Viaggi, Indice, Mappe/GPX, PhotoGallery, Riepiloghi e configurazione delle nuove pagine."
-version: "1.4-01"
-versionDate: 2026-10-06
+description: "Libreria consolidata Markdown-first per Diario, Luoghi, Viaggi, Indice, Mappe/GPX, HomeGallery, Riepiloghi e configurazione delle nuove pagine."
+version: "1.4-02"
+versionDate: 2026-10-26
 pageDecoration.prefix: "📔 "
-share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario.md"
 files:
   - Mio_Diario/Page Templates/Diario.md
   - Mio_Diario/Page Templates/Luogo.md
@@ -13,7 +12,7 @@ files:
 
 # 📔 Mio Diario
 
-**Versione consolidata:** 1.4-01 — 06.10.2026
+**Versione consolidata:** 1.4-02 — 26.10.2026
 
 Questa pagina è la sola libreria `Mio_Diario` da installare. Riunisce le implementazioni definitive contenute nelle precedenti librerie `Mio_Diario_*` senza cambiare il modello dati Markdown.
 
@@ -23,7 +22,7 @@ Questa pagina è la sola libreria `Mio_Diario` da installare. Riunisce le implem
 - `Diario/`, `luoghi/` e `Viaggi/` mantengono struttura e frontmatter già adottati;
 - le relazioni geografiche derivano prioritariamente dai path `luoghi/...`;
 - `divisioneIntermedia` conserva il codice ISO 3166-2 quando il livello amministrativo non è materializzato nel path;
-- le viste, mappe, GPX, PhotoGallery e riepiloghi sono dati derivati e non richiedono persistenza aggiuntiva;
+- le viste, mappe, GPX, HomeGallery e riepiloghi sono dati derivati e non richiedono persistenza aggiuntiva;
 - non vengono introdotte modifiche automatiche alle note oltre ai comandi espliciti di creazione/verifica Luogo già presenti.
 
 ## Componenti consolidate
@@ -34,7 +33,7 @@ Questa pagina è la sola libreria `Mio_Diario` da installare. Riunisce le implem
 | `Mio_Diario_Configurazioni.md` | incorporata | questa libreria |
 | `Mio_Diario_Indice.md` | incorporata | questa libreria |
 | `Mio_Diario_LuoghiMappa.md` | incorporata | questa libreria |
-| `Mio_Diario_Photo_Gallery.md` | incorporata | questa libreria |
+| `Mio_Diario_Photo_Gallery.md` | sostituita da HomeGallery | questa libreria |
 | `Mio_Diario_Riepiloghi.md` | incorporata | questa libreria |
 | `Mio_Diario_Configurazioni/Page Templates/Diario` | spostata | `Library/MG/Mio_Diario/Page Templates/Diario` |
 | `Mio_Diario_Configurazioni/Page Templates/Luogo` | spostata | `Library/MG/Mio_Diario/Page Templates/Luogo` |
@@ -54,14 +53,14 @@ Dopo il collaudo della versione consolidata le vecchie librerie `Mio_Diario_*` n
 - dataset ISO 3166-2 configurato in `luoghi.iso3166_2.url`; in caso di indisponibilità resta il fallback al codice ISO;
 - Wikipedia/Wikidata tramite `net.proxyFetch` per creazione e verifica esplicita delle pagine Luogo;
 - Leaflet 1.9.4 e tile OpenStreetMap nel sandbox delle mappe;
-- servizio PhotoGallery WebUI/API configurato in `photoGalleryConfig`;
+- servizio HomeGallery WebUI su `https://gallery.fm-nas.net`, utilizzato tramite link di ricerca;
 - documenti GPX presenti nello Space e indicizzati da SilverBullet.
 
 L'assenza di una dipendenza accessoria deve degradare soltanto la funzione interessata; non modifica il Markdown del Diario.
 
-## Configurazione PhotoGallery canonica
+## Configurazione HomeGallery
 
-`photoGalleryConfig.webUiBase` è la sorgente unica dell'URL full-page usato sia dalle API PhotoGallery sia dai link 📷 del Diario. Gli endpoint API restano `photoGalleryConfig.apiBase` e `photoGalleryConfig.apiBatch`.
+`homeGallery.baseUrl` è l’indirizzo della WebUI. Le ricerche vengono generate localmente senza chiamate API e senza modificare le note.
 
 ## Page Template
 
@@ -1167,17 +1166,8 @@ function widgets.mediaLinksForDate(
     )
   end
 
-  local photoUrl =
-    photoGalleryFullUrl(iso)
-
-  if photoUrl then
-    table.insert(
-      links,
-      "[📷]("
-        .. photoUrl
-        .. ")"
-    )
-  end
+  local photoUrl = homeGallery.day(iso)
+  if photoUrl then table.insert(links, "[📷](" .. photoUrl .. ")") end
 
   return table.concat(links, " ")
 end
@@ -1516,9 +1506,11 @@ function widgets.infoViaggioLuoghi(
       diarioInfo
     )
 
+  local tripUrl = homeGallery.trip(pageName)
   local text =
     "**Luoghi visitati** "
       .. luoghi.mapLink(pageName)
+      .. (tripUrl and (" [📷](" .. tripUrl .. ")") or "")
 
   if #values > 0 then
     text = text
@@ -1601,6 +1593,9 @@ function widgets.topLuogo(pageName)
     and p.displayName
     or luoghi.basename(pageName)
 
+  local galleryUrl = homeGallery.place(p)
+  if galleryUrl then titolo = titolo .. " [📷](" .. galleryUrl .. ")" end
+
   local tipo =
     luoghi.renderTipo(p)
 
@@ -1668,7 +1663,7 @@ end
 
 
 -- Media del Top Diario: GPX verificato nell'indice locale;
--- PhotoGallery è un link deterministico e non esegue preflight HTTP.
+-- HomeGallery è un link deterministico e non esegue preflight HTTP.
 function widgets.topMediaLinksForDate(value)
   local iso = luoghi.isoDate(value)
 
@@ -1687,17 +1682,8 @@ function widgets.topMediaLinksForDate(value)
     )
   end
 
-  local photoUrl =
-    photoGalleryFullUrl(iso)
-
-  if photoUrl then
-    table.insert(
-      links,
-      "[📷]("
-        .. photoUrl
-        .. ")"
-    )
-  end
+  local photoUrl = homeGallery.day(iso)
+  if photoUrl then table.insert(links, "[📷](" .. photoUrl .. ")") end
 
   return table.concat(links, " ")
 end
@@ -3455,7 +3441,7 @@ function indiceDiario.renderYear(year)
   end
 
   local rows = {
-    "## Riepilogo " .. tostring(y), "",
+    "## Riepilogo " .. tostring(y) .. " " .. homeGallery.link("year:" .. tostring(y)), "",
     tostring(#entries) .. (#entries == 1 and " giornata" or " giornate"), "",
     "### Mesi"
   }
@@ -3465,10 +3451,11 @@ function indiceDiario.renderYear(year)
     local count = monthCounts[month]
     if count and count > 0 then
       table.insert(rows, string.format(
-        "- [[Diario:%04d:%02d|%s]] — %d %s",
+        "- [[Diario:%04d:%02d|%s]] [📷](%s) — %d %s",
         y,
         month,
         cfg.MONTHS[month] or string.format("%02d", month),
+        homeGallery.month(y, month),
         count,
         count == 1 and "giornata" or "giornate"
       ))
@@ -3496,7 +3483,10 @@ function indiceDiario.renderYear(year)
   if #viaggi == 0 then
     table.insert(rows, "Nessun viaggio registrato.")
   else
-    for _, viaggio in ipairs(viaggi) do table.insert(rows, "- " .. viaggio) end
+    for _, viaggio in ipairs(viaggi) do
+      local url = homeGallery.trip(viaggio)
+      table.insert(rows, "- " .. viaggio .. (url and (" [📷](" .. url .. ")") or ""))
+    end
   end
 
   local countries = {}
@@ -3676,7 +3666,8 @@ function indiceDiario.renderMonth(period)
   local monthName = cfg.MONTHS[m] or string.format("%02d", m)
 
   return indiceDiario.renderPeriod(
-    "Diario — " .. monthName .. " " .. tostring(y),
+    "Diario — " .. monthName .. " " .. tostring(y)
+      .. " [📷](" .. homeGallery.month(y, m) .. ")",
     entries
   )
 end
@@ -4879,162 +4870,74 @@ function widgets.StatisticheDiario()
 end
 ```
 
-## Implementazione — PhotoGallery
+## Implementazione — HomeGallery
+
+I collegamenti sono generati dal contenuto Markdown. La ricerca per luogo usa `OR` fra `displayName` e `aliases`; per i viaggi si usa il nome come ricerca testuale libera. Gli URL non verificano preventivamente la presenza di fotografie.
 
 ```space-lua
-photoGalleryConfig = photoGalleryConfig or {
-  webUiBase =
-    "https://sb2.fm-nas.net/gallery/",
+homeGallery = homeGallery or {}
+homeGallery.baseUrl = "https://gallery.fm-nas.net/search/"
 
-  apiBase =
-    "https://sb2.fm-nas.net/api/gallery/",
-
-  apiBatch =
-    "https://sb2.fm-nas.net/api/gallery",
-
-  batchMax =
-    64,
-
-  diaryPagePrefix =
-    "Diario/",
-}
-
-
-photoGalleryConfig.apiBatch =
-  photoGalleryConfig.apiBatch
-  or "https://sb2.fm-nas.net/api/gallery"
-
-photoGalleryConfig.batchMax =
-  photoGalleryConfig.batchMax
-  or 64
-
-
-photoGalleryInfoCache =
-  photoGalleryInfoCache
-  or {}
-
-
-
-function photoGalleryFullUrl(date)
-  local iso = luoghi.isoDate(date)
-
-  if not iso then
-    return nil
-  end
-
-  return
-    photoGalleryConfig.webUiBase
-    .. iso
+function homeGallery.encode(value)
+  return (tostring(value or ""):gsub("([^%w%-_%.~])", function(c)
+    return string.format("%%%02X", string.byte(c))
+  end))
 end
 
-
-function photoGalleryInfo(date)
-  date = luoghi.isoDate(date)
-
-  if not date then
-    return nil
-  end
-
-  if photoGalleryInfoCache[date] ~= nil then
-    local cached =
-      photoGalleryInfoCache[date]
-
-    return cached ~= false
-      and cached
-      or nil
-  end
-
-  local response =
-    net.proxyFetch(
-      photoGalleryConfig.apiBase
-        .. date
-    )
-
-  if not response
-    or not response.ok
-    or type(response.body) ~= "table"
-  then
-    photoGalleryInfoCache[date] = false
-    return nil
-  end
-
-  photoGalleryInfoCache[date] =
-    response.body
-
-  return response.body
+function homeGallery.search(expression)
+  if type(expression) ~= "string" or expression == "" then return nil end
+  return homeGallery.baseUrl .. homeGallery.encode(expression)
 end
 
-
-function photoGalleryHasPhotos(date)
-  local info =
-    photoGalleryInfo(date)
-
-  if not info then
-    return false
-  end
-
-  return info.exists ~= false
-    and tonumber(info.count or 0) > 0
+function homeGallery.link(expression)
+  local url = homeGallery.search(expression)
+  return url and ("[📷](" .. url .. ")") or ""
 end
 
+function homeGallery.day(value)
+  local iso = luoghi.isoDate(value)
+  if not iso then return nil end
+  local y, m, d = iso:match("^(%d%d%d%d)%-(%d%d)%-(%d%d)$")
+  return homeGallery.search('path ~ "' .. d .. '-' .. m .. '-' .. y .. '"')
+end
 
-function photoGalleryAvailability(dates)
-  local result = {}
-  local pending = {}
-  local seen = {}
+function homeGallery.year(year)
+  local y = tostring(year or "")
+  return y:match("^%d%d%d%d$") and homeGallery.search("year:" .. y) or nil
+end
 
-  for _, value in ipairs(dates or {}) do
-    local date = luoghi.isoDate(value)
+function homeGallery.month(year, month)
+  local y, m = tostring(year or ""), tonumber(month)
+  if not y:match("^%d%d%d%d$") or not m or m < 1 or m > 12 then return nil end
+  return homeGallery.search("year:" .. y .. " month:" .. tostring(m))
+end
 
-    if date and not seen[date] then
-      seen[date] = true
-
-      local cached = photoGalleryInfoCache[date]
-
-      if cached ~= nil then
-        result[date] =
-          cached ~= false
-          and cached.exists ~= false
-          and tonumber(cached.count or 0) > 0
-      else
-        table.insert(pending, date)
-      end
-    end
+function homeGallery.place(p)
+  if type(p) ~= "table" then return nil end
+  local terms, seen = {}, {}
+  local function add(value)
+    if type(value) ~= "string" or value == "" then return end
+    local key = string.lower(value)
+    if seen[key] then return end
+    seen[key] = true
+    table.insert(terms, '"' .. value:gsub('"', '\\"') .. '"')
   end
-
-  local batchMax = tonumber(photoGalleryConfig.batchMax) or 64
-
-  for first = 1, #pending, batchMax do
-    local batch = {}
-
-    for i = first, math.min(first + batchMax - 1, #pending) do
-      table.insert(batch, pending[i])
-    end
-
-    local response = net.proxyFetch(
-      photoGalleryConfig.apiBatch
-        .. "?dates="
-        .. table.concat(batch, ",")
-    )
-
-    if response
-      and response.ok
-      and type(response.body) == "table"
-    then
-      for _, date in ipairs(batch) do
-        local info = response.body[date]
-
-        if type(info) == "table" then
-          photoGalleryInfoCache[date] = info
-          result[date] =
-            info.exists ~= false
-            and tonumber(info.count or 0) > 0
-        end
-      end
-    end
+  add(p.displayName or (p.name and luoghi.basename(p.name)))
+  if type(p.aliases) == "table" then
+    for _, alias in ipairs(p.aliases) do add(alias) end
+  elseif type(p.aliases) == "string" then
+    add(p.aliases)
   end
+  if #terms == 0 then return nil end
+  return homeGallery.search(table.concat(terms, " or "))
+end
 
-  return result
+function homeGallery.trip(value)
+  local target = luoghi.wikilinkTarget(value)
+  local label = luoghi.wikilinkLabel(value)
+    or (target and luoghi.basename(target))
+    or (type(value) == "string" and luoghi.basename(value))
+  return label and homeGallery.search(label) or nil
 end
 ```
 
