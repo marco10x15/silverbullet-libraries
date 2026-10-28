@@ -2,7 +2,7 @@
 name: "Library/MG/DateFormat"
 tags: meta/library
 pageDecoration.prefix: "⏳ "
-version: 0.7
+version: 0.71
 share.uri: "github:marco10x15/silverbullet-libraries/DateFormat.md"
 ---
 
@@ -960,6 +960,61 @@ function date.diffText(a, b, formato, compatta)
 
   local ultima = table.remove(parti)
   return table.concat(parti, ", ") .. " e " .. ultima
+end
+
+
+-- Somma n giorni (anche negativi) a una data ISO.
+-- I giorni eccedenti vengono normalizzati nel mese successivo.
+-- Non usa os.time e non dipende dal fuso orario.
+-- Restituisce nil per formato non valido o n non intero.
+function date.addDays(dataISO, n)
+  if type(dataISO) ~= "string"
+    or type(n) ~= "number"
+    or n ~= math.floor(n)
+  then
+    return nil
+  end
+
+  local anno, mese, giorno = string.match(
+    dataISO,
+    "^(%d%d%d%d)%-(%d%d)%-(%d%d)$"
+  )
+  if not anno then return nil end
+
+  anno, mese, giorno =
+    tonumber(anno), tonumber(mese), tonumber(giorno)
+
+  if mese < 1 or mese > 12
+    or giorno < 1
+    or giorno > 99
+  then
+    return nil
+  end
+
+  giorno = giorno + n
+
+  while giorno > giorni_del_mese(anno, mese) do
+    giorno = giorno - giorni_del_mese(anno, mese)
+    mese = mese + 1
+    if mese > 12 then
+      mese = 1
+      anno = anno + 1
+    end
+  end
+
+  while giorno < 1 do
+    mese = mese - 1
+    if mese < 1 then
+      mese = 12
+      anno = anno - 1
+    end
+    giorno = giorno + giorni_del_mese(anno, mese)
+  end
+
+  return string.format(
+    "%04d-%02d-%02d",
+    anno, mese, giorno
+  )
 end
 ```
 
