@@ -2,18 +2,17 @@
 name: "Library/MG/Mio_Diario"
 tags: meta/library
 description: "Libreria consolidata Markdown-first per Diario, Luoghi, Viaggi, Indice, Mappe/GPX, HomeGallery, Riepiloghi e configurazione delle nuove pagine."
-version: "1.4-03"
-versionDate: 2026-10-26
+version: "1.4-03a"
+versionDate: 2026-10-28
 pageDecoration.prefix: "📔 "
 files:
   - Mio_Diario/Page Templates/Diario.md
   - Mio_Diario/Page Templates/Luogo.md
-share.uri: "github:marco10x15/silverbullet-libraries/Mio_Diario.md"
 ---
 
 # 📔 Mio Diario
 
-**Versione consolidata:** 1.4-03 — 26.10.2026
+**Versione consolidata:** 1.4-03 — 28.10.2026
 
 Questa pagina è la sola libreria `Mio_Diario` da installare. Riunisce le implementazioni definitive contenute nelle precedenti librerie `Mio_Diario_*` senza cambiare il modello dati Markdown.
 
@@ -4471,7 +4470,6 @@ end
 -- RICORDI CASUALI
 -- ============================================================
 
-
 function riepiloghi.renderRicordiCasuali(n)
   ensureRandomSeed()
   n = clampN(n, 3)
@@ -4480,44 +4478,31 @@ function riepiloghi.renderRicordiCasuali(n)
   local places = riepiloghi.placeStats()
 
   local rows = {
-    "## Ricordi a caso"
+    "## Ricordi a caso",
+    ""
   }
 
-  -- Ricordi: data, galleria, titolo
   for _, entry in ipairs(randomSample(entries, n)) do
-    local photoUrl = homeGallery.day(entry.date)
-    local photoLink = photoUrl
-      and ("[📷](" .. photoUrl .. ")")
-      or ""
-
     table.insert(
       rows,
       string.format(
-        "%s %s %s  ",
+        "- %s — %s",
         dateLabel(entry.date),
-        photoLink,
         pageLink(entry.path, entry.title)
       )
     )
   end
 
-  -- Separazione tra le sezioni
-  table.insert(rows, " ")
-  table.insert(rows, " ")
+  table.insert(rows, "")
   table.insert(rows, "## Luoghi in cui siamo stati")
-  -- table.insert(rows, "")
-
-  -- Luoghi sulla stessa riga, separati da virgole
-  local links = {}
+  table.insert(rows, "")
 
   for _, item in ipairs(randomSample(places, n)) do
     table.insert(
-      links,
-      pageLink(item.name, pageLabel(item.page))
+      rows,
+      "- " .. pageLink(item.name, pageLabel(item.page))
     )
   end
-
-  table.insert(rows, table.concat(links, ", "))
 
   return table.concat(rows, "\n")
 end
@@ -4887,7 +4872,7 @@ end
 
 ## Implementazione — HomeGallery
 
-I collegamenti sono generati dal contenuto Markdown. La ricerca per luogo usa `OR` fra `displayName` e `aliases`; per i viaggi si usa il nome come ricerca testuale libera. Gli URL non verificano preventivamente la presenza di fotografie.
+I collegamenti sono generati dal contenuto Markdown. La ricerca per luogo usa `OR` fra `displayName` e `aliases`; per i viaggi si usa il nome come ricerca testuale libera. La ricerca per giorno usa `year`, `month`, `day` (metadati temporali), senza dipendere dal percorso delle fotografie. Gli URL non verificano preventivamente la presenza di fotografie.
 
 ```space-lua
 homeGallery = homeGallery or {}
@@ -4913,7 +4898,7 @@ function homeGallery.day(value)
   local iso = luoghi.isoDate(value)
   if not iso then return nil end
   local y, m, d = iso:match("^(%d%d%d%d)%-(%d%d)%-(%d%d)$")
-  return homeGallery.search('path ~ "' .. d .. '-' .. m .. '-' .. y .. '"')
+  return homeGallery.search("year:" .. y .. " month:" .. tonumber(m) .. " day:" .. tonumber(d))
 end
 
 function homeGallery.year(year)
