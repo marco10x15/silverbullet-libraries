@@ -2,8 +2,8 @@
 name: "Library/MG/Mio_Diario"
 tags: meta/library
 description: "Libreria consolidata Markdown-first per Diario, Luoghi, Viaggi, Indice, Mappe/GPX, HomeGallery, Riepiloghi e configurazione delle nuove pagine."
-version: "1.4-03a"
-versionDate: 2026-10-28
+version: "1.4-04"
+versionDate: 2026-11-09
 pageDecoration.prefix: "📔 "
 files:
   - Mio_Diario/Page Templates/Diario.md
@@ -12,9 +12,21 @@ files:
 
 # 📔 Mio Diario
 
-**Versione consolidata:** 1.4-03 — 28.10.2026
+**Versione consolidata:** 1.4-04 — 09.11.2026
 
 Questa pagina è la sola libreria `Mio_Diario` da installare. Riunisce le implementazioni definitive contenute nelle precedenti librerie `Mio_Diario_*` senza cambiare il modello dati Markdown.
+
+## Modifiche 1.4-04
+
+- aggiunta la visualizzazione Leaflet multi-GPX per le pagine `Viaggi/...`;
+- i GPX delle singole giornate restano documenti indipendenti e vengono uniti soltanto nel rendering;
+- aggiunta `gpxPathsForViaggio(pageName)` per ricavare automaticamente i GPX dalle giornate del viaggio;
+- `gpxMap()` accetta ora un singolo GPX, una lista di GPX oppure una pagina `Viaggi/...`;
+- nella vista viaggio le giornate sono distinte con una palette ad alto contrasto: rosso, blu, arancione, viola, verde acqua scuro e grigio ardesia;
+- aggiunta una legenda data/colore e il calcolo cumulativo di distanza e dislivello;
+- i filtri orari restano attivi per il singolo giorno e sono nascosti nella modalità viaggio;
+- aggiunta la Virtual Page `GPX/Viaggio/<nome viaggio>` e il relativo link 🧭 nella pagina Viaggio;
+- corretta `gpxPathForPage()`, che ora usa direttamente la data ISO restituita da `gpxPageDate()`.
 
 ## Invarianti
 
@@ -897,7 +909,6 @@ function luoghi.renderSuddivisione(p)
 
   if #divisioni > 0 then
     local links = {}
-
     for _, code in ipairs(divisioni) do
       table.insert(
         links,
@@ -1507,9 +1518,37 @@ function widgets.infoViaggioLuoghi(
     )
 
   local tripUrl = homeGallery.trip(pageName)
+
+  local gpxLink = ""
+
+  if type(gpxPathsForViaggio)
+      == "function"
+  then
+    local sources =
+      gpxPathsForViaggio(
+        pageName
+      )
+
+    if sources
+      and #sources > 0
+    then
+      local tripName =
+        string.sub(
+          pageName,
+          #"Viaggi/" + 1
+        )
+
+      gpxLink =
+        " [[GPX/Viaggio/"
+        .. tripName
+        .. "|🧭]]"
+    end
+  end
+
   local text =
     "**Luoghi visitati** "
       .. luoghi.mapLink(pageName)
+      .. gpxLink
       .. (tripUrl and (" [📷](" .. tripUrl .. ")") or "")
 
   if #values > 0 then
@@ -3121,14 +3160,14 @@ local function indiceDiarioTagLinks(value)
     for tag in value:gmatch("%S+") do
       tag = tag:gsub("^#", "")
       if tag ~= "" then
-        table.insert(tags, "[[tag:" .. tag .. "|#" .. tag .. "]]")
+        table.insert(tags, "[[tag:" .. tag .. "|#" .. tag .. "]]" )
       end
     end
   elseif type(value) == "table" then
     for _, rawTag in ipairs(value) do
       if type(rawTag) == "string" and rawTag ~= "" then
         local tag = rawTag:gsub("^#", "")
-        table.insert(tags, "[[tag:" .. tag .. "|#" .. tag .. "]]")
+        table.insert(tags, "[[tag:" .. tag .. "|#" .. tag .. "]]" )
       end
     end
   end
@@ -5566,7 +5605,7 @@ function gpxPathForPage(pageName)
     return nil
   end
 
-  return gpxPathForDate(d.iso)
+  return gpxPathForDate(d)
 end
 
 
@@ -5621,6 +5660,198 @@ end
 
 
 
+-- Restituisce tutti i GPX associati alle giornate di un viaggio.
+--
+-- Le giornate vengono ricavate da viaggiDiarioInfo(), già ordinate
+-- per data. I file GPX non vengono modificati né concatenati
+-- fisicamente: restano documenti indipendenti nello Space.
+function gpxPathsForViaggio(pageName)
+  pageName =
+    pageName
+    or editor.getCurrentPage()
+
+  if not string.startsWith(
+    pageName,
+    "Viaggi/"
+  ) then
+    return {}
+  end
+
+  local result = {}
+
+  local diarioInfo =
+    viaggiDiarioInfo(pageName)
+    or {}
+
+  for _, info in ipairs(diarioInfo) do
+    local iso =
+      luoghi.isoDate(info.date)
+
+    if iso then
+      local path =
+        gpxPathForDate(iso)
+
+      if path then
+        table.insert(
+          result,
+          {
+            date = iso,
+            page = info.page,
+            path = path
+          }
+        )
+      end
+    end
+  end
+
+  return result
+end
+
+
+-- Ricava, quando possibile, la data ISO dal nome del GPX.
+local function gpxDateFromPath(path)
+  if not path then
+    return nil
+  end
+
+  local iso =
+    string.match(
+      path,
+      "^media/(%d%d%d%d%-%d%d%-%d%d)"
+    )
+
+  if iso then
+    return iso
+  end
+
+  local y, m, d =
+    string.match(
+      path,
+      "^media/(%d%d%d%d)(%d%d)(%d%d)"
+    )
+
+  if y then
+    return y .. "-" .. m .. "-" .. d
+  end
+
+  return nil
+end
+
+
+-- Normalizza tutte le modalità di chiamata di gpxMap() in una
+-- lista uniforme di sorgenti.
+local function gpxResolveSources(
+  source,
+  options
+)
+  options = options or {}
+
+  -- GPX singolo passato come path.
+  if type(source) == "string" then
+    return {
+      {
+        path = source,
+        date = gpxDateFromPath(source)
+      }
+    }
+  end
+
+  -- Lista esplicita di GPX o di descrittori {date,page,path}.
+  if type(source) == "table"
+    and source[1] ~= nil
+  then
+    local result = {}
+
+    for _, item in ipairs(source) do
+      if type(item) == "string" then
+        table.insert(
+          result,
+          {
+            path = item,
+            date = gpxDateFromPath(item)
+          }
+        )
+      elseif type(item) == "table"
+        and item.path
+      then
+        table.insert(
+          result,
+          item
+        )
+      end
+    end
+
+    return result
+  end
+
+  local pageName =
+    options.pageName
+    or editor.getCurrentPage()
+
+  if not pageName then
+    return {}
+  end
+
+  -- Pagina Viaggio: raccoglie tutti i GPX delle giornate.
+  if string.startsWith(
+    pageName,
+    "Viaggi/"
+  ) then
+    return gpxPathsForViaggio(
+      pageName
+    )
+  end
+
+  -- Pagina Diario: comportamento storico.
+  local iso =
+    gpxPageDate(pageName)
+
+  if not iso then
+    return {}
+  end
+
+  local path =
+    gpxPathForDate(iso)
+
+  if not path then
+    return {}
+  end
+
+  return {
+    {
+      date = iso,
+      page = pageName,
+      path = path
+    }
+  }
+end
+
+
+-- Converte le sorgenti lette in un array JavaScript utilizzato
+-- dal sandbox Leaflet.
+local function gpxSourcesJavascript(
+  sources
+)
+  local rows = {}
+
+  for _, source in ipairs(sources) do
+    table.insert(
+      rows,
+      "{"
+        .. "date:" .. jsString(source.date or "") .. ","
+        .. "page:" .. jsString(source.page or "") .. ","
+        .. "path:" .. jsString(source.path or "") .. ","
+        .. "data:" .. jsString(source.data or "")
+        .. "}"
+    )
+  end
+
+  return "["
+    .. table.concat(rows, ",")
+    .. "]"
+end
+
+
 
 -- ============================================================
 -- GPX: LETTURA E RENDERING
@@ -5645,51 +5876,75 @@ local function gpxRead(path)
 end
 
 
-function gpxMap(path, options)
-  if type(path) == "table"
+function gpxMap(source, options)
+  -- Mantiene la chiamata storica:
+  --
+  -- gpxMap({pageName = "..."})
+  --
+  -- distinguendola da una lista di sorgenti GPX.
+  if type(source) == "table"
+    and source[1] == nil
     and options == nil
   then
-    options = path
-    path = nil
+    options = source
+    source = nil
   end
 
   options = options or {}
 
-  if not path then
-    path =
-      gpxPathForPage(
-        options.pageName
-        or editor.getCurrentPage()
+  local sources =
+    gpxResolveSources(
+      source,
+      options
+    )
+
+  if not sources
+    or #sources == 0
+  then
+    if options.silentEmpty then
+      return nil
+    end
+
+    return widget.markdownBlock(
+      "_Nessun file GPX associato._"
+    )
+  end
+
+  -- Legge separatamente tutti i GPX. Non viene creato alcun
+  -- documento GPX concatenato nello Space.
+  local readable = {}
+
+  for _, item in ipairs(sources) do
+    local data =
+      gpxRead(item.path)
+
+    if data then
+      table.insert(
+        readable,
+        {
+          date = item.date,
+          page = item.page,
+          path = item.path,
+          data = encoding.base64Encode(data)
+        }
       )
+    end
   end
 
-  if not path then
+  if #readable == 0 then
     if options.silentEmpty then
       return nil
     end
 
     return widget.markdownBlock(
-      "_Nessun file GPX associato alla pagina._"
+      "_Impossibile leggere i file GPX associati._"
     )
   end
 
-  local data =
-    gpxRead(path)
-
-  if not data then
-    if options.silentEmpty then
-      return nil
-    end
-
-    return widget.markdownBlock(
-      "_Impossibile leggere `"
-        .. tostring(path)
-        .. "`._"
+  local gpxSourcesData =
+    gpxSourcesJavascript(
+      readable
     )
-  end
-
-  local gpxBase64 =
-    encoding.base64Encode(data)
 
   return widget.sandbox {
     html = [[
@@ -5713,19 +5968,36 @@ function gpxMap(path, options)
             </div>
           </div>
         </div>
+        <div id="gpx-legend" class="gpx-legend"></div>
         <div id="gpx-status" class="gpx-status"></div>
         <div id="gpx-stats" class="gpx-stats"></div>
         <div id="gpx-map" class="gpx-map"></div>
       </div>
     ]],
 
-    script = [[
-      const gpxBase64 = "]] ..
-      gpxBase64 ..
-      [[";
+    script =
+      "const gpxSources = "
+      .. gpxSourcesData
+      .. ";\n"
+      .. [[
 
       const TIME_ZONE = "Europe/Rome";
       const GAP_LIMIT_MS = 15 * 60 * 1000;
+
+      const multiMode =
+        gpxSources.length > 1;
+
+      // Palette ad alto contrasto per le giornate del viaggio.
+      // I primi due colori sono rosso e blu.
+      const TRIP_COLORS = [
+        "#D32F2F",
+        "#1565C0",
+        "#F57C00",
+        "#7B1FA2",
+        "#00897B",
+        "#455A64"
+      ];
+
       const COLORS = {
         morning: "#D1495B",
         afternoon: "#2F6FB0",
@@ -6084,7 +6356,15 @@ function gpxMap(path, options)
                     ? currentBand
                     : mode === "custom"
                       ? "custom"
-                      : mode
+                      : mode,
+                tripIndex:
+                  current[0]
+                    ? current[0].tripIndex
+                    : 0,
+                tripDate:
+                  current[0]
+                    ? current[0].tripDate
+                    : ""
               });
             }
 
@@ -6125,6 +6405,7 @@ function gpxMap(path, options)
                 );
               const bandChanged =
                 mode === "all"
+                && !multiMode
                 && pointBand !== currentBand;
 
               if (!continuous) {
@@ -6397,6 +6678,13 @@ function gpxMap(path, options)
           + " km"
         ];
 
+        if (multiMode) {
+          parts.push(
+            "Giornate: "
+            + gpxSources.length
+          );
+        }
+
         if (elevation) {
           parts.push(
             "Dislivello: +"
@@ -6410,7 +6698,8 @@ function gpxMap(path, options)
         }
 
         if (
-          extent
+          !multiMode
+          && extent
           && extent.durationMs !== null
         ) {
           const duration =
@@ -6424,6 +6713,73 @@ function gpxMap(path, options)
         target.textContent =
           parts.join(" · ");
       }
+
+      function renderTripLegend() {
+        const target =
+          document.getElementById(
+            "gpx-legend"
+          );
+
+        if (!target) {
+          return;
+        }
+
+        if (!multiMode) {
+          target.style.display =
+            "none";
+          return;
+        }
+
+        target.innerHTML = "";
+
+        for (
+          let i = 0;
+          i < gpxSources.length;
+          i++
+        ) {
+          const source =
+            gpxSources[i];
+
+          const item =
+            document.createElement(
+              "span"
+            );
+
+          item.className =
+            "gpx-legend-item";
+
+          const marker =
+            document.createElement(
+              "span"
+            );
+
+          marker.className =
+            "gpx-legend-color";
+
+          marker.style.background =
+            TRIP_COLORS[
+              i % TRIP_COLORS.length
+            ];
+
+          const label =
+            document.createElement(
+              "span"
+            );
+
+          label.textContent =
+            source.date
+            || (
+              "Traccia "
+              + String(i + 1)
+            );
+
+          item.appendChild(marker);
+          item.appendChild(label);
+
+          target.appendChild(item);
+        }
+      }
+
 
       function renderStatus() {
         const target =
@@ -6500,8 +6856,15 @@ function gpxMap(path, options)
             ),
             {
               color:
-                COLORS[segment.band]
-                || COLORS.custom,
+                multiMode
+                  ? TRIP_COLORS[
+                      segment.tripIndex
+                      % TRIP_COLORS.length
+                    ]
+                  : (
+                      COLORS[segment.band]
+                      || COLORS.custom
+                    ),
               weight: 4,
               opacity: 0.88
             }
@@ -6723,6 +7086,12 @@ function gpxMap(path, options)
             "gpx-range-end"
           );
 
+        if (multiMode) {
+          controls.style.display =
+            "none";
+          return;
+        }
+
         if (parsedTrack.timedPoints === 0) {
           controls.classList.add("disabled");
           controls
@@ -6876,6 +7245,24 @@ function gpxMap(path, options)
             pointer-events:auto;
             cursor:pointer;
           }
+          .gpx-legend {
+            display:flex;
+            flex-wrap:wrap;
+            gap:6px 14px;
+            margin:0 0 8px 0;
+            font-size:12px;
+          }
+          .gpx-legend-item {
+            display:inline-flex;
+            align-items:center;
+            gap:5px;
+          }
+          .gpx-legend-color {
+            display:inline-block;
+            width:18px;
+            height:5px;
+            border-radius:2px;
+          }
           .gpx-status {
             display:none;
             margin:0 0 7px 0;
@@ -6944,24 +7331,96 @@ function gpxMap(path, options)
 
         document.head.appendChild(css);
 
-        const xmlText =
-          decodeBase64Utf8(gpxBase64);
-        const xml =
-          new DOMParser()
-            .parseFromString(
-              xmlText,
-              "application/xml"
+        const combined = {
+          segments: [],
+          validPoints: 0,
+          timedPoints: 0,
+          elevationPoints: 0,
+          invalidCoordinatePoints: 0,
+          invalidTimePoints: 0
+        };
+
+        for (
+          let sourceNumber = 0;
+          sourceNumber < gpxSources.length;
+          sourceNumber++
+        ) {
+          const source =
+            gpxSources[sourceNumber];
+
+          const xmlText =
+            decodeBase64Utf8(
+              source.data
             );
 
-        if (xml.querySelector("parsererror")) {
-          throw new Error("GPX XML non valido");
+          const xml =
+            new DOMParser()
+              .parseFromString(
+                xmlText,
+                "application/xml"
+              );
+
+          if (
+            xml.querySelector(
+              "parsererror"
+            )
+          ) {
+            throw new Error(
+              "GPX XML non valido: "
+              + (
+                source.path
+                || source.date
+                || String(sourceNumber + 1)
+              )
+            );
+          }
+
+          const parsed =
+            parseTrack(xml);
+
+          for (
+            const segment of
+            parsed.segments
+          ) {
+            for (
+              const point of segment
+            ) {
+              point.tripIndex =
+                sourceNumber;
+
+              point.tripDate =
+                source.date || "";
+            }
+
+            combined.segments.push(
+              segment
+            );
+          }
+
+          combined.validPoints +=
+            parsed.validPoints;
+
+          combined.timedPoints +=
+            parsed.timedPoints;
+
+          combined.elevationPoints +=
+            parsed.elevationPoints;
+
+          combined.invalidCoordinatePoints +=
+            parsed.invalidCoordinatePoints;
+
+          combined.invalidTimePoints +=
+            parsed.invalidTimePoints;
         }
 
-        parsedTrack = parseTrack(xml);
+        parsedTrack =
+          combined;
 
-        if (parsedTrack.validPoints === 0) {
+        if (
+          parsedTrack.validPoints === 0
+        ) {
           throw new Error(
-            "Nessun punto traccia valido nel GPX"
+            "Nessun punto traccia valido nei GPX"
           );
         }
 
@@ -6977,6 +7436,7 @@ function gpxMap(path, options)
           }
         ).addTo(map);
 
+        renderTripLegend();
         renderStatus();
         bindControls();
         applyPreset("all");
@@ -7004,10 +7464,52 @@ function gpxMap(path, options)
 end
 
 
+
 virtualPage.define {
   pattern = "^GPX/(.+)$",
 
-  run = function(isoDate)
+  run = function(value)
+    -- --------------------------------------------
+    -- VIAGGIO
+    -- --------------------------------------------
+    if string.startsWith(
+      value,
+      "Viaggio/"
+    ) then
+      local tripName =
+        string.sub(
+          value,
+          #"Viaggio/" + 1
+        )
+
+      if tripName == "" then
+        return "_Viaggio non valido._"
+      end
+
+      local pageName =
+        "Viaggi/" .. tripName
+
+      local sources =
+        gpxPathsForViaggio(
+          pageName
+        )
+
+      if not sources
+        or #sources == 0
+      then
+        return "_Nessun file GPX associato al viaggio._"
+      end
+
+      return " ${gpxMap({pageName = "
+        .. spaceLuaString(pageName)
+        .. "})} "
+    end
+
+    -- --------------------------------------------
+    -- GIORNATA
+    -- --------------------------------------------
+    local isoDate = value
+
     if not string.match(
       isoDate,
       "^%d%d%d%d%-%d%d%-%d%d$"
@@ -7027,4 +7529,5 @@ virtualPage.define {
       .. ")} "
   end
 }
+
 ```
